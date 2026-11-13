@@ -374,12 +374,23 @@
 
   // Split a rich-text body into the user-composed part and the quoted /
   // forwarded part. The split point is the earliest of the reply
-  // <blockquote or the forwarded-message separator. No quote → the whole
-  // body is the user part and quoted is ''.
+  // <blockquote, the forwarded-message separator, or the reply citation
+  // paragraph ("On DATE, SENDER wrote:"). The citation matters because
+  // it sits in its own paragraph BEFORE the <blockquote> (app/compose.go
+  // builds "<p>citation</p><blockquote>..."), so splitting at the
+  // blockquote alone leaves the citation line in the user part — the
+  // extension then sees a "draft" that is just the citation line, the
+  // menu offers revision actions on an empty draft, and Insert drops
+  // the citation. The citation pattern is the one composerSignature
+  // already uses; a user paragraph ending in "wrote:" is the same
+  // accepted heuristic there. No quote → the whole body is the user
+  // part and quoted is ''.
   function splitRichBody(html: string): { userHtml: string; quotedHtml: string } {
     const blockquoteIndex = html.indexOf('<blockquote')
     const fwdIndex = html.indexOf(FWD_SEPARATOR)
-    const cutoffs = [blockquoteIndex, fwdIndex].filter(i => i > -1)
+    const wroteMatch = html.match(/<p[^>]*>(?:(?!<\/p>).)*wrote:\s*(<br[^>]*>)?\s*<\/p>/i)
+    const wroteIndex = wroteMatch?.index ?? -1
+    const cutoffs = [blockquoteIndex, fwdIndex, wroteIndex].filter(i => i > -1)
     if (cutoffs.length === 0) return { userHtml: html, quotedHtml: '' }
     const idx = Math.min(...cutoffs)
     return { userHtml: html.substring(0, idx), quotedHtml: html.substring(idx) }

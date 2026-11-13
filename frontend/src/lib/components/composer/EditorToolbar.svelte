@@ -549,7 +549,7 @@
   {/if}
 
   <!-- Plain text toggle -->
-  <div class="relative">
+  <div class="relative ml-2">
     <button
       onclick={onTogglePlainText}
       class="p-1.5 rounded hover:bg-muted transition-colors flex items-center gap-1.5 text-xs"

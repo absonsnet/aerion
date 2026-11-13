@@ -265,7 +265,7 @@
       disabled={triggerDisabled}
     >
       <Icon icon="mdi:pencil-outline" class="w-5 h-5" />
-      <span class="hidden sm:inline">{$_('aiwriting.button.label')}</span>
+      <span class="hidden lg:inline">{$_('aiwriting.button.label')}</span>
       <Icon icon="mdi:chevron-down" class="w-4 h-4" />
     </DropdownMenu.Trigger>
   </span>
