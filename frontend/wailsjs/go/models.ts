@@ -806,6 +806,20 @@ export namespace appstate {
 
 export namespace backend {
 	
+	export class ActionInfo {
+	    id: string;
+	    label: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ActionInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.label = source["label"];
+	    }
+	}
 	export class Attendee {
 	    email: string;
 	    cn?: string;
@@ -1294,6 +1308,38 @@ export namespace backend {
 	        this.writable = source["writable"];
 	    }
 	}
+	export class ImproveRequest {
+	    actionId: string;
+	    draftHtml: string;
+	    quotedHtml: string;
+	    isNewEmail: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new ImproveRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.actionId = source["actionId"];
+	        this.draftHtml = source["draftHtml"];
+	        this.quotedHtml = source["quotedHtml"];
+	        this.isNewEmail = source["isNewEmail"];
+	    }
+	}
+	export class ImproveResult {
+	    improvedHtml: string;
+	    subjects: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new ImproveResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.improvedHtml = source["improvedHtml"];
+	        this.subjects = source["subjects"];
+	    }
+	}
 	export class MicrosoftCalendarChoice {
 	    id: string;
 	    name: string;
@@ -1330,6 +1376,22 @@ export namespace backend {
 	        this.writable = source["writable"];
 	    }
 	}
+	export class ModelInfo {
+	    id: string;
+	    label: string;
+	    provider: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ModelInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.label = source["label"];
+	        this.provider = source["provider"];
+	    }
+	}
 	
 	
 	
@@ -1346,6 +1408,58 @@ export namespace backend {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.data = source["data"];
 	        this.mediaType = source["mediaType"];
+	    }
+	}
+	export class Settings {
+	    selectedModel: string;
+	    temperature: number;
+	    maxTokens: number;
+	    customApiEndpoint: string;
+	    customModel: string;
+	    promptImprove: string;
+	    useConversationHistory: boolean;
+	    hasApiKey: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new Settings(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.selectedModel = source["selectedModel"];
+	        this.temperature = source["temperature"];
+	        this.maxTokens = source["maxTokens"];
+	        this.customApiEndpoint = source["customApiEndpoint"];
+	        this.customModel = source["customModel"];
+	        this.promptImprove = source["promptImprove"];
+	        this.useConversationHistory = source["useConversationHistory"];
+	        this.hasApiKey = source["hasApiKey"];
+	    }
+	}
+	export class SettingsInput {
+	    selectedModel: string;
+	    temperature: number;
+	    maxTokens: number;
+	    customApiEndpoint: string;
+	    customModel: string;
+	    promptImprove: string;
+	    useConversationHistory: boolean;
+	    apiKey: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new SettingsInput(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.selectedModel = source["selectedModel"];
+	        this.temperature = source["temperature"];
+	        this.maxTokens = source["maxTokens"];
+	        this.customApiEndpoint = source["customApiEndpoint"];
+	        this.customModel = source["customModel"];
+	        this.promptImprove = source["promptImprove"];
+	        this.useConversationHistory = source["useConversationHistory"];
+	        this.apiKey = source["apiKey"];
 	    }
 	}
 	export class Source {
@@ -1386,6 +1500,22 @@ export namespace backend {
 	        this.createdAt = source["createdAt"];
 	        this.itipMode = source["itipMode"];
 	        this.organizerIdentities = source["organizerIdentities"];
+	    }
+	}
+	export class Status {
+	    enabled: boolean;
+	    hasApiKey: boolean;
+	    selectedModel: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Status(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.enabled = source["enabled"];
+	        this.hasApiKey = source["hasApiKey"];
+	        this.selectedModel = source["selectedModel"];
 	    }
 	}
 
@@ -2810,6 +2940,26 @@ export namespace v1 {
 	        this.sourceId = source["sourceId"];
 	        this.name = source["name"];
 	        this.path = source["path"];
+	    }
+	}
+	export class ComposerToolbarRequest {
+	    extensionId: string;
+	    label: string;
+	    icon: string;
+	    component: string;
+	    order?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new ComposerToolbarRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.extensionId = source["extensionId"];
+	        this.label = source["label"];
+	        this.icon = source["icon"];
+	        this.component = source["component"];
+	        this.order = source["order"];
 	    }
 	}
 	export class ContactIMPP {

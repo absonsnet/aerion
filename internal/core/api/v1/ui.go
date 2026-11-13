@@ -55,10 +55,27 @@ type InboxViewRequest struct {
 //  4. User clicks → extension's onboarding handler runs (incremental OAuth + provider discovery).
 type AccountSetupHookRequest struct {
 	ExtensionID string   `json:"extensionId"`
-	Providers   []string `json:"providers"`            // e.g., ["google", "microsoft", "imap"]
-	ButtonLabel string   `json:"buttonLabel"`          // e.g., "Also set up your calendar"
+	Providers   []string `json:"providers"`   // e.g., ["google", "microsoft", "imap"]
+	ButtonLabel string   `json:"buttonLabel"` // e.g., "Also set up your calendar"
 	Description string   `json:"description,omitempty"`
-	Component   string   `json:"component"`            // Svelte component handling the onboarding flow
+	Component   string   `json:"component"` // Svelte component handling the onboarding flow
+}
+
+// ComposerToolbarRequest registers a button in the mail composer toolbar,
+// immediately next to the plain-text toggle at the end of the toolbar.
+// The button is rendered by the extension's own Svelte component
+// (Component, first-party); the host renders it in the toolbar slot and
+// the click is handled inside that component, so no HandlerID is needed.
+//
+// Added for the ai-writing extension (its concrete consumer): the
+// extension's Improve button lives in the composer toolbar. Per R7/R8,
+// the surface exists only because that extension concretely needs it.
+type ComposerToolbarRequest struct {
+	ExtensionID string `json:"extensionId"`
+	Label       string `json:"label"`
+	Icon        string `json:"icon"`      // iconify identifier or asset path
+	Component   string `json:"component"` // Svelte component identifier (first-party)
+	Order       int    `json:"order,omitempty"`
 }
 
 // UI is the surface for extension-driven UI registrations and UI actions.
@@ -73,6 +90,7 @@ type UI interface {
 	RegisterContextMenuItem(req ContextMenuRequest) (Unregister, error)
 	RegisterInboxView(req InboxViewRequest) (Unregister, error)
 	RegisterAccountSetupHook(req AccountSetupHookRequest) (Unregister, error)
+	RegisterComposerToolbar(req ComposerToolbarRequest) (Unregister, error)
 
 	// OpenURL opens the given URL in the user's system browser via the
 	// host's hardened resolver (protocol allowlist, portal-first on Linux,

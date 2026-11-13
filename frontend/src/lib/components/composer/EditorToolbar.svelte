@@ -1,6 +1,7 @@
 <script lang="ts">
   import Icon from '@iconify/svelte'
   import type { Editor } from '@tiptap/core'
+  import type { Snippet } from 'svelte'
   import { _ } from '$lib/i18n'
 
   interface Props {
@@ -8,9 +9,19 @@
     isPlainTextMode?: boolean
     onTogglePlainText?: () => void
     onInsertImage?: () => void
+    /**
+     * Extension composer actions rendered at the end of the toolbar,
+     * immediately next to the plain-text toggle (e.g. the ai-writing
+     * Improve button, supplied by Composer.svelte). The slot itself never
+     * disables its content — slotted buttons stay enabled in plain-text
+     * mode, unlike the formatting buttons above. Slotted content must be
+     * real <button>s so Alt+T hint mode (which enumerates toolbar buttons)
+     * picks them up automatically.
+     */
+    composerActions?: Snippet
   }
 
-  let { editor, isPlainTextMode = false, onTogglePlainText, onInsertImage }: Props = $props()
+  let { editor, isPlainTextMode = false, onTogglePlainText, onInsertImage, composerActions }: Props = $props()
 
   // Hint mode state (Alt+T shows numbered hints on buttons)
   let hintMode = $state(false)
@@ -531,6 +542,11 @@
 
   <!-- Spacer -->
   <div class="flex-1"></div>
+
+  <!-- Extension composer actions (see composerActions prop) -->
+  {#if composerActions}
+    {@render composerActions()}
+  {/if}
 
   <!-- Plain text toggle -->
   <div class="relative">

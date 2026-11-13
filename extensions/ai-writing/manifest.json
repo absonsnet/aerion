@@ -1,0 +1,16 @@
+{
+  "author": "Aerion",
+  "capabilities": [
+    "ai.write",
+    "ui.composer-toolbar",
+    "ui.settings-tab"
+  ],
+  "description": "Improve email drafts with an AI provider (OpenAI, Groq, Gemini, xAI, or a local Ollama endpoint) from the composer toolbar.",
+  "id": "ai-writing",
+  "minAerionVersion": "0.3.0",
+  "name": "AI Writing Assistant",
+  "oauth": {
+    "first_party_uses_core_for_scopes": []
+  },
+  "version": "0.1.0"
+}

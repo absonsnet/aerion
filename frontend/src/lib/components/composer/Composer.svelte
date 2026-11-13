@@ -9,6 +9,7 @@
   // @ts-ignore - Wails runtime for events
   import { EventsOn, EventsOff } from '../../../../wailsjs/runtime/runtime.js'
   import { type ComposerApi, COMPOSER_API_KEY, createMainWindowApi } from '$lib/composerApi'
+  import { type ComposerContext, COMPOSER_CONTEXT_KEY } from '$lib/composerContext'
   import { isImageAllowedSync } from '$lib/stores/imageAllowlist.svelte'
   import { getAlwaysLoadImages } from '$lib/stores/settings.svelte'
 
@@ -30,6 +31,9 @@
   }
   import RecipientInput from './RecipientInput.svelte'
   import EditorToolbar from './EditorToolbar.svelte'
+  import AIWritingButton from '$extensions/ai-writing/frontend/components/AIWritingButton.svelte'
+  // @ts-ignore - wailsjs bindings (ListComposerToolbarItems lands after `make generate`)
+  import { ListComposerToolbarItems } from '../../../../wailsjs/go/app/App'
   import ComposerAttachmentList from './ComposerAttachmentList.svelte'
   import {
     addParagraphStyles,
@@ -365,28 +369,133 @@
   let showCloseConfirm = $state(false)
   let closeLoading = $state<'discard' | 'save' | null>(null)
 
-  // Get only the user-composed text, excluding quoted/forwarded content
-  function getUserComposedText(): string {
-    const FWD_SEPARATOR = '---------- Forwarded message ----------'
-    if (isPlainTextMode) {
-      // Reply: citation line ending in "wrote:"
-      const wroteIndex = plainTextContent.search(/^.*wrote:\s*$/m)
-      // Forward: separator line
-      const fwdIndex = plainTextContent.indexOf(FWD_SEPARATOR)
-      // Take the earliest match
-      const cutoff = [wroteIndex, fwdIndex].filter(i => i > -1)
-      if (cutoff.length > 0) return plainTextContent.substring(0, Math.min(...cutoff))
-      return plainTextContent
-    }
-    // In rich text, find the earliest of <blockquote (reply) or the forwarded message separator
-    const html = editor?.getHTML() || ''
+  // Separator line marking the start of forwarded content in the body.
+  const FWD_SEPARATOR = '---------- Forwarded message ----------'
+
+  // Split a rich-text body into the user-composed part and the quoted /
+  // forwarded part. The split point is the earliest of the reply
+  // <blockquote or the forwarded-message separator. No quote → the whole
+  // body is the user part and quoted is ''.
+  function splitRichBody(html: string): { userHtml: string; quotedHtml: string } {
     const blockquoteIndex = html.indexOf('<blockquote')
     const fwdIndex = html.indexOf(FWD_SEPARATOR)
     const cutoffs = [blockquoteIndex, fwdIndex].filter(i => i > -1)
-    const userHtml = cutoffs.length > 0 ? html.substring(0, Math.min(...cutoffs)) : html
+    if (cutoffs.length === 0) return { userHtml: html, quotedHtml: '' }
+    const idx = Math.min(...cutoffs)
+    return { userHtml: html.substring(0, idx), quotedHtml: html.substring(idx) }
+  }
+
+  // Split a plain-text body the same way: the quoted part starts at the
+  // "wrote:" citation line (reply) or the forwarded-message separator.
+  function splitPlainBody(text: string): { userText: string; quotedText: string } {
+    const wroteIndex = text.search(/^.*wrote:\s*$/m)
+    const fwdIndex = text.indexOf(FWD_SEPARATOR)
+    const cutoffs = [wroteIndex, fwdIndex].filter(i => i > -1)
+    if (cutoffs.length === 0) return { userText: text, quotedText: '' }
+    const idx = Math.min(...cutoffs)
+    return { userText: text.substring(0, idx), quotedText: text.substring(idx) }
+  }
+
+  // Get only the user-composed text, excluding quoted/forwarded content
+  function getUserComposedText(): string {
+    if (isPlainTextMode) {
+      return splitPlainBody(plainTextContent).userText
+    }
+    const { userHtml } = splitRichBody(editor?.getHTML() || '')
     const tmp = document.createElement('div')
     tmp.innerHTML = userHtml
     return tmp.textContent || ''
+  }
+
+  // --- Composer-context hook for extensions (e.g. ai-writing) ---
+  // The extension's toolbar button + review dialog consume these via
+  // COMPOSER_CONTEXT_KEY instead of reaching into this component's state.
+
+  /** User-composed part of the body as HTML, excluding quoted/forwarded content. */
+  function getUserComposedHTML(): string {
+    if (isPlainTextMode) {
+      const userText = splitPlainBody(plainTextContent).userText
+      return userText ? plainTextToHtml(userText) : ''
+    }
+    return splitRichBody(editor?.getHTML() || '').userHtml
+  }
+
+  /** Quoted/forwarded part of the body as HTML ('' when there is none). */
+  function getQuotedHTML(): string {
+    if (isPlainTextMode) {
+      const quotedText = splitPlainBody(plainTextContent).quotedText
+      return quotedText ? plainTextToHtml(quotedText) : ''
+    }
+    return splitRichBody(editor?.getHTML() || '').quotedHtml
+  }
+
+  /**
+   * Replace ONLY the user-composed part of the body, keeping the quoted /
+   * forwarded part untouched. Follows the signature-insertion pattern:
+   * read full HTML → transform → setContent. In rich-text mode the draft
+   * save fires via the editor's onUpdate → scheduleDraftSave; in
+   * plain-text mode the save is scheduled explicitly, like
+   * togglePlainTextMode does.
+   */
+  function setUserComposedHTML(html: string): void {
+    if (isPlainTextMode) {
+      const { quotedText } = splitPlainBody(plainTextContent)
+      plainTextContent = htmlToPlainText(html) + quotedText
+      scheduleDraftSave()
+      return
+    }
+    if (!editor) return
+    const { quotedHtml } = splitRichBody(editor.getHTML())
+    editor.commands.setContent(stripParagraphStyles(html) + quotedHtml)
+  }
+
+  function getSubject(): string {
+    return subject
+  }
+
+  function setSubject(value: string): void {
+    subject = value
+  }
+
+  function isPlainText(): boolean {
+    return isPlainTextMode
+  }
+
+  setContext<ComposerContext>(COMPOSER_CONTEXT_KEY, {
+    getUserComposedHTML,
+    getQuotedHTML,
+    setUserComposedHTML,
+    getSubject,
+    setSubject,
+    isPlainText,
+  })
+
+  // --- Extension composer toolbar items (e.g. ai-writing) ---
+  // Loaded once per composer mount, mirroring the extensionRegistry
+  // rail-tab loading pattern (ListExtensionRailTabs at app startup).
+  // ListComposerToolbarItems already filters to enabled extensions
+  // server-side (app/extension_ui.go), so no extra gate is needed here;
+  // a disabled extension simply contributes no item. The registry also
+  // sorts by Order server-side. Structural type (not the generated
+  // v1.ComposerToolbarRequest) so this file type-checks before
+  // `make generate` lands the binding.
+  interface ComposerToolbarItem {
+    extensionId: string
+    label: string
+    icon: string
+    component: string
+    order?: number
+  }
+
+  let composerToolbarItems = $state<ComposerToolbarItem[]>([])
+
+  async function loadComposerToolbarItems(): Promise<void> {
+    try {
+      composerToolbarItems = (await ListComposerToolbarItems()) || []
+    } catch (err) {
+      console.error('Failed to load composer toolbar items:', err)
+      composerToolbarItems = []
+    }
   }
 
   // Check if the email body contains keywords that suggest an attachment should be present
@@ -725,6 +834,7 @@
 
   // Initialize
   onMount(async () => {
+    void loadComposerToolbarItems()
     // Load identities — try cross-account first (main window), fall back to single-account (detached)
     try {
       // When replying or forwarding on a no-outgoing account, honor that
@@ -1453,7 +1563,6 @@
     // drafts (whose saved body already includes the intro) and when the quote
     // boundary is gone, to avoid duplicating the body — those fall back to a
     // straight plain-text conversion.
-    const FWD_SEPARATOR = '---------- Forwarded message ----------'
     const hasQuote = /^.*wrote:\s*$/m.test(plainTextContent) || plainTextContent.includes(FWD_SEPARATOR)
     let html: string
     if (!draftId && initialRichBody && hasQuote) {
@@ -2130,12 +2239,23 @@
 
     <!-- Toolbar - extracted to separate component for performance -->
     <!-- Alt+T to focus toolbar, Tab skips it -->
+    <!-- Extension composer actions (R28): static dispatch by extension ID.
+         The snippet is defined here so slotted components resolve the
+         ComposerContext set above; the toolbar itself only renders it. -->
+    {#snippet composerActions()}
+      {#each composerToolbarItems as item (item.extensionId)}
+        {#if item.extensionId === 'ai-writing'}
+          <AIWritingButton />
+        {/if}
+      {/each}
+    {/snippet}
     <EditorToolbar
       bind:this={toolbarRef}
       {editor}
       {isPlainTextMode}
       onTogglePlainText={togglePlainTextMode}
       onInsertImage={insertImage}
+      composerActions={composerToolbarItems.length > 0 ? composerActions : undefined}
     />
 
     <!-- Remote images blocked bar -->

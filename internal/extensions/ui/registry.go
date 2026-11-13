@@ -12,23 +12,25 @@ import (
 // Registry is the in-memory store of all extension UI registrations. Safe
 // for concurrent Register/Unregister/List from multiple goroutines.
 type Registry struct {
-	mu                sync.RWMutex
-	nextID            atomic.Uint64
-	railTabs          map[uint64]coreapi.RailTabRequest
-	settingsTabs      map[uint64]coreapi.SettingsTabRequest
-	contextMenuItems  map[uint64]coreapi.ContextMenuRequest
-	inboxViews        map[uint64]coreapi.InboxViewRequest
-	accountSetupHooks map[uint64]coreapi.AccountSetupHookRequest
+	mu                   sync.RWMutex
+	nextID               atomic.Uint64
+	railTabs             map[uint64]coreapi.RailTabRequest
+	settingsTabs         map[uint64]coreapi.SettingsTabRequest
+	contextMenuItems     map[uint64]coreapi.ContextMenuRequest
+	inboxViews           map[uint64]coreapi.InboxViewRequest
+	accountSetupHooks    map[uint64]coreapi.AccountSetupHookRequest
+	composerToolbarItems map[uint64]coreapi.ComposerToolbarRequest
 }
 
 // NewRegistry constructs an empty Registry.
 func NewRegistry() *Registry {
 	return &Registry{
-		railTabs:          make(map[uint64]coreapi.RailTabRequest),
-		settingsTabs:      make(map[uint64]coreapi.SettingsTabRequest),
-		contextMenuItems:  make(map[uint64]coreapi.ContextMenuRequest),
-		inboxViews:        make(map[uint64]coreapi.InboxViewRequest),
-		accountSetupHooks: make(map[uint64]coreapi.AccountSetupHookRequest),
+		railTabs:             make(map[uint64]coreapi.RailTabRequest),
+		settingsTabs:         make(map[uint64]coreapi.SettingsTabRequest),
+		contextMenuItems:     make(map[uint64]coreapi.ContextMenuRequest),
+		inboxViews:           make(map[uint64]coreapi.InboxViewRequest),
+		accountSetupHooks:    make(map[uint64]coreapi.AccountSetupHookRequest),
+		composerToolbarItems: make(map[uint64]coreapi.ComposerToolbarRequest),
 	}
 }
 
@@ -111,6 +113,23 @@ func (r *Registry) RegisterAccountSetupHook(req coreapi.AccountSetupHookRequest)
 	return r.unregisterFunc(&r.accountSetupHooks, id), nil
 }
 
+// RegisterComposerToolbar adds a composer toolbar button. Accepted now; the
+// frontend reads it via ListComposerToolbarItems once the first consumer
+// (the ai-writing extension) lands its button component.
+func (r *Registry) RegisterComposerToolbar(req coreapi.ComposerToolbarRequest) (coreapi.Unregister, error) {
+	if req.ExtensionID == "" {
+		return nil, fmt.Errorf("ui.RegisterComposerToolbar: ExtensionID is required")
+	}
+	if req.Label == "" || req.Component == "" {
+		return nil, fmt.Errorf("ui.RegisterComposerToolbar: Label and Component are required")
+	}
+	id := r.nextID.Add(1)
+	r.mu.Lock()
+	r.composerToolbarItems[id] = req
+	r.mu.Unlock()
+	return r.unregisterFunc(&r.composerToolbarItems, id), nil
+}
+
 // ListRailTabs returns all registered rail tabs in Order ASC then registration
 // order. The returned slice is a copy — callers may not mutate the registry
 // state via it.
@@ -180,6 +199,22 @@ func (r *Registry) ListAccountSetupHooksForProvider(provider string) []coreapi.A
 	return out
 }
 
+// ListComposerToolbarItems returns all registered composer toolbar buttons
+// in Order ASC then registration order. The returned slice is a copy —
+// callers may not mutate the registry state via it.
+func (r *Registry) ListComposerToolbarItems() []coreapi.ComposerToolbarRequest {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	out := make([]coreapi.ComposerToolbarRequest, 0, len(r.composerToolbarItems))
+	for _, item := range r.composerToolbarItems {
+		out = append(out, item)
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		return out[i].Order < out[j].Order
+	})
+	return out
+}
+
 func containsProvider(providers []string, p string) bool {
 	for _, v := range providers {
 		if v == p {
@@ -206,6 +241,8 @@ func (r *Registry) unregisterFunc(mapPtr interface{}, id uint64) coreapi.Unregis
 		case *map[uint64]coreapi.InboxViewRequest:
 			delete(*m, id)
 		case *map[uint64]coreapi.AccountSetupHookRequest:
+			delete(*m, id)
+		case *map[uint64]coreapi.ComposerToolbarRequest:
 			delete(*m, id)
 		}
 	}

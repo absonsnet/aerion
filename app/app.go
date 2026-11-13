@@ -12,6 +12,9 @@ import (
 	goSync "sync"
 	"time"
 
+	extaiwritingbe "github.com/hkdb/aerion/extensions/ai-writing/backend"
+	extcalendarbe "github.com/hkdb/aerion/extensions/calendar/backend"
+	extcontactsbe "github.com/hkdb/aerion/extensions/contacts/backend"
 	"github.com/hkdb/aerion/internal/account"
 	"github.com/hkdb/aerion/internal/appstate"
 	"github.com/hkdb/aerion/internal/carddav"
@@ -21,8 +24,6 @@ import (
 	"github.com/hkdb/aerion/internal/credentials"
 	"github.com/hkdb/aerion/internal/database"
 	"github.com/hkdb/aerion/internal/draft"
-	extcalendarbe "github.com/hkdb/aerion/extensions/calendar/backend"
-	extcontactsbe "github.com/hkdb/aerion/extensions/contacts/backend"
 	extauth "github.com/hkdb/aerion/internal/extensions/auth"
 	extcompose "github.com/hkdb/aerion/internal/extensions/compose"
 	extmail "github.com/hkdb/aerion/internal/extensions/mail"
@@ -35,9 +36,9 @@ import (
 	"github.com/hkdb/aerion/internal/message"
 	"github.com/hkdb/aerion/internal/notification"
 	"github.com/hkdb/aerion/internal/oauth2"
+	"github.com/hkdb/aerion/internal/pgp"
 	"github.com/hkdb/aerion/internal/platform"
 	"github.com/hkdb/aerion/internal/settings"
-	"github.com/hkdb/aerion/internal/pgp"
 	"github.com/hkdb/aerion/internal/smime"
 	"github.com/hkdb/aerion/internal/sync"
 	"github.com/hkdb/aerion/internal/undo"
@@ -189,6 +190,7 @@ type App struct {
 	// and two fields named `Bridge` would collide.
 	*extcontactsbe.ContactsBridge
 	*extcalendarbe.CalendarBridge
+	*extaiwritingbe.AIWritingBridge
 
 	ctx context.Context
 
@@ -238,14 +240,15 @@ type App struct {
 	// into App via its Bridge struct (declared at the top of this struct
 	// definition); the *Extension field below is the lightweight lifecycle
 	// handle the host's knownExtensions Register loop iterates.
-	authBroker       *extauth.Broker      // coreapi.Auth impl for extensions
-	mailAPI          *extmail.API         // coreapi.Mail impl wrapping core stores
-	composerAPI      *extcompose.API      // coreapi.Composer impl wrapping OpenComposerWindow
-	uiRegistry       *extui.Registry      // coreapi.UI impl: rail tabs, account-setup hooks, ...
-	contactsExt      *extcontactsbe.Extension // Contacts lifecycle handle (manifest + Register only)
-	calendarExt      *extcalendarbe.Extension // Calendar lifecycle handle (manifest + Register only)
-	knownExtensions  []coreapi.Extension      // all first-party extensions, iterated by ListExtensions
-	extensionUnregs  []coreapi.Unregister     // teardown funcs returned from each Extension.Register
+	authBroker      *extauth.Broker           // coreapi.Auth impl for extensions
+	mailAPI         *extmail.API              // coreapi.Mail impl wrapping core stores
+	composerAPI     *extcompose.API           // coreapi.Composer impl wrapping OpenComposerWindow
+	uiRegistry      *extui.Registry           // coreapi.UI impl: rail tabs, account-setup hooks, ...
+	contactsExt     *extcontactsbe.Extension  // Contacts lifecycle handle (manifest + Register only)
+	calendarExt     *extcalendarbe.Extension  // Calendar lifecycle handle (manifest + Register only)
+	aiWritingExt    *extaiwritingbe.Extension // AI Writing lifecycle handle (manifest + Register only)
+	knownExtensions []coreapi.Extension       // all first-party extensions, iterated by ListExtensions
+	extensionUnregs []coreapi.Unregister      // teardown funcs returned from each Extension.Register
 
 	// coreapi.EventBus implementation, lazily constructed on first
 	// Core.Events() call (via eventBusInitOnce). Extensions consume via
@@ -324,7 +327,7 @@ type App struct {
 
 	// Draft IMAP sync goroutine tracking — cancel in-flight syncDraftToIMAP
 	draftSyncContexts map[string]context.CancelFunc // keyed by draft ID
-	draftSyncDone     map[string]chan struct{}       // closed when goroutine exits
+	draftSyncDone     map[string]chan struct{}      // closed when goroutine exits
 
 	// Sleep/wake detection for auto-sync on wake
 	sleepWakeMonitor platform.SleepWakeMonitor
@@ -677,7 +680,8 @@ func (a *App) Startup(ctx context.Context) {
 	// surface lives on each extension's Bridge struct, embedded into App.
 	a.contactsExt = extcontactsbe.NewExtension()
 	a.calendarExt = extcalendarbe.NewExtension()
-	a.knownExtensions = []coreapi.Extension{a.contactsExt, a.calendarExt}
+	a.aiWritingExt = extaiwritingbe.NewExtension()
+	a.knownExtensions = []coreapi.Extension{a.contactsExt, a.calendarExt, a.aiWritingExt}
 
 	// Wire the Contacts extension's Bridge into App (embedded). Bridge
 	// methods become Wails-bindable via Go's method-promotion on the
@@ -685,6 +689,7 @@ func (a *App) Startup(ctx context.Context) {
 	// directly. Bridge state is lazy — no stores open here.
 	a.initContactsExtension()
 	a.initCalendarExtension()
+	a.initAIWritingExtension()
 
 	// Construct one Core per known extension. The Core's Auth surface is
 	// scoped to that extension's identity, so HTTPClient calls route via

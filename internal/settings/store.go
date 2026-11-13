@@ -50,10 +50,11 @@ const (
 // Extension enable/disable keys. Format: extension_<name>_enabled.
 // All extensions default to disabled — minimalists see no UI changes until
 // they explicitly opt in. Phase 1 reserves keys only for confirmed first-
-// party extensions (Calendar, Contacts).
+// party extensions (Calendar, Contacts, AI Writing).
 const (
-	KeyExtensionCalendarEnabled = "extension_calendar_enabled"
-	KeyExtensionContactsEnabled = "extension_contacts_enabled"
+	KeyExtensionCalendarEnabled  = "extension_calendar_enabled"
+	KeyExtensionContactsEnabled  = "extension_contacts_enabled"
+	KeyExtensionAIWritingEnabled = "extension_ai_writing_enabled"
 )
 
 // AllExtensionKeys is the list of all known first-party extension names. Add
@@ -62,6 +63,7 @@ const (
 var AllExtensionKeys = []string{
 	"calendar",
 	"contacts",
+	"ai-writing",
 }
 
 // Density values for message list

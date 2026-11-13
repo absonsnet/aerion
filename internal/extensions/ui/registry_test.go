@@ -131,6 +131,64 @@ func TestRegistry_AccountSetupHook_Validation(t *testing.T) {
 	}
 }
 
+func TestRegistry_RegisterComposerToolbar_OrdersByOrder(t *testing.T) {
+	r := NewRegistry()
+	if _, err := r.RegisterComposerToolbar(coreapi.ComposerToolbarRequest{
+		ExtensionID: "ai-writing", Label: "Improve Writing", Component: "AIWritingButton", Order: 20,
+	}); err != nil {
+		t.Fatalf("register ai-writing: %v", err)
+	}
+	if _, err := r.RegisterComposerToolbar(coreapi.ComposerToolbarRequest{
+		ExtensionID: "other", Label: "Other", Component: "OtherButton", Order: 10,
+	}); err != nil {
+		t.Fatalf("register other: %v", err)
+	}
+
+	items := r.ListComposerToolbarItems()
+	if len(items) != 2 {
+		t.Fatalf("expected 2 items, got %d", len(items))
+	}
+	if items[0].ExtensionID != "other" || items[1].ExtensionID != "ai-writing" {
+		t.Fatalf("expected other, ai-writing — got %s, %s", items[0].ExtensionID, items[1].ExtensionID)
+	}
+}
+
+func TestRegistry_RegisterComposerToolbar_Validation(t *testing.T) {
+	r := NewRegistry()
+	cases := []struct {
+		name string
+		req  coreapi.ComposerToolbarRequest
+	}{
+		{"missing ext id", coreapi.ComposerToolbarRequest{Label: "L", Component: "C"}},
+		{"missing label", coreapi.ComposerToolbarRequest{ExtensionID: "x", Component: "C"}},
+		{"missing component", coreapi.ComposerToolbarRequest{ExtensionID: "x", Label: "L"}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if _, err := r.RegisterComposerToolbar(c.req); err == nil {
+				t.Fatalf("expected validation error")
+			}
+		})
+	}
+}
+
+func TestRegistry_ComposerToolbar_Unregister_RemovesEntry(t *testing.T) {
+	r := NewRegistry()
+	unreg, err := r.RegisterComposerToolbar(coreapi.ComposerToolbarRequest{
+		ExtensionID: "ai-writing", Label: "Improve Writing", Component: "AIWritingButton",
+	})
+	if err != nil {
+		t.Fatalf("register: %v", err)
+	}
+	if got := r.ListComposerToolbarItems(); len(got) != 1 {
+		t.Fatalf("expected 1 before unregister, got %d", len(got))
+	}
+	unreg()
+	if got := r.ListComposerToolbarItems(); len(got) != 0 {
+		t.Fatalf("expected 0 after unregister, got %d", len(got))
+	}
+}
+
 func TestRegistry_ContextMenuItems_TargetFilter(t *testing.T) {
 	r := NewRegistry()
 	for _, target := range []coreapi.ContextMenuTarget{

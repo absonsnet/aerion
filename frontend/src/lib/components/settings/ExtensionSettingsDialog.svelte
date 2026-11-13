@@ -14,6 +14,7 @@
   import { getOpenSettingsExtension, closeExtensionSettings } from '$lib/stores/extensionRegistry.svelte'
   import ContactsSettingsDialog from '$extensions/contacts/frontend/components/ContactsSettingsDialog.svelte'
   import CalendarSettingsDialog from '$extensions/calendar/frontend/components/CalendarSettingsDialog.svelte'
+  import AIWritingSettingsDialog from '$extensions/ai-writing/frontend/components/AIWritingSettingsDialog.svelte'
 
   let openExtension = $derived(getOpenSettingsExtension())
 
@@ -21,6 +22,7 @@
   // based on the open state. Closing the dialog calls closeExtensionSettings.
   let contactsOpen = $derived(openExtension === 'contacts')
   let calendarOpen = $derived(openExtension === 'calendar')
+  let aiWritingOpen = $derived(openExtension === 'ai-writing')
 </script>
 
 <ContactsSettingsDialog
@@ -30,5 +32,10 @@
 
 <CalendarSettingsDialog
   open={calendarOpen}
+  onClose={closeExtensionSettings}
+/>
+
+<AIWritingSettingsDialog
+  open={aiWritingOpen}
   onClose={closeExtensionSettings}
 />

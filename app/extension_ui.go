@@ -66,6 +66,28 @@ func (a *App) ListAccountSetupHooksForProvider(provider string) ([]coreapi.Accou
 	return a.uiRegistry.ListAccountSetupHooksForProvider(provider), nil
 }
 
+// ListComposerToolbarItems returns composer-toolbar registrations for
+// currently enabled extensions only. The frontend uses this to render the
+// extension buttons next to the plain-text toggle in EditorToolbar.svelte.
+func (a *App) ListComposerToolbarItems() ([]coreapi.ComposerToolbarRequest, error) {
+	if a.uiRegistry == nil {
+		return nil, nil
+	}
+	enabled, err := a.enabledExtensionSet()
+	if err != nil {
+		return nil, err
+	}
+	all := a.uiRegistry.ListComposerToolbarItems()
+	out := make([]coreapi.ComposerToolbarRequest, 0, len(all))
+	for _, item := range all {
+		if !enabled[item.ExtensionID] {
+			continue
+		}
+		out = append(out, item)
+	}
+	return out, nil
+}
+
 // enabledExtensionSet returns a set of currently-enabled extension names.
 func (a *App) enabledExtensionSet() (map[string]bool, error) {
 	set := make(map[string]bool, len(settings.AllExtensionKeys))
