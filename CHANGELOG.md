@@ -1,5 +1,15 @@
 # CHANGELOG
 
+**v0.4.1 - 13-11-2026**
+---
+
+- AI Writing Assistant: Gemini API keys in the new `AQ.` format are now accepted (Google AI Studio stopped issuing `AIza` keys)
+- AI Writing Assistant: replying now correctly offers only Generate Reply when the draft is empty — the quoted email is no longer mistaken for your draft
+- AI Writing Assistant: every action's prompt is now editable in settings — pick an action, edit its instructions, or reset it to the built-in prompt
+- Composer toolbar no longer crowds the AI Writing button and the Plain text toggle on narrow windows
+- Release workflow: Flatpak job installs the GNOME 50 runtime and SDK to match the manifest, and the publish step now fails loudly if the release ends up with no assets
+- v0.4.1 changes by ABSONS Technologies (@absonsnet)
+
 **v0.4.0 - 13-11-2026**
 ---
 

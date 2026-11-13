@@ -194,6 +194,18 @@ jobs:
             aerion-*/*.tar.gz \
             --clobber
 
+          # Fail loudly if the upload produced nothing: v0.4.0's publish
+          # reported success while the release ended up with no assets,
+          # and the Flatpak job then failed on a 404 downloading the
+          # shim. List what landed so the log shows it either way.
+          echo "Uploaded assets for $TAG_NAME:"
+          gh release view "$TAG_NAME" --json assets --jq -r '.assets[].name'
+          COUNT=$(gh release view "$TAG_NAME" --json assets --jq '.assets | length')
+          if [ "$COUNT" -eq 0 ]; then
+            echo "ERROR: release $TAG_NAME has no assets after upload" >&2
+            exit 1
+          fi
+
   update-manifest:
     needs: publish
     runs-on: ubuntu-24.04
@@ -267,9 +279,12 @@ jobs:
 
       - name: Install Flatpak runtimes and SDK extensions
         run: |
+          # Must match the manifest's runtime-version ('50'): installing
+          # //49 leaves flatpak-builder to fetch //50 anyway via
+          # --install-deps-from, so pre-install the right one.
           flatpak install -y --user flathub \
-            org.gnome.Platform//49 \
-            org.gnome.Sdk//49 \
+            org.gnome.Platform//50 \
+            org.gnome.Sdk//50 \
             org.freedesktop.Sdk.Extension.golang//24.08 \
             org.freedesktop.Sdk.Extension.node24//24.08
 

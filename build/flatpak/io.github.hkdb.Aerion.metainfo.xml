@@ -375,6 +375,16 @@
   </provides>
 
   <releases>
+    <release version="0.4.1" date="2026-11-13">
+      <description>
+        <ul>
+          <li>AI Writing Assistant: Gemini API keys in the new AQ. format are now accepted</li>
+          <li>AI Writing Assistant: replying now correctly offers only Generate Reply when the draft is empty</li>
+          <li>AI Writing Assistant: every action's prompt is now editable in settings</li>
+          <li>Composer toolbar no longer crowds the AI Writing button and the Plain text toggle on narrow windows</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.4.0" date="2026-11-13">
       <description>
         <ul>
