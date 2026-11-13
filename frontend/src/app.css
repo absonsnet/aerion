@@ -131,7 +131,7 @@ mark {
 }
 
 .composer-editor p {
-  margin: 0;
+  margin: 0 0 1em;
 }
 
 .composer-editor a {

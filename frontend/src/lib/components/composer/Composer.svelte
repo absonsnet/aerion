@@ -2431,9 +2431,10 @@
 />
 
 <style>
-  /* Zero-margin paragraphs so Enter looks like a single line break */
+  /* Paragraph gap: Enter starts a new paragraph (with a gap below it),
+     Shift+Enter inserts a line break inside the same paragraph (no gap) */
   :global(.composer-editor p) {
-    margin: 0;
+    margin: 0 0 1em;
     line-height: 1.25;
   }
 
