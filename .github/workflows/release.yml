@@ -19,10 +19,7 @@ jobs:
             arch: arm64
           - os: macos-15
             platform: darwin
-            arch: amd64
-          - os: macos-15
-            platform: darwin
-            arch: arm64
+            arch: universal
           - os: windows-latest
             platform: windows
             arch: amd64
@@ -128,13 +125,15 @@ jobs:
 
       - name: Build (macOS)
         if: matrix.platform == 'darwin'
-        env:
-          GOARCH: ${{ matrix.arch }}
         run: |
-          make build
-          cd build/bin
-          zip -r Aerion-darwin-${{ matrix.arch }}.zip Aerion.app
-          rm -rf Aerion.app
+          # One runner builds both arches. Two macOS jobs kept missing
+          # runners (queued ~15 min, then cancelled by GitHub), while a
+          # single macos-15 runner was obtained in ~5 min — so the
+          # workflow now needs one Mac runner instead of two.
+          GOARCH=amd64 make build
+          (cd build/bin && zip -r Aerion-darwin-amd64.zip Aerion.app && rm -rf Aerion.app)
+          GOARCH=arm64 make build
+          (cd build/bin && zip -r Aerion-darwin-arm64.zip Aerion.app && rm -rf Aerion.app)
 
       - name: Build (Windows)
         if: matrix.platform == 'windows'
