@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -96,7 +97,7 @@ func TestBridge_DisabledReturnsZeroValueNoError(t *testing.T) {
 	if models, err := b.AIWriting_ListModels(); err != nil || models != nil {
 		t.Errorf("ListModels disabled: models=%v err=%v", models, err)
 	}
-	if st, err := b.AIWriting_GetSettings(); err != nil || st != (Settings{}) {
+	if st, err := b.AIWriting_GetSettings(); err != nil || !reflect.DeepEqual(st, Settings{}) {
 		t.Errorf("GetSettings disabled: st=%+v err=%v", st, err)
 	}
 	if err := b.AIWriting_SaveSettings(validInput()); err != nil {
@@ -235,6 +236,96 @@ func TestBridge_ImproveEndToEnd(t *testing.T) {
 	}
 	if !strings.Contains(req.Messages[1].Content, "<p>Quoted</p>") {
 		t.Errorf("user text missing quoted history: %q", req.Messages[1].Content)
+	}
+}
+
+func TestBridge_ActionPrompts(t *testing.T) {
+	// A custom prompt for one action applies only to that action; the
+	// rest keep their registry defaults. The fake server captures the
+	// system prompt actually sent.
+	var gotSystem string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		var req openAIChatRequest
+		_ = json.Unmarshal(b, &req)
+		if len(req.Messages) > 0 {
+			gotSystem = req.Messages[0].Content
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"choices":[{"message":{"content":"<p>Done</p>"}}]}`))
+	}))
+	t.Cleanup(srv.Close)
+
+	b, _ := newTestBridge(t, true)
+	b.caller = newTestCaller(map[string]string{"openai": srv.URL})
+
+	in := validInput()
+	in.APIKey = "sk-testkey"
+	in.ActionPrompts = map[string]string{"shorten": "Shorten ruthlessly, keep every fact."}
+	if err := b.AIWriting_SaveSettings(in); err != nil {
+		t.Fatalf("SaveSettings: %v", err)
+	}
+
+	rows, err := b.AIWriting_GetActionPrompts()
+	if err != nil {
+		t.Fatalf("GetActionPrompts: %v", err)
+	}
+	if len(rows) != 7 {
+		t.Fatalf("GetActionPrompts rows = %d, want 7", len(rows))
+	}
+	byID := map[string]ActionPromptInfo{}
+	for _, r := range rows {
+		byID[r.ID] = r
+	}
+	if byID["shorten"].CustomPrompt != "Shorten ruthlessly, keep every fact." {
+		t.Errorf("shorten custom = %q", byID["shorten"].CustomPrompt)
+	}
+	if byID["shorten"].DefaultPrompt != DefaultPromptShorten {
+		t.Errorf("shorten default mismatch")
+	}
+	if byID["improve"].CustomPrompt != "" {
+		t.Errorf("improve custom = %q, want empty (uses default)", byID["improve"].CustomPrompt)
+	}
+
+	// Shorten uses the custom prompt.
+	if _, err := b.AIWriting_Improve(ImproveRequest{ActionID: "shorten", DraftHTML: "<p>Draft</p>"}); err != nil {
+		t.Fatalf("Improve shorten: %v", err)
+	}
+	if !strings.Contains(gotSystem, "Shorten ruthlessly, keep every fact.") {
+		t.Errorf("shorten system prompt = %q, want the custom text", gotSystem)
+	}
+	if strings.Contains(gotSystem, "You are shortening an email draft") {
+		t.Errorf("shorten system prompt must not contain the default text")
+	}
+
+	// Improve still uses its registry default.
+	if _, err := b.AIWriting_Improve(ImproveRequest{ActionID: "improve", DraftHTML: "<p>Draft</p>"}); err != nil {
+		t.Fatalf("Improve improve: %v", err)
+	}
+	if !strings.Contains(gotSystem, "You are revising an email draft") {
+		t.Errorf("improve system prompt = %q, want the default text", gotSystem)
+	}
+}
+
+func TestBridge_ActionPromptsLegacyMigration(t *testing.T) {
+	// A blob saved by v0.4.0 (PromptImprove only, no map) still yields
+	// the customized improve prompt through GetActionPrompts.
+	b, _ := newTestBridge(t, true)
+	if _, err := b.AIWriting_GetSettings(); err != nil {
+		t.Fatalf("GetSettings (init): %v", err)
+	}
+	raw := `{"selectedModel":"openai:gpt-5","promptImprove":"My legacy improve instructions."}`
+	if err := b.store.KV().Set(settingsKVKey, raw); err != nil {
+		t.Fatalf("write legacy blob: %v", err)
+	}
+	rows, err := b.AIWriting_GetActionPrompts()
+	if err != nil {
+		t.Fatalf("GetActionPrompts: %v", err)
+	}
+	for _, r := range rows {
+		if r.ID == "improve" && r.CustomPrompt != "My legacy improve instructions." {
+			t.Errorf("legacy improve custom = %q", r.CustomPrompt)
+		}
 	}
 }
 

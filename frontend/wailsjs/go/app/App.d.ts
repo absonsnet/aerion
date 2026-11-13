@@ -19,6 +19,8 @@ import {appstate} from '../models';
 import {sync} from '../models';
 import {draft} from '../models';
 
+export function AIWriting_GetActionPrompts():Promise<Array<backend.ActionPromptInfo>>;
+
 export function AIWriting_GetSettings():Promise<backend.Settings>;
 
 export function AIWriting_GetStatus():Promise<backend.Status>;

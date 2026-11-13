@@ -44,7 +44,17 @@ func TestValidateSettings(t *testing.T) {
 		}, false, "custom API endpoint"},
 		{"empty model", func(in *SettingsInput) { in.SelectedModel = "" }, false, "select a model"},
 		{"unknown provider", func(in *SettingsInput) { in.SelectedModel = "anthropic:claude" }, false, "unsupported model"},
-		{"empty prompt", func(in *SettingsInput) { in.PromptImprove = "  " }, false, "improve prompt"},
+		{"empty prompt", func(in *SettingsInput) { in.PromptImprove = "  " }, false, ""},
+		{"empty improve prompt falls back to default", func(in *SettingsInput) { in.PromptImprove = "" }, false, ""},
+		{"unknown action prompt id", func(in *SettingsInput) {
+			in.ActionPrompts = map[string]string{"nope": "do things"}
+		}, false, "unsupported action"},
+		{"empty action prompt resets to default", func(in *SettingsInput) {
+			in.ActionPrompts = map[string]string{"shorten": "  "}
+		}, false, ""},
+		{"custom action prompt ok", func(in *SettingsInput) {
+			in.ActionPrompts = map[string]string{"shorten": "Make it shorter, keep the tone."}
+		}, false, ""},
 		{"max tokens zero", func(in *SettingsInput) { in.MaxTokens = 0 }, false, "max tokens"},
 		{"max tokens too high", func(in *SettingsInput) { in.MaxTokens = 4001 }, false, "max tokens"},
 		{"max tokens boundary 4000 ok", func(in *SettingsInput) { in.MaxTokens = 4000 }, false, ""},
@@ -111,6 +121,66 @@ func TestValidateAPIKeyPrefix(t *testing.T) {
 	}
 }
 
+func TestToSettings_NormalizesActionPrompts(t *testing.T) {
+	in := validInput()
+	in.ActionPrompts = map[string]string{
+		"shorten":     "Make it shorter, keep the tone.",
+		"fix-grammar": "   ", // empty = reset to default
+		"expand":      DefaultPromptExpand, // copy of the default stays a default
+		"nope":        "unknown action",
+	}
+	st := in.toSettings()
+	if got := st.ActionPrompts["shorten"]; got != "Make it shorter, keep the tone." {
+		t.Errorf("shorten override = %q", got)
+	}
+	for _, id := range []string{"fix-grammar", "expand", "nope"} {
+		if _, ok := st.ActionPrompts[id]; ok {
+			t.Errorf("ActionPrompts[%q] must be dropped", id)
+		}
+	}
+	// The legacy field stays in sync with the effective improve prompt.
+	if st.PromptImprove != DefaultPromptImprove {
+		t.Errorf("PromptImprove = %q, want the default", st.PromptImprove)
+	}
+}
+
+func TestToSettings_LegacyPromptImprove(t *testing.T) {
+	// Old clients (v0.4.0) send only PromptImprove and no map: a
+	// customized improve prompt must survive as an override.
+	in := validInput()
+	in.PromptImprove = "My custom improve instructions."
+	st := in.toSettings()
+	if got := st.ActionPrompts["improve"]; got != "My custom improve instructions." {
+		t.Errorf("legacy improve override = %q", got)
+	}
+	if st.PromptImprove != "My custom improve instructions." {
+		t.Errorf("PromptImprove = %q", st.PromptImprove)
+	}
+
+	// A default-valued PromptImprove seeds nothing.
+	in.PromptImprove = DefaultPromptImprove
+	if st := in.toSettings(); len(st.ActionPrompts) != 0 {
+		t.Errorf("default PromptImprove must seed no override, got %v", st.ActionPrompts)
+	}
+}
+
+func TestSettings_PromptFor(t *testing.T) {
+	st := DefaultSettings()
+	if got := st.PromptFor("shorten"); got != DefaultPromptShorten {
+		t.Errorf("default shorten prompt mismatch")
+	}
+	st.ActionPrompts = map[string]string{"shorten": "Short and sweet."}
+	if got := st.PromptFor("shorten"); got != "Short and sweet." {
+		t.Errorf("override = %q", got)
+	}
+	if got := st.PromptFor("improve"); got != DefaultPromptImprove {
+		t.Errorf("unoverridden improve must use the default")
+	}
+	if got := st.PromptFor("nope"); got != "" {
+		t.Errorf("unknown action prompt = %q, want empty", got)
+	}
+}
+
 func TestDefaultSettings(t *testing.T) {
 	st := DefaultSettings()
 	if st.SelectedModel != "openai:gpt-5" {
@@ -124,6 +194,9 @@ func TestDefaultSettings(t *testing.T) {
 	}
 	if st.PromptImprove != DefaultPromptImprove {
 		t.Errorf("default prompt is not DefaultPromptImprove")
+	}
+	if len(st.ActionPrompts) != 0 {
+		t.Errorf("default ActionPrompts must be empty, got %v", st.ActionPrompts)
 	}
 	if !st.UseConversationHistory {
 		t.Errorf("default history must be on")

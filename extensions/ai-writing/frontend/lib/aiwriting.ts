@@ -1,7 +1,8 @@
 // Shared types, model list and helpers for the ai-writing extension
 // frontend. The types mirror the backend contract exactly (Wails method
 // signatures on App): AIWriting_Improve / AIWriting_ListActions /
-// AIWriting_GetSettings / AIWriting_SaveSettings / AIWriting_GetStatus.
+// AIWriting_GetActionPrompts / AIWriting_GetSettings /
+// AIWriting_SaveSettings / AIWriting_GetStatus.
 // They are declared locally (rather than imported from the generated
 // wailsjs models) so this code type-checks before `make generate` lands
 // the AIWriting_* bindings; field names must stay in sync with the
@@ -28,7 +29,12 @@ export interface AIWritingSettings {
 }
 
 /** Input for AIWriting_SaveSettings: same fields as AIWritingSettings
- *  plus `apiKey`. An empty `apiKey` keeps the existing stored key. */
+ *  plus `apiKey`. An empty `apiKey` keeps the existing stored key.
+ *  `actionPrompts` carries the per-action custom prompts (only actions
+ *  whose text differs from their built-in default); an action absent
+ *  from the map uses its default. `promptImprove` is the legacy
+ *  single-prompt field, kept for old backends — the new dialog sends
+ *  both, the backend prefers the map. */
 export interface AIWritingSaveSettingsInput {
   selectedModel: string
   apiKey: string
@@ -37,6 +43,7 @@ export interface AIWritingSaveSettingsInput {
   customApiEndpoint: string
   customModel: string
   promptImprove: string
+  actionPrompts: Record<string, string>
   useConversationHistory: boolean
 }
 
@@ -74,6 +81,20 @@ export interface AIWritingImproveRequest {
 export interface AIWritingAction {
   id: string
   label: string
+}
+
+/**
+ * One row of AIWriting_GetActionPrompts: the action's id + label, its
+ * built-in default prompt, and the stored custom prompt ("" when the
+ * action uses its default). The settings dialog shows
+ * `customPrompt || defaultPrompt` in the textbox and resets an action
+ * by clearing its override.
+ */
+export interface AIWritingActionPrompt {
+  id: string
+  label: string
+  defaultPrompt: string
+  customPrompt: string
 }
 
 /**

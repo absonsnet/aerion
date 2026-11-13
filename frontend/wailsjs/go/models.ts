@@ -820,6 +820,24 @@ export namespace backend {
 	        this.label = source["label"];
 	    }
 	}
+	export class ActionPromptInfo {
+	    id: string;
+	    label: string;
+	    defaultPrompt: string;
+	    customPrompt: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ActionPromptInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.label = source["label"];
+	        this.defaultPrompt = source["defaultPrompt"];
+	        this.customPrompt = source["customPrompt"];
+	    }
+	}
 	export class Attendee {
 	    email: string;
 	    cn?: string;
@@ -1417,6 +1435,7 @@ export namespace backend {
 	    customApiEndpoint: string;
 	    customModel: string;
 	    promptImprove: string;
+	    actionPrompts: Record<string, string>;
 	    useConversationHistory: boolean;
 	    hasApiKey: boolean;
 	
@@ -1432,6 +1451,7 @@ export namespace backend {
 	        this.customApiEndpoint = source["customApiEndpoint"];
 	        this.customModel = source["customModel"];
 	        this.promptImprove = source["promptImprove"];
+	        this.actionPrompts = source["actionPrompts"];
 	        this.useConversationHistory = source["useConversationHistory"];
 	        this.hasApiKey = source["hasApiKey"];
 	    }
@@ -1443,6 +1463,7 @@ export namespace backend {
 	    customApiEndpoint: string;
 	    customModel: string;
 	    promptImprove: string;
+	    actionPrompts: Record<string, string>;
 	    useConversationHistory: boolean;
 	    apiKey: string;
 	
@@ -1458,6 +1479,7 @@ export namespace backend {
 	        this.customApiEndpoint = source["customApiEndpoint"];
 	        this.customModel = source["customModel"];
 	        this.promptImprove = source["promptImprove"];
+	        this.actionPrompts = source["actionPrompts"];
 	        this.useConversationHistory = source["useConversationHistory"];
 	        this.apiKey = source["apiKey"];
 	    }

@@ -44,8 +44,8 @@ const subjectInstruction = "\n\nAlso generate 3 professional, concise, and engag
 
 // DefaultPromptFixGrammar is the "Fix Grammar" system prompt. Same shape
 // as DefaultPromptImprove (§9): draft-only revision between the spaced
-// markers, context only for understanding. Only the Improve prompt is
-// user-editable in Settings; this prompt is fixed.
+// markers, context only for understanding. Every action's prompt is
+// user-editable in Settings; this constant is the default.
 const DefaultPromptFixGrammar = `You are fixing the grammar of an email draft. You will receive the draft as HTML, plus quoted conversation history for context.
 
 Fix ONLY the grammar, spelling, and punctuation of the section between <!-- BEGIN DRAFT --> and <!-- END DRAFT -->. Do not change the wording, tone, or structure beyond what a grammar fix requires.
@@ -63,8 +63,8 @@ Rules:
 
 // DefaultPromptMakeFormal is the "Make Formal" system prompt. Same shape
 // as DefaultPromptImprove (§9): draft-only revision between the spaced
-// markers, context only for understanding. Only the Improve prompt is
-// user-editable in Settings; this prompt is fixed.
+// markers, context only for understanding. Every action's prompt is
+// user-editable in Settings; this constant is the default.
 const DefaultPromptMakeFormal = `You are rewriting an email draft in a formal, professional tone. You will receive the draft as HTML, plus quoted conversation history for context.
 
 Rewrite ONLY the section between <!-- BEGIN DRAFT --> and <!-- END DRAFT --> in a formal, professional tone, suitable for a business or official email.
@@ -82,8 +82,8 @@ Rules:
 
 // DefaultPromptShorten is the "Shorten" system prompt. Same shape as
 // DefaultPromptImprove (§9): draft-only revision between the spaced
-// markers, context only for understanding. Only the Improve prompt is
-// user-editable in Settings; this prompt is fixed.
+// markers, context only for understanding. Every action's prompt is
+// user-editable in Settings; this constant is the default.
 const DefaultPromptShorten = `You are shortening an email draft. You will receive the draft as HTML, plus quoted conversation history for context.
 
 Shorten ONLY the section between <!-- BEGIN DRAFT --> and <!-- END DRAFT -->. Cut filler, repetition, and wordiness while keeping every point from the draft.
@@ -101,8 +101,8 @@ Rules:
 
 // DefaultPromptExpand is the "Expand" system prompt. Same shape as
 // DefaultPromptImprove (§9): draft-only revision between the spaced
-// markers, context only for understanding. Only the Improve prompt is
-// user-editable in Settings; this prompt is fixed.
+// markers, context only for understanding. Every action's prompt is
+// user-editable in Settings; this constant is the default.
 const DefaultPromptExpand = `You are expanding an email draft with more detail. You will receive the draft as HTML, plus quoted conversation history for context.
 
 Expand ONLY the section between <!-- BEGIN DRAFT --> and <!-- END DRAFT -->. Add helpful detail and clarity to the points already in the draft, without inventing new facts.
@@ -120,8 +120,8 @@ Rules:
 
 // DefaultPromptMakeFriendly is the "Make Friendly" system prompt. Same
 // shape as DefaultPromptImprove (§9): draft-only revision between the
-// spaced markers, context only for understanding. Only the Improve prompt
-// is user-editable in Settings; this prompt is fixed.
+// spaced markers, context only for understanding. Every action's prompt is
+// user-editable in Settings; this constant is the default.
 const DefaultPromptMakeFriendly = `You are rewriting an email draft in a warm, friendly tone. You will receive the draft as HTML, plus quoted conversation history for context.
 
 Rewrite ONLY the section between <!-- BEGIN DRAFT --> and <!-- END DRAFT --> in a warm, friendly tone, while staying professional and appropriate for email.
@@ -145,8 +145,8 @@ Rules:
 // revise a draft. Reply-only: no subject instruction is ever appended
 // for this action (the bridge's IsNewEmail guard is false whenever
 // quoted context exists, and generate-reply requires quoted context).
-// Only the Improve prompt is user-editable in Settings; this prompt is
-// fixed.
+// Every action's prompt is user-editable in Settings; this constant is the
+// default.
 const DefaultPromptGenerateReply = `You are writing a reply to an email conversation. You will receive the quoted conversation history for context. The draft section will be empty — that is the signal: write a reply to the conversation, do not revise a draft.
 
 Write a reply to the conversation in the section between <!-- BEGIN CONTEXT --> and <!-- END CONTEXT -->. The section between <!-- BEGIN DRAFT --> and <!-- END DRAFT --> is empty and must stay empty. Never include the context in your output: output only the new reply.
@@ -163,9 +163,9 @@ Rules:
 
 // defaultActions is the action registry. v1 ships seven actions, in this
 // order: improve, fix-grammar, make-formal, shorten, expand,
-// make-friendly, generate-reply. Only the Improve prompt is
-// user-editable in Settings (Settings.PromptImprove); the other prompts
-// are fixed constants.
+// make-friendly, generate-reply. Every action's prompt is user-editable
+// in Settings (Settings.ActionPrompts overrides); the constants below
+// are the defaults used when an action has no override.
 var defaultActions = []Action{
 	{ID: "improve", Label: "Improve Writing", SystemPrompt: DefaultPromptImprove},
 	{ID: "fix-grammar", Label: "Fix Grammar", SystemPrompt: DefaultPromptFixGrammar},
@@ -174,6 +174,18 @@ var defaultActions = []Action{
 	{ID: "expand", Label: "Expand", SystemPrompt: DefaultPromptExpand},
 	{ID: "make-friendly", Label: "Make Friendly", SystemPrompt: DefaultPromptMakeFriendly},
 	{ID: "generate-reply", Label: "Generate Reply", SystemPrompt: DefaultPromptGenerateReply},
+}
+
+// ActionPromptInfo is one row of AIWriting_GetActionPrompts: the
+// registry id + label, the built-in default prompt, and the stored
+// custom prompt ("" when the action uses its default). The settings
+// dialog shows defaultPrompt with the custom override applied, and
+// resets by clearing the override.
+type ActionPromptInfo struct {
+	ID            string `json:"id"`
+	Label         string `json:"label"`
+	DefaultPrompt string `json:"defaultPrompt"`
+	CustomPrompt  string `json:"customPrompt"`
 }
 
 // ActionInfo is the Wails-visible shape of an Action (ID + label only —

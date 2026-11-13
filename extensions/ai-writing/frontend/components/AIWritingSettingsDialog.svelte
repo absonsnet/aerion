@@ -13,6 +13,15 @@
   // has no Aerion counterpart. Validation mirrors the backend contract
   // (temperature 0–2, maxTokens 1–4000, custom needs endpoint + model,
   // non-custom needs a key unless one is already saved).
+  //
+  // Prompts are per action: the dialog loads AIWriting_GetActionPrompts
+  // (id + label + built-in default + stored custom prompt) and shows a
+  // select to pick the action whose prompt the textbox edits. The
+  // textbox starts at the action's custom prompt, else its default.
+  // Saving sends only the actions whose text differs from their
+  // default; an action left at (or reset to) its default stores no
+  // override, so future default updates still reach it. Clearing the
+  // textbox also resets the action to its default.
 
   import { _ } from 'svelte-i18n'
   import Icon from '@iconify/svelte'
@@ -25,14 +34,14 @@
     DEFAULT_CUSTOM_API_ENDPOINT,
     DEFAULT_MAX_TOKENS,
     DEFAULT_MODEL,
-    DEFAULT_PROMPT_IMPROVE,
     DEFAULT_TEMPERATURE,
     MODEL_OPTIONS,
+    type AIWritingActionPrompt,
     type AIWritingSaveSettingsInput,
     type AIWritingSettings,
   } from '$extensions/ai-writing/frontend/lib/aiwriting'
   // @ts-ignore - wailsjs bindings (AIWriting_* land after `make generate`)
-  import { AIWriting_GetSettings, AIWriting_SaveSettings } from '$wailsjs/go/app/App'
+  import { AIWriting_GetActionPrompts, AIWriting_GetSettings, AIWriting_SaveSettings } from '$wailsjs/go/app/App'
 
   interface Props {
     open: boolean
@@ -52,12 +61,24 @@
   let hasApiKey = $state(false)
   let customApiEndpoint = $state(DEFAULT_CUSTOM_API_ENDPOINT)
   let customModel = $state('')
-  let promptImprove = $state(DEFAULT_PROMPT_IMPROVE)
   let temperature = $state(DEFAULT_TEMPERATURE)
   let maxTokens = $state(DEFAULT_MAX_TOKENS)
   let useConversationHistory = $state(true)
 
+  // Per-action prompts (from AIWriting_GetActionPrompts). `draftPrompts`
+  // holds the textbox text per action id so switching actions never
+  // loses an unsaved edit; `promptDraft` is the textbox's live content
+  // for the selected action.
+  let actionPrompts = $state<AIWritingActionPrompt[]>([])
+  let selectedActionId = $state('improve')
+  let promptDraft = $state('')
+  let draftPrompts = $state<Record<string, string>>({})
+
   const isCustom = $derived(selectedModel === CUSTOM_MODEL_VALUE)
+  const selectedAction = $derived(actionPrompts.find((a) => a.id === selectedActionId))
+  const promptCustomized = $derived(
+    !!selectedAction && promptDraft.trim() !== selectedAction.defaultPrompt.trim(),
+  )
 
   $effect(() => {
     if (open) {
@@ -78,9 +99,22 @@
       maxTokens = s.maxTokens ? s.maxTokens : DEFAULT_MAX_TOKENS
       customApiEndpoint = s.customApiEndpoint || DEFAULT_CUSTOM_API_ENDPOINT
       customModel = s.customModel || ''
-      promptImprove = s.promptImprove || DEFAULT_PROMPT_IMPROVE
       useConversationHistory = s.useConversationHistory ?? true
       hasApiKey = s.hasApiKey ?? false
+      const rows = (await AIWriting_GetActionPrompts()) as AIWritingActionPrompt[] | null
+      actionPrompts = Array.isArray(rows) ? rows : []
+      // Textbox text per action: the stored custom prompt, else the
+      // built-in default. Prefer the Improve action on open.
+      draftPrompts = {}
+      for (const a of actionPrompts) {
+        draftPrompts[a.id] = a.customPrompt || a.defaultPrompt
+      }
+      if (actionPrompts.some((a) => a.id === 'improve')) {
+        selectedActionId = 'improve'
+      } else if (actionPrompts.length > 0) {
+        selectedActionId = actionPrompts[0].id
+      }
+      promptDraft = draftPrompts[selectedActionId] ?? ''
     } catch (err) {
       const msg = (err as Error)?.message ?? String(err)
       loadError = $_('aiwriting.settings.loadFailed', { values: { message: msg } })
@@ -93,6 +127,34 @@
     return MODEL_OPTIONS.find((o) => o.value === value)?.label ?? value
   }
 
+  /**
+   * Display label for a registry action. Same rule as AIWritingButton:
+   * localize when the extension ships a translation for the action id
+   * (aiwriting.actions.<id>), else use the backend label verbatim.
+   */
+  function actionLabel(action: AIWritingActionPrompt): string {
+    const key = `aiwriting.actions.${action.id}`
+    const translated = $_(key)
+    return translated === key ? action.label : translated
+  }
+
+  /** Switch the prompt editor to another action, keeping the current
+   *  action's unsaved textbox text in draftPrompts. */
+  function selectAction(id: string): void {
+    if (!id || id === selectedActionId) return
+    draftPrompts[selectedActionId] = promptDraft
+    selectedActionId = id
+    promptDraft = draftPrompts[id] ?? ''
+  }
+
+  /** Restore the selected action's textbox to its built-in default.
+   *  Saving afterwards stores no override for it (see handleSave). */
+  function resetPrompt(): void {
+    if (!selectedAction) return
+    promptDraft = selectedAction.defaultPrompt
+    draftPrompts[selectedActionId] = promptDraft
+  }
+
   /** Client-side mirror of the backend validation (options.js shape). */
   function validate(): string | null {
     if (!selectedModel) return $_('aiwriting.settings.errorModelRequired')
@@ -102,7 +164,6 @@
     } else if (!hasApiKey && !apiKey.trim()) {
       return $_('aiwriting.settings.errorApiKeyRequired')
     }
-    if (!promptImprove.trim()) return $_('aiwriting.settings.errorPromptRequired')
     if (maxTokens < 1 || maxTokens > 4000) return $_('aiwriting.settings.errorMaxTokens')
     if (temperature < 0 || temperature > 2) return $_('aiwriting.settings.errorTemperature')
     return null
@@ -117,6 +178,19 @@
     saving = true
     status = null
     try {
+      // Stash the visible textbox before building the override map.
+      draftPrompts[selectedActionId] = promptDraft
+      // Only actions whose text differs from their built-in default
+      // are stored; the rest (including a cleared textbox) reset to
+      // the default because the backend drops empty/default-equal
+      // entries.
+      const overrides: Record<string, string> = {}
+      for (const a of actionPrompts) {
+        const text = (draftPrompts[a.id] ?? '').trim()
+        if (text !== '' && text !== a.defaultPrompt.trim()) {
+          overrides[a.id] = text
+        }
+      }
       const input: AIWritingSaveSettingsInput = {
         selectedModel,
         // Empty string = keep the existing stored key (backend contract).
@@ -125,13 +199,23 @@
         maxTokens,
         customApiEndpoint: customApiEndpoint.trim(),
         customModel: customModel.trim(),
-        promptImprove: promptImprove.trim(),
+        // Legacy single-prompt field (old backends only); the new
+        // backend prefers actionPrompts.
+        promptImprove: (draftPrompts['improve'] ?? '').trim(),
+        actionPrompts: overrides,
         useConversationHistory,
       }
       await AIWriting_SaveSettings(input)
       if (apiKey.trim() !== '') hasApiKey = true
       apiKey = ''
       status = { kind: 'success', message: $_('aiwriting.settings.saved') }
+      // Reflect the save in the per-action state without a full reload
+      // (which would flash the spinner and clear this status): the
+      // stored custom prompt for each action is now its override, or
+      // "" when it uses its default.
+      for (const a of actionPrompts) {
+        a.customPrompt = overrides[a.id] ?? ''
+      }
     } catch (err) {
       const msg = (err as Error)?.message ?? String(err)
       status = { kind: 'error', message: $_('aiwriting.settings.saveFailed', { values: { message: msg } }) }
@@ -238,15 +322,55 @@
         {/if}
 
         <div class="space-y-1.5">
-          <label for="aiwriting-prompt" class="text-sm font-medium text-foreground">
-            {$_('aiwriting.settings.prompt')}
-          </label>
+          <span class="text-sm font-medium text-foreground">
+            {$_('aiwriting.settings.actionPrompt')}
+          </span>
+          <Select.Root
+            value={selectedActionId}
+            onValueChange={(v) => { if (v) selectAction(v) }}
+          >
+            <Select.Trigger class="w-full">
+              {selectedAction ? actionLabel(selectedAction) : selectedActionId}
+            </Select.Trigger>
+            <Select.Content>
+              {#each actionPrompts as action (action.id)}
+                <Select.Item value={action.id} label={actionLabel(action)} />
+              {/each}
+            </Select.Content>
+          </Select.Root>
+          <p class="text-xs text-muted-foreground">{$_('aiwriting.settings.actionPromptHint')}</p>
+        </div>
+
+        <div class="space-y-1.5">
+          <div class="flex items-center justify-between">
+            <label for="aiwriting-prompt" class="text-sm font-medium text-foreground">
+              {$_('aiwriting.settings.prompt')}
+            </label>
+            {#if promptCustomized}
+              <Button
+                variant="ghost"
+                size="sm"
+                onclick={resetPrompt}
+              >
+                {$_('aiwriting.settings.resetPrompt')}
+              </Button>
+            {/if}
+          </div>
           <textarea
             id="aiwriting-prompt"
-            bind:value={promptImprove}
+            value={promptDraft}
+            oninput={(e) => {
+              promptDraft = e.currentTarget.value
+              draftPrompts[selectedActionId] = promptDraft
+            }}
             rows="8"
             class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           ></textarea>
+          <p class="text-xs text-muted-foreground">
+            {promptCustomized
+              ? $_('aiwriting.settings.promptCustomized')
+              : $_('aiwriting.settings.promptDefault')}
+          </p>
         </div>
 
         <div class="space-y-1.5">

@@ -145,6 +145,10 @@ func (b *AIWritingBridge) loadSettings() (Settings, error) {
 	if err != nil {
 		return Settings{}, err
 	}
+	// Settings saved by v0.4.0 carry only PromptImprove: fold a
+	// customized improve prompt into the per-action map (no-op when the
+	// map already has one or the prompt is the default).
+	migrateLegacyPrompt(&st)
 	st.HasAPIKey = b.hasAPIKey()
 	return st, nil
 }
@@ -227,12 +231,9 @@ func (b *AIWritingBridge) AIWriting_Improve(req ImproveRequest) (ImproveResult, 
 		return ImproveResult{}, errors.New("ai-writing: conversation history is off — turn it on in AI Writing Assistant settings to generate a reply")
 	}
 
-	systemPrompt := action.SystemPrompt
-	// A saved custom prompt wins over the registry default: the stored
-	// PromptImprove is the user's edited text for the improve action.
-	if action.ID == "improve" && strings.TrimSpace(st.PromptImprove) != "" {
-		systemPrompt = st.PromptImprove
-	}
+	// The action's system prompt: a stored custom override when the user
+	// edited this action's prompt in Settings, else the registry default.
+	systemPrompt := st.PromptFor(action.ID)
 	if req.IsNewEmail {
 		systemPrompt += subjectInstruction
 	}
@@ -257,6 +258,37 @@ func (b *AIWritingBridge) AIWriting_ListActions() ([]ActionInfo, error) {
 		return nil, err
 	}
 	return ListActions(), nil
+}
+
+// AIWriting_GetActionPrompts returns every action's prompt state for
+// the settings dialog's action picker: the registry id + label, the
+// built-in default prompt, and the stored custom prompt ("" when the
+// action uses its default).
+func (b *AIWritingBridge) AIWriting_GetActionPrompts() ([]ActionPromptInfo, error) {
+	if !b.gateEnabled() {
+		return nil, nil
+	}
+	if err := b.ensureInit(); err != nil {
+		return nil, err
+	}
+	st, err := b.loadSettings()
+	if err != nil {
+		return nil, err
+	}
+	out := make([]ActionPromptInfo, 0, len(defaultActions))
+	for _, a := range defaultActions {
+		custom := ""
+		if st.ActionPrompts != nil {
+			custom = st.ActionPrompts[a.ID]
+		}
+		out = append(out, ActionPromptInfo{
+			ID:            a.ID,
+			Label:         a.Label,
+			DefaultPrompt: a.SystemPrompt,
+			CustomPrompt:  custom,
+		})
+	}
+	return out, nil
 }
 
 // AIWriting_ListModels returns the selectable model list (ID + label +

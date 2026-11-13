@@ -13,15 +13,24 @@ import (
 // the API key never leaves the secret store (see secrets.go notes in
 // bridge.go — key lives under Secrets("ai-writing") key "api_key"), and
 // plain-text conversion is local in the frontend in v1.
+//
+// ActionPrompts holds a custom system prompt per action id (see
+// actions.go). An action with no entry — or an empty one — uses its
+// registry default, so a stored copy of the default is never kept:
+// that keeps future default updates live for uncustomized actions.
+// PromptImprove is the legacy single-prompt field (v0.4.0): it now
+// mirrors the effective improve prompt and is kept only so settings
+// saved by the old client keep working (see migrateLegacyPrompt).
 type Settings struct {
-	SelectedModel          string  `json:"selectedModel"`
-	Temperature            float64 `json:"temperature"`
-	MaxTokens              int     `json:"maxTokens"`
-	CustomAPIEndpoint      string  `json:"customApiEndpoint"`
-	CustomModel            string  `json:"customModel"`
-	PromptImprove          string  `json:"promptImprove"`
-	UseConversationHistory bool    `json:"useConversationHistory"`
-	HasAPIKey              bool    `json:"hasApiKey"`
+	SelectedModel          string            `json:"selectedModel"`
+	Temperature            float64           `json:"temperature"`
+	MaxTokens              int               `json:"maxTokens"`
+	CustomAPIEndpoint      string            `json:"customApiEndpoint"`
+	CustomModel            string            `json:"customModel"`
+	PromptImprove          string            `json:"promptImprove"`
+	ActionPrompts          map[string]string `json:"actionPrompts"`
+	UseConversationHistory bool              `json:"useConversationHistory"`
+	HasAPIKey              bool              `json:"hasApiKey"`
 }
 
 // SettingsInput is what the frontend sends to AIWriting_SaveSettings:
@@ -29,14 +38,15 @@ type Settings struct {
 // the existing stored key" — there is no way to clear the key through
 // this method in v1.
 type SettingsInput struct {
-	SelectedModel          string  `json:"selectedModel"`
-	Temperature            float64 `json:"temperature"`
-	MaxTokens              int     `json:"maxTokens"`
-	CustomAPIEndpoint      string  `json:"customApiEndpoint"`
-	CustomModel            string  `json:"customModel"`
-	PromptImprove          string  `json:"promptImprove"`
-	UseConversationHistory bool    `json:"useConversationHistory"`
-	APIKey                 string  `json:"apiKey"`
+	SelectedModel          string            `json:"selectedModel"`
+	Temperature            float64           `json:"temperature"`
+	MaxTokens              int               `json:"maxTokens"`
+	CustomAPIEndpoint      string            `json:"customApiEndpoint"`
+	CustomModel            string            `json:"customModel"`
+	PromptImprove          string            `json:"promptImprove"`
+	ActionPrompts          map[string]string `json:"actionPrompts"`
+	UseConversationHistory bool              `json:"useConversationHistory"`
+	APIKey                 string            `json:"apiKey"`
 }
 
 // Status is the lightweight health snapshot AIWriting_GetStatus returns.
@@ -112,8 +122,14 @@ func ValidateSettings(in SettingsInput, hasStoredKey bool) error {
 		// Mirrors TB options.js: non-custom models require a key.
 		return fmt.Errorf("ai-writing: please enter an API key")
 	}
-	if strings.TrimSpace(in.PromptImprove) == "" {
-		return fmt.Errorf("ai-writing: please enter the improve prompt")
+	// A per-action prompt override is optional — an action with no
+	// entry (or an empty one, which means "reset to default") always
+	// has its registry default to fall back on, so no prompt is ever
+	// required. Only the action id itself is validated here.
+	for id := range in.ActionPrompts {
+		if findAction(id) == nil {
+			return fmt.Errorf("ai-writing: unsupported action %q", id)
+		}
 	}
 	if in.MaxTokens < 1 || in.MaxTokens > 4000 {
 		return fmt.Errorf("ai-writing: max tokens must be between 1 and 4000")
@@ -176,16 +192,86 @@ func splitModelID(id string) (provider, model string) {
 	return id, ""
 }
 
+// PromptFor returns the system prompt to use for an action: the stored
+// custom override when one exists, else the registry default. "" for an
+// unknown action id.
+func (st Settings) PromptFor(actionID string) string {
+	if st.ActionPrompts != nil {
+		if p, ok := st.ActionPrompts[actionID]; ok && strings.TrimSpace(p) != "" {
+			return p
+		}
+	}
+	if a := findAction(actionID); a != nil {
+		return a.SystemPrompt
+	}
+	return ""
+}
+
+// migrateLegacyPrompt carries a customized improve prompt stored by
+// v0.4.0 (PromptImprove only, no ActionPrompts map) into the map, so an
+// upgrade keeps the user's customization. A no-op when the map already
+// has an improve entry or the stored prompt is empty or the default.
+func migrateLegacyPrompt(st *Settings) {
+	if st.ActionPrompts != nil {
+		if _, ok := st.ActionPrompts["improve"]; ok {
+			return
+		}
+	}
+	p := strings.TrimSpace(st.PromptImprove)
+	if p == "" || p == DefaultPromptImprove {
+		return
+	}
+	if st.ActionPrompts == nil {
+		st.ActionPrompts = map[string]string{}
+	}
+	st.ActionPrompts["improve"] = p
+}
+
+// normalizeActionPrompts drops override entries that carry no
+// customization: unknown action ids, empty values (reset to default),
+// and values identical to the registry default (storing a copy of the
+// default would freeze it against future default updates). Returns nil
+// when nothing customized remains.
+func normalizeActionPrompts(in map[string]string) map[string]string {
+	var out map[string]string
+	for id, v := range in {
+		a := findAction(id)
+		if a == nil {
+			continue
+		}
+		v = strings.TrimSpace(v)
+		if v == "" || v == a.SystemPrompt {
+			continue
+		}
+		if out == nil {
+			out = map[string]string{}
+		}
+		out[id] = v
+	}
+	return out
+}
+
 // toSettings converts validated input into the storable Settings shape.
 // HasAPIKey is filled in by the caller from the secret store.
+// PromptImprove is kept in sync with the effective improve prompt so
+// the legacy field stays truthful for older readers.
 func (in SettingsInput) toSettings() Settings {
-	return Settings{
+	prompts := normalizeActionPrompts(in.ActionPrompts)
+	// Legacy clients (v0.4.0) send only PromptImprove and no map: carry
+	// a customized improve prompt into the map so it keeps working.
+	if len(prompts) == 0 && strings.TrimSpace(in.PromptImprove) != "" &&
+		strings.TrimSpace(in.PromptImprove) != DefaultPromptImprove {
+		prompts = map[string]string{"improve": strings.TrimSpace(in.PromptImprove)}
+	}
+	st := Settings{
 		SelectedModel:          in.SelectedModel,
 		Temperature:            in.Temperature,
 		MaxTokens:              in.MaxTokens,
 		CustomAPIEndpoint:      in.CustomAPIEndpoint,
 		CustomModel:            in.CustomModel,
-		PromptImprove:          in.PromptImprove,
+		ActionPrompts:          prompts,
 		UseConversationHistory: in.UseConversationHistory,
 	}
+	st.PromptImprove = st.PromptFor("improve")
+	return st
 }
