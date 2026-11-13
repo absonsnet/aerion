@@ -1,5 +1,13 @@
 # CHANGELOG
 
+**v0.4.0 - 13-11-2026**
+---
+
+- AI Writing Assistant extension: Improve Writing, Fix Grammar, Make Formal, Shorten, Expand, Make Friendly, and Generate Reply actions in the composer (OpenAI, Groq, Gemini, xAI, or a local Ollama endpoint)
+- Generate Reply writes a reply from the quoted conversation when the draft is empty
+- Quoted history is sent to the provider for context only and is re-attached unchanged on insert
+- Release workflow now creates the GitHub release when a version tag is pushed
+
 **v0.3.6 - 11-03-2026**
 ---
 

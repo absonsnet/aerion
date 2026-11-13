@@ -375,6 +375,16 @@
   </provides>
 
   <releases>
+    <release version="0.4.0" date="2026-11-13">
+      <description>
+        <ul>
+          <li>AI Writing Assistant extension: Improve Writing, Fix Grammar, Make Formal, Shorten, Expand, Make Friendly, and Generate Reply actions in the composer (OpenAI, Groq, Gemini, xAI, or a local Ollama endpoint)</li>
+          <li>Generate Reply writes a reply from the quoted conversation when the draft is empty</li>
+          <li>Quoted history is sent to the provider for context only and is re-attached unchanged on insert</li>
+          <li>Release workflow now creates the GitHub release when a version tag is pushed</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.3.6" date="2026-11-03">
       <description>
         <ul>
