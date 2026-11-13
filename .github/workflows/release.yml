@@ -17,7 +17,7 @@ jobs:
           - os: ubuntu-22.04-arm
             platform: linux
             arch: arm64
-          - os: macos-15
+          - os: macos-15-intel
             platform: darwin
             arch: universal
           - os: windows-latest
@@ -130,6 +130,10 @@ jobs:
           # runners (queued ~15 min, then cancelled by GitHub), while a
           # single macos-15 runner was obtained in ~5 min — so the
           # workflow now needs one Mac runner instead of two.
+          # Runs on macos-15-intel: GitHub's own warning is that macOS
+          # *arm64* runners are capacity-constrained, and the Intel pool
+          # is separate. (Cross-compiling to Mac from Linux is not an
+          # option — Wails 2.16 refuses it outright.)
           GOARCH=amd64 make build
           (cd build/bin && zip -r Aerion-darwin-amd64.zip Aerion.app && rm -rf Aerion.app)
           GOARCH=arm64 make build
