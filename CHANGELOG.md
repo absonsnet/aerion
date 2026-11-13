@@ -7,6 +7,7 @@
 - Generate Reply writes a reply from the quoted conversation when the draft is empty
 - Quoted history is sent to the provider for context only and is re-attached unchanged on insert
 - Release workflow now creates the GitHub release when a version tag is pushed
+- v0.4.0 changes by ABSONS Technologies (@absonsnet) — previous releases by the original author (hkdb)
 
 **v0.3.6 - 11-03-2026**
 ---

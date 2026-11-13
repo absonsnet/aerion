@@ -124,7 +124,7 @@ export const DEFAULT_MAX_TOKENS = 2000
 export const DEFAULT_CUSTOM_API_ENDPOINT = 'http://localhost:11434/api/chat'
 
 // Default Improve prompt — the rewritten draft from AI_WRITING_PLAN.md §9
-// (Abid's decision: rewrite the prompt, not the Thunderbird default).
+// (Decision: rewrite the prompt, not the Thunderbird default).
 // The backend owns the same default in prompts.go; this copy is only the
 // settings dialog's fallback when GetSettings returns an empty prompt.
 export const DEFAULT_PROMPT_IMPROVE = `You are revising an email draft. You will receive the draft as HTML, plus quoted conversation history for context.
