@@ -199,7 +199,7 @@ jobs:
           # and the Flatpak job then failed on a 404 downloading the
           # shim. List what landed so the log shows it either way.
           echo "Uploaded assets for $TAG_NAME:"
-          gh release view "$TAG_NAME" --json assets --jq -r '.assets[].name'
+          gh release view "$TAG_NAME" --json assets --jq '.assets[].name'
           COUNT=$(gh release view "$TAG_NAME" --json assets --jq '.assets | length')
           if [ "$COUNT" -eq 0 ]; then
             echo "ERROR: release $TAG_NAME has no assets after upload" >&2

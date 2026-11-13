@@ -278,7 +278,7 @@ func runComposerMode() {
 	// Run Wails application for composer window
 	err := wails.Run(&options.App{
 		Title:                    title,
-		Width:                    800,
+		Width:                    1000,
 		Height:                   600,
 		MinWidth:                 500,
 		MinHeight:                400,
