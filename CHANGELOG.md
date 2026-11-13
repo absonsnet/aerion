@@ -1,5 +1,14 @@
 # CHANGELOG
 
+**v0.4.2 - 13-11-2026**
+---
+
+- Composer: Enter now starts a new paragraph with a visible gap, while Shift+Enter stays a line break inside the same paragraph
+- Composer window now uses the native title bar, so it can be resized and dragged on macOS
+- Composer opens wider (1000px) so the toolbar fits
+- Release workflow: publish now verifies every uploaded asset by name instead of only checking the count, and the manifest step fails fast if a shim is missing from the release — a re-pushed tag could leave publish reporting success while the release ended up empty, which is why v0.4.0 and v0.4.1 both failed at Flatpak; never delete and re-push a release tag, always use a fresh version tag
+- v0.4.2 changes by ABSONS Technologies (@absonsnet)
+
 **v0.4.1 - 13-11-2026**
 ---
 

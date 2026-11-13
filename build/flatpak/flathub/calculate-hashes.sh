@@ -69,8 +69,11 @@ if wget -q "${REPO}/releases/download/${VERSION}/${CREDS_X86}"; then
     CREDS_X86_SHA256=$(sha256sum "$CREDS_X86" | awk '{print $1}')
     echo "   x86_64 shim: ${CREDS_X86_SHA256}"
 else
-    echo "   ERROR: Could not download x86_64 shim binary"
-    CREDS_X86_SHA256="ERROR_FILE_NOT_FOUND"
+    # Fail fast: a missing shim means the release is incomplete, and
+    # writing a bogus hash lets the pipeline continue to Flatpak where
+    # it fails confusingly on a 404 (v0.4.0/v0.4.1 both did this).
+    echo "   ERROR: Could not download x86_64 shim binary — it is missing from the release" >&2
+    exit 1
 fi
 
 # aarch64 shim
@@ -79,8 +82,8 @@ if wget -q "${REPO}/releases/download/${VERSION}/${CREDS_ARM}"; then
     CREDS_ARM_SHA256=$(sha256sum "$CREDS_ARM" | awk '{print $1}')
     echo "   aarch64 shim: ${CREDS_ARM_SHA256}"
 else
-    echo "   ERROR: Could not download aarch64 shim binary"
-    CREDS_ARM_SHA256="ERROR_FILE_NOT_FOUND"
+    echo "   ERROR: Could not download aarch64 shim binary — it is missing from the release" >&2
+    exit 1
 fi
 
 echo ""

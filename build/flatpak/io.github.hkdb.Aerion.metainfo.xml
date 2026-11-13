@@ -375,6 +375,16 @@
   </provides>
 
   <releases>
+    <release version="0.4.2" date="2026-11-13">
+      <description>
+        <ul>
+          <li>Composer: Enter now starts a new paragraph with a visible gap, while Shift+Enter stays a line break inside the same paragraph</li>
+          <li>Composer window now uses the native title bar, so it can be resized and dragged on macOS</li>
+          <li>Composer opens wider (1000px) so the toolbar fits</li>
+          <li>Release workflow: publish now verifies every uploaded asset by name, and the manifest step fails fast if a shim is missing from the release</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.4.1" date="2026-11-13">
       <description>
         <ul>

@@ -179,6 +179,12 @@ jobs:
         run: |
           TAG_NAME=${{ github.ref_name }}
 
+          # NOTE: never delete and re-push this tag to re-run a release.
+          # Deleting a tag deletes its GitHub release, and a re-pushed tag
+          # can leave publish reporting success while the release ends up
+          # empty (v0.4.0 and v0.4.1 both did this: the upload lands in a
+          # release the tag deletion then wipes). Always bump the version
+          # and push a fresh tag instead.
           # Create the release if it doesn't exist yet (a re-run reuses
           # the existing one). Notes come from this version's CHANGELOG.md
           # entry, so the release page carries the curated changelog.
@@ -188,21 +194,37 @@ jobs:
             gh release create "$TAG_NAME" --title "$TAG_NAME" --notes "$NOTES"
           fi
 
-          # Upload all artifacts (binaries, shim binaries, tarballs)
-          gh release upload $TAG_NAME \
-            aerion-*/build/bin/* \
-            aerion-*/*.tar.gz \
-            --clobber
+          # Collect the files to upload first, so we can verify each one
+          # landed in the release by name afterwards.
+          FILES=()
+          for pattern in aerion-*/build/bin/* aerion-*/*.tar.gz; do
+            [ -f "$pattern" ] && FILES+=("$pattern")
+          done
+          if [ "${#FILES[@]}" -eq 0 ]; then
+            echo "ERROR: no artifacts found to upload" >&2
+            exit 1
+          fi
 
-          # Fail loudly if the upload produced nothing: v0.4.0's publish
-          # reported success while the release ended up with no assets,
-          # and the Flatpak job then failed on a 404 downloading the
-          # shim. List what landed so the log shows it either way.
+          # Upload all artifacts (binaries, shim binaries, tarballs)
+          gh release upload "$TAG_NAME" "${FILES[@]}" --clobber
+
+          # Fail loudly if any uploaded file is missing from the release
+          # by name (a count alone is not enough: a re-pushed tag can
+          # leave publish reporting success while the release ends up
+          # empty, and the Flatpak job then fails on a 404 downloading
+          # the shim). List what landed so the log shows it either way.
           echo "Uploaded assets for $TAG_NAME:"
-          gh release view "$TAG_NAME" --json assets --jq '.assets[].name'
-          COUNT=$(gh release view "$TAG_NAME" --json assets --jq '.assets | length')
-          if [ "$COUNT" -eq 0 ]; then
-            echo "ERROR: release $TAG_NAME has no assets after upload" >&2
+          ASSETS=$(gh release view "$TAG_NAME" --json assets --jq '.assets[].name')
+          echo "$ASSETS"
+          MISSING=0
+          for f in "${FILES[@]}"; do
+            name=$(basename "$f")
+            if ! grep -qx "$name" <<< "$ASSETS"; then
+              echo "ERROR: asset $name missing from release $TAG_NAME after upload" >&2
+              MISSING=1
+            fi
+          done
+          if [ "$MISSING" -ne 0 ]; then
             exit 1
           fi
 
