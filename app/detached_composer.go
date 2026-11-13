@@ -105,6 +105,11 @@ type ComposerApp struct {
 	originalMessage *message.Message     // For reply/forward
 	currentDraft    *draft.Draft         // Current draft being edited
 	composeMessage  *smtp.ComposeMessage // Prepared compose message
+
+	// closeConfirmed is set once the user confirmed how to handle the draft
+	// (discard/save) or the message was sent, so BeforeClose lets the
+	// programmatic close through.
+	closeConfirmed bool
 }
 
 // NewComposerApp creates a new ComposerApp with the given configuration.
@@ -517,6 +522,25 @@ func (c *ComposerApp) GetShowTitleBar() (bool, error) {
 // GetNativeTitleBar returns whether the native OS title bar is enabled.
 func (c *ComposerApp) GetNativeTitleBar() (bool, error) {
 	return c.settingsStore.GetNativeTitleBar()
+}
+
+// BeforeClose is called when the window is about to close (e.g. the OS close
+// button on the native title bar). It vetoes the close and asks the frontend
+// to show the discard/save confirmation, unless the user already confirmed
+// (or the message was sent). Mirrors App.BeforeClose.
+func (c *ComposerApp) BeforeClose(ctx context.Context) bool {
+	if c.closeConfirmed {
+		return false
+	}
+	wailsRuntime.EventsEmit(c.ctx, "composer:close-requested")
+	return true
+}
+
+// ConfirmClose marks the close as user-confirmed so BeforeClose lets the
+// programmatic close through. Called by the frontend right before
+// CloseWindow(), after the user picks Discard/Save (or after Send).
+func (c *ComposerApp) ConfirmClose() {
+	c.closeConfirmed = true
 }
 
 // GetThemeMode returns the current theme mode setting.

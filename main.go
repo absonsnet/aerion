@@ -266,23 +266,22 @@ func runComposerMode() {
 		title = "Edit Draft"
 	}
 
-	// Read native title bar setting before Wails init (Frameless is init-time only)
-	composerNativeTitleBar := false
-	if paths, err := platform.GetPaths(); err == nil {
-		composerNativeTitleBar = settings.ReadNativeTitleBar(paths.DatabasePath())
-	}
-
 	// Create a custom asset handler that serves composer.html instead of index.html
 	composerAssetHandler := &composerAssetHandler{assets: assets}
 
-	// Run Wails application for composer window
+	// Run Wails application for composer window.
+	// The composer uses the native OS title bar (not frameless): a frameless
+	// window gets no resize handles from the OS window manager on macOS, so
+	// it cannot be resized or dragged by its edges. The native bar gives
+	// standard resize/drag, and BeforeClose preserves the discard/save
+	// confirmation when the OS close button is used.
 	err := wails.Run(&options.App{
 		Title:                    title,
 		Width:                    1000,
 		Height:                   600,
 		MinWidth:                 500,
 		MinHeight:                400,
-		Frameless:                !composerNativeTitleBar,
+		Frameless:                false,
 		StartHidden:              true, // Hide until frontend is ready to prevent white flash
 		EnableDefaultContextMenu: true,
 		AssetServer: &assetserver.Options{
@@ -293,6 +292,7 @@ func runComposerMode() {
 		BackgroundColour: &options.RGBA{R: 27, G: 38, B: 54, A: 1},
 		OnStartup:        composerApp.Startup,
 		OnShutdown:       composerApp.Shutdown,
+		OnBeforeClose:    composerApp.BeforeClose,
 		Bind: []interface{}{
 			composerApp,
 		},
