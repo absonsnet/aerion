@@ -124,12 +124,12 @@ func ValidateSettings(in SettingsInput, hasStoredKey bool) error {
 	return nil
 }
 
-// keyPrefixes maps each provider prefix to the API-key prefix its keys
-// start with (plan §4). Custom/Ollama takes no key, so it has none.
+// keyPrefixes maps each single-prefix provider to the API-key prefix its
+// keys start with (plan §4). Custom/Ollama takes no key, so it has none.
+// Google is absent: it accepts two prefixes (see ValidateAPIKeyPrefix).
 var keyPrefixes = map[string]string{
 	"openai": "sk-",
 	"groq":   "gsk_",
-	"google": "AIza",
 	"xai":    "xai-",
 }
 
@@ -137,10 +137,19 @@ var keyPrefixes = map[string]string{
 // prefix for the selected model's provider. The error names the expected
 // prefix so the frontend can show it. Custom models skip the check.
 // OpenAI accepts both legacy `sk-` and current project `sk-proj-` keys.
+// Google accepts both the older standard `AIza` keys and the `AQ.` auth
+// keys AI Studio has issued since 28 May 2026 (the old format is being
+// phased out, so new keys will be `AQ.`).
 func ValidateAPIKeyPrefix(modelID, key string) error {
 	provider, _ := splitModelID(modelID)
 	if provider == "custom" {
 		return nil
+	}
+	if provider == "google" {
+		if strings.HasPrefix(key, "AIza") || strings.HasPrefix(key, "AQ.") {
+			return nil
+		}
+		return fmt.Errorf("ai-writing: Google API key must start with %q (older keys) or %q (new AI Studio keys)", "AIza", "AQ.")
 	}
 	want, ok := keyPrefixes[provider]
 	if !ok {

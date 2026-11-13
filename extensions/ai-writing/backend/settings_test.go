@@ -86,6 +86,7 @@ func TestValidateAPIKeyPrefix(t *testing.T) {
 		{"groq:openai/gpt-oss-120b", "gsk_abc", ""},
 		{"groq:openai/gpt-oss-120b", "sk-abc", "gsk_"},
 		{"google:gemini-3.8-flash", "AIzaAbc", ""},
+		{"google:gemini-3.8-flash", "AQ.Ab8RN6LEVE", ""},
 		{"google:gemini-3.8-flash", "sk-abc", "AIza"},
 		{"xai:grok-4", "xai-abc", ""},
 		{"xai:grok-4", "sk-abc", "xai-"},
