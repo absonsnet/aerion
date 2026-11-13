@@ -11,7 +11,10 @@ if [ -z "$1" ]; then
 fi
 
 VERSION="$1"
-REPO="https://github.com/hkdb/aerion"
+# Second arg is the repo slug (owner/repo); defaults to upstream so the
+# script still works when run by hand. The workflow passes
+# ${{ github.repository }} so a fork resolves its own tag and release.
+REPO="https://github.com/${2:-hkdb/aerion}"
 
 echo "=========================================="
 echo "Flathub Manifest Updater (from-source)"
@@ -50,6 +53,9 @@ sed -i "s|tag: v[0-9.]*[-a-zA-Z0-9]*|tag: ${VERSION}|" "$MANIFEST"
 # Update commit hash in manifest
 sed -i "s|commit: [0-9a-f]\{40\}|commit: ${COMMIT_HASH}|" "$MANIFEST"
 
+# Point the git source at this repo — a fork's tag doesn't exist upstream.
+sed -i "s|url: https://github.com/[^/]*/aerion.git|url: ${REPO}.git|" "$MANIFEST"
+
 # ----- Step 2: Download shim binaries and calculate hashes -----
 echo "Downloading shim binaries..."
 echo ""
@@ -87,10 +93,10 @@ rm -rf "$TEMP_DIR"
 echo "Updating manifest..."
 
 # Update x86_64 shim URL
-sed -i "s|url: https://github.com/hkdb/aerion/releases/download/v[0-9.]*[-a-zA-Z0-9]*/flathub-build-env-v[0-9.]*[-a-zA-Z0-9]*-linux-x86_64|url: ${REPO}/releases/download/${VERSION}/${CREDS_X86}|" "$MANIFEST"
+sed -i "s|url: https://github.com/[^/]*/aerion/releases/download/v[0-9.]*[-a-zA-Z0-9]*/flathub-build-env-v[0-9.]*[-a-zA-Z0-9]*-linux-x86_64|url: ${REPO}/releases/download/${VERSION}/${CREDS_X86}|" "$MANIFEST"
 
 # Update aarch64 shim URL
-sed -i "s|url: https://github.com/hkdb/aerion/releases/download/v[0-9.]*[-a-zA-Z0-9]*/flathub-build-env-v[0-9.]*[-a-zA-Z0-9]*-linux-aarch64|url: ${REPO}/releases/download/${VERSION}/${CREDS_ARM}|" "$MANIFEST"
+sed -i "s|url: https://github.com/[^/]*/aerion/releases/download/v[0-9.]*[-a-zA-Z0-9]*/flathub-build-env-v[0-9.]*[-a-zA-Z0-9]*-linux-aarch64|url: ${REPO}/releases/download/${VERSION}/${CREDS_ARM}|" "$MANIFEST"
 
 # Update x86_64 shim sha256 (find the sha256 line after the x86_64 URL)
 awk -v sha="$CREDS_X86_SHA256" '

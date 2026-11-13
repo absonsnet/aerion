@@ -206,7 +206,7 @@ jobs:
         run: |
           cd build/flatpak/flathub
           chmod +x calculate-hashes.sh
-          ./calculate-hashes.sh ${{ github.ref_name }}
+          ./calculate-hashes.sh ${{ github.ref_name }} ${{ github.repository }}
 
       - name: Upload updated manifest
         uses: actions/upload-artifact@v7
