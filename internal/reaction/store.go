@@ -188,6 +188,47 @@ func (s *Store) LinkPending(targetMessageID, messageID string) ([]string, error)
 	return sourceIDs, nil
 }
 
+// RemoveReaction deletes the reactions on a message (internal id) from the
+// given reactor emails, and reports whether any row was deleted. It only
+// ever deletes local rows — it sends nothing, so a reaction already sent
+// to the original sender stays sent. Callers pass the current user's own
+// addresses (see App.RemoveOwnReaction), so only the user's own reaction
+// can be removed through this path.
+func (s *Store) RemoveReaction(messageID string, reactorEmails []string) (bool, error) {
+	if strings.TrimSpace(messageID) == "" {
+		return false, fmt.Errorf("reaction has no message id")
+	}
+	if len(reactorEmails) == 0 {
+		return false, nil
+	}
+	placeholders := make([]string, 0, len(reactorEmails))
+	args := make([]interface{}, 0, len(reactorEmails)+1)
+	args = append(args, messageID)
+	for _, email := range reactorEmails {
+		email = strings.ToLower(strings.TrimSpace(email))
+		if email == "" {
+			continue
+		}
+		placeholders = append(placeholders, "?")
+		args = append(args, email)
+	}
+	if len(placeholders) == 0 {
+		return false, nil
+	}
+	res, err := s.db.Exec(
+		`DELETE FROM reactions WHERE message_id = ? AND reactor_email IN (`+strings.Join(placeholders, ",")+`)`,
+		args...,
+	)
+	if err != nil {
+		return false, fmt.Errorf("failed to delete reaction: %w", err)
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("failed to count deleted reactions: %w", err)
+	}
+	return affected > 0, nil
+}
+
 // ListByMessage returns the current reactions on a message (internal id),
 // oldest first.
 func (s *Store) ListByMessage(messageID string) ([]*Reaction, error) {

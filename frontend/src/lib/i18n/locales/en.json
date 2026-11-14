@@ -168,7 +168,14 @@
     "focusMessage": "Focus message",
     "exitFocus": "Exit focus mode",
     "darkMailToLight": "Show this email without dark filter",
-    "darkMailToDark": "Apply dark filter to this email"
+    "darkMailToDark": "Apply dark filter to this email",
+    "react": "React",
+    "reactionSent": "Reaction sent",
+    "failedToSendReaction": "Failed to send reaction",
+    "reactionRemoved": "Reaction removed",
+    "failedToRemoveReaction": "Failed to remove reaction",
+    "removeOwnReaction": "Remove your reaction",
+    "reactionRemoveNote": "Your reaction was already sent — removing it only hides it here, it can't be taken back from the recipient."
   },
   "composer": {
     "newMessage": "New Message",

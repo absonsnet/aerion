@@ -242,3 +242,48 @@ func TestSendReactionLimits(t *testing.T) {
 		})
 	}
 }
+
+// --- RemoveOwnReaction tests ------------------------------------------------
+// Removal is local-only: it deletes the stored row and sends nothing.
+
+func TestRemoveOwnReaction(t *testing.T) {
+	rta := newReactionTestApp(t)
+	rta.seedMessage(t, "msg-1", "<orig@example.com>", "Alice", "alice@example.com",
+		addrListJSON(t, "me@example.com"), "", "", "")
+
+	if err := rta.app.SendReaction("msg-1", "👍"); err != nil {
+		t.Fatalf("SendReaction() error = %v", err)
+	}
+	// Another reactor's reaction on the same message, recorded directly.
+	if err := rta.app.reactionStore.Record(&reaction.Reaction{
+		MessageID:       "msg-1",
+		TargetMessageID: "<orig@example.com>",
+		ReactorEmail:    "alice@example.com",
+		ReactorName:     "Alice",
+		Emoji:           "❤️",
+		SourceMessageID: "<react-alice@example.com>",
+	}); err != nil {
+		t.Fatalf("Record() error = %v", err)
+	}
+
+	if err := rta.app.RemoveOwnReaction("msg-1"); err != nil {
+		t.Fatalf("RemoveOwnReaction() error = %v", err)
+	}
+	if len(rta.sent) != 1 {
+		t.Errorf("sent %d messages after removal, want 1 (removal sends nothing)", len(rta.sent))
+	}
+	listed, err := rta.app.GetMessageReactions("msg-1")
+	if err != nil {
+		t.Fatalf("GetMessageReactions() error = %v", err)
+	}
+	if len(listed) != 1 || listed[0].ReactorEmail != "alice@example.com" {
+		t.Errorf("GetMessageReactions() = %+v, want only Alice's reaction", listed)
+	}
+}
+
+func TestRemoveOwnReactionNotFound(t *testing.T) {
+	rta := newReactionTestApp(t)
+	if err := rta.app.RemoveOwnReaction("no-such-message"); err == nil {
+		t.Error("RemoveOwnReaction() error = nil, want an error for an unknown message")
+	}
+}

@@ -59,6 +59,30 @@ func (a *App) GetMessageReactions(messageID string) ([]MessageReaction, error) {
 	return result, nil
 }
 
+// RemoveOwnReaction deletes only the current user's own reaction on a
+// message (internal id) from the local store. It sends no email: a
+// reaction already sent to the original sender cannot be retracted from
+// their mailbox — removing it only hides it here.
+func (a *App) RemoveOwnReaction(messageID string) error {
+	msg, err := a.messageStore.Get(messageID)
+	if err != nil {
+		return fmt.Errorf("failed to get message: %w", err)
+	}
+	if msg == nil {
+		return fmt.Errorf("message not found: %s", messageID)
+	}
+
+	own := a.ownEmailsForAccount(msg.AccountID)
+	emails := make([]string, 0, len(own))
+	for email := range own {
+		emails = append(emails, email)
+	}
+	if _, err := a.reactionStore.RemoveReaction(messageID, emails); err != nil {
+		return fmt.Errorf("failed to remove reaction: %w", err)
+	}
+	return nil
+}
+
 // SendReaction sends an emoji reaction to a message (internal id) as a
 // reaction email addressed to the original sender only, saves it to the
 // Sent folder, and records the user's own reaction immediately so the UI

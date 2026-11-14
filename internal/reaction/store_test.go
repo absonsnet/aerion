@@ -296,3 +296,55 @@ func TestLinkPendingReplacesStalePendingReaction(t *testing.T) {
 		t.Fatalf("CountPending() = %d, err = %v, want 0 (stale pending replaced)", n, err)
 	}
 }
+
+func TestRemoveReaction(t *testing.T) {
+	db := openTestDB(t)
+	mustSeedMessage(t, db, "msg-1", "<orig@example.com>")
+	store := NewStore(db)
+
+	record := func(email, emoji, source string) {
+		t.Helper()
+		if err := store.Record(&Reaction{
+			MessageID:       "msg-1",
+			TargetMessageID: "<orig@example.com>",
+			ReactorEmail:    email,
+			Emoji:           emoji,
+			SourceMessageID: source,
+		}); err != nil {
+			t.Fatalf("Record(%s) error = %v", email, err)
+		}
+	}
+	record("me@example.com", "👍", "<react-1@example.com>")
+	record("alice@example.com", "❤️", "<react-2@example.com>")
+
+	// Removing the user's own reaction leaves the other reactor's row.
+	removed, err := store.RemoveReaction("msg-1", []string{"me@example.com"})
+	if err != nil {
+		t.Fatalf("RemoveReaction() error = %v", err)
+	}
+	if !removed {
+		t.Error("RemoveReaction() removed = false, want true")
+	}
+	got, err := store.ListByMessage("msg-1")
+	if err != nil {
+		t.Fatalf("ListByMessage() error = %v", err)
+	}
+	if len(got) != 1 || got[0].ReactorEmail != "alice@example.com" {
+		t.Fatalf("ListByMessage() = %+v, want only Alice's reaction", got)
+	}
+
+	// Removing again is a no-op, not an error.
+	removed, err = store.RemoveReaction("msg-1", []string{"me@example.com"})
+	if err != nil {
+		t.Fatalf("RemoveReaction() error = %v", err)
+	}
+	if removed {
+		t.Error("RemoveReaction() removed = true on a second call, want false")
+	}
+
+	// An empty email list removes nothing.
+	removed, err = store.RemoveReaction("msg-1", nil)
+	if err != nil || removed {
+		t.Errorf("RemoveReaction(nil emails) removed = %v, err = %v, want false, nil", removed, err)
+	}
+}
