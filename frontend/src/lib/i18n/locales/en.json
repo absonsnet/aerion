@@ -89,7 +89,10 @@
     "filterUnread": "Unread",
     "filterStarred": "Starred",
     "filterAttachments": "Has attachments",
-    "noFilteredMessages": "No messages match the current filter"
+    "noFilteredMessages": "No messages match the current filter",
+    "selected": "{count} selected",
+    "clearSelection": "Clear selection",
+    "selectAll": "Select all"
   },
   "viewer": {
     "selectConversation": "Select a conversation to read",

@@ -18,19 +18,20 @@
   import { cn } from '$lib/utils'
   import { Button } from '$lib/components/ui/button'
   // @ts-ignore - wailsjs bindings
-  import { GetConversations, GetConversationCount, SyncFolder, ForceSyncFolder, CancelFolderSync, SetMessageListSortOrder, GetUnifiedInboxConversations, GetUnifiedInboxCount, SearchConversations, SearchUnifiedInbox, GetSearchCount, GetSearchCountUnifiedInbox, GetFTSIndexStatus, IsFTSIndexing, Trash, DeletePermanently, EmptyTrash, EmptySpam, Undo, IMAPSearchFolder, FetchServerMessage } from '../../../../wailsjs/go/app/App'
+  import { GetConversations, GetConversationCount, SyncFolder, ForceSyncFolder, CancelFolderSync, SetMessageListSortOrder, GetUnifiedInboxConversations, GetUnifiedInboxCount, SearchConversations, SearchUnifiedInbox, GetSearchCount, GetSearchCountUnifiedInbox, GetFTSIndexStatus, IsFTSIndexing, Trash, DeletePermanently, EmptyTrash, EmptySpam, Undo, IMAPSearchFolder, FetchServerMessage, MarkAsRead, MarkAsUnread, Archive, Star, Unstar, MarkAsSpam, MarkAsNotSpam, MoveToFolder, GetAccounts } from '../../../../wailsjs/go/app/App'
   import { toasts } from '$lib/stores/toast'
   import { _ } from '$lib/i18n'
   import { ConfirmDialog } from '$lib/components/ui/confirm-dialog'
+  import FolderPickerDialog from '$lib/components/common/FolderPickerDialog.svelte'
   // @ts-ignore - wailsjs path
-  import { message } from '../../../../wailsjs/go/models'
+  import { message, account } from '../../../../wailsjs/go/models'
   // @ts-ignore - wailsjs runtime
   import { EventsOn, EventsOff } from '../../../../wailsjs/runtime/runtime'
   import { getMessageListDensity, getMessageListSortOrder, setMessageListSortOrder, getShowMessageListProfilePics } from '$lib/stores/settings.svelte'
   import { contactPhotos } from '$lib/stores/contactPhotos.svelte'
   import { accountStore } from '$lib/stores/accounts.svelte'
   import { getLayoutMode, hideViewer } from '$lib/stores/layout.svelte'
-  import { isDialogGuardActive } from '$lib/stores/dialogGuard'
+  import { dialogGuardOpen, dialogGuardClose, isDialogGuardActive } from '$lib/stores/dialogGuard'
 
   interface Props {
     accountId?: string | null
@@ -1007,6 +1008,171 @@
     })
   }
 
+  // ---- Bulk-action header (Phase 1: selection bulk-action bar) ----
+  // Same bindings, toasts and Undo as the context menu (MessageContextMenu).
+  // After each action the list reloads via handleActionComplete() (scroll +
+  // pagination preserved) and the checks are cleared. Search state is
+  // untouched — the query/results survive the header swap.
+  const isSpamFolder = $derived(folderType === 'spam')
+  const isTrashFolder = $derived(folderType === 'trash')
+
+  // Select-all checkbox: reflects only the LOADED page (activeList, 50 at
+  // a time) — select-all never reaches beyond what is currently loaded.
+  const selectionAllChecked = $derived(
+    activeList.length > 0 && activeList.every((c) => checkedThreadIds.has(c.threadId))
+  )
+  const selectionPartial = $derived(checkedThreadIds.size > 0 && !selectionAllChecked)
+  let selectAllCheckboxRef = $state<HTMLInputElement | null>(null)
+  $effect(() => {
+    if (selectAllCheckboxRef) selectAllCheckboxRef.indeterminate = selectionPartial
+  })
+
+  // Folder picker for bulk Move to (reuses the context menu's picker)
+  let showBulkFolderPicker = $state(false)
+  let bulkAccounts = $state<account.Account[]>([])
+  let bulkAccountsLoaded = $state(false)
+  let bulkAccountsLoading = $state(false)
+
+  // Initial account for the picker: the account of the first checked row
+  // (unified/search selections may span accounts); falls back to the
+  // current folder's account, or '' (user picks from the dropdown).
+  const bulkMoveInitialAccountId = $derived(
+    (activeList.find((c: any) => checkedThreadIds.has(c.threadId)) as any)?.accountId
+      || (accountId && accountId !== 'unified' ? accountId : '')
+  )
+
+  // Keep background reloads from dismissing the picker while it's open
+  $effect(() => {
+    if (showBulkFolderPicker) {
+      dialogGuardOpen()
+      return () => dialogGuardClose()
+    }
+  })
+
+  async function loadBulkAccounts() {
+    if (bulkAccountsLoaded || bulkAccountsLoading) return
+    bulkAccountsLoading = true
+    try {
+      bulkAccounts = (await GetAccounts()) || []
+      bulkAccountsLoaded = true
+    } catch (err) {
+      console.error('Failed to load accounts:', err)
+    } finally {
+      bulkAccountsLoading = false
+    }
+  }
+
+  // Select-all covers only the LOADED page (activeList, PAGE_SIZE at a time).
+  function handleBulkSelectAll() {
+    if (selectionAllChecked) {
+      clearChecked()
+    } else {
+      selectAll()
+    }
+  }
+
+  async function handleBulkMarkRead() {
+    try {
+      await MarkAsRead(selectedMessageIds)
+      toasts.success($_('toast.markedAsRead'))
+      handleActionComplete()
+      clearChecked()
+    } catch (err) {
+      console.error('Bulk mark as read failed:', err)
+      toasts.error($_('toast.failedToUpdateReadStatus'))
+    }
+  }
+
+  async function handleBulkMarkUnread() {
+    try {
+      await MarkAsUnread(selectedMessageIds)
+      toasts.success($_('toast.markedAsUnread'))
+      handleActionComplete()
+      clearChecked()
+    } catch (err) {
+      console.error('Bulk mark as unread failed:', err)
+      toasts.error($_('toast.failedToUpdateReadStatus'))
+    }
+  }
+
+  async function handleBulkArchive() {
+    try {
+      await Archive(selectedMessageIds)
+      toasts.success($_('toast.archived'), [{ label: $_('common.undo'), onClick: handleUndo }])
+      handleActionComplete(true)
+      clearChecked()
+    } catch (err) {
+      console.error('Bulk archive failed:', err)
+      toasts.error($_('toast.failedToArchive'))
+    }
+  }
+
+  // Delete reuses requestDelete: Trash folder shows the permanent-delete
+  // confirm dialog, otherwise the messages move to Trash.
+  function handleBulkDelete() {
+    requestDelete(selectedMessageIds)
+  }
+
+  async function handleBulkSpam() {
+    try {
+      if (isSpamFolder) {
+        await MarkAsNotSpam(selectedMessageIds)
+        toasts.success($_('toast.markedAsNotSpam'), [{ label: $_('common.undo'), onClick: handleUndo }])
+        handleActionComplete(true)
+        clearChecked()
+        return
+      }
+      const movedToSpam = await MarkAsSpam(selectedMessageIds)
+      const toastMsg = movedToSpam ? $_('toast.markedAsSpam') : $_('toast.deletedFromFolder')
+      const actions = movedToSpam ? [{ label: $_('common.undo'), onClick: handleUndo }] : []
+      toasts.success(toastMsg, actions)
+      handleActionComplete(true)
+      clearChecked()
+    } catch (err) {
+      console.error('Bulk spam toggle failed:', err)
+      toasts.error($_(isSpamFolder ? 'toast.failedToMarkAsNotSpam' : 'toast.failedToMarkAsSpam'))
+    }
+  }
+
+  async function handleBulkToggleStar() {
+    try {
+      if (selectedHasUnstarred) {
+        await Star(selectedMessageIds)
+        toasts.success($_('toast.starred'))
+      } else {
+        await Unstar(selectedMessageIds)
+        toasts.success($_('toast.starRemoved'))
+      }
+      handleActionComplete()
+      clearChecked()
+    } catch (err) {
+      console.error('Bulk star toggle failed:', err)
+      toasts.error($_('toast.failedToUpdateStar'))
+    }
+  }
+
+  function openBulkMoveTo() {
+    loadBulkAccounts()
+    showBulkFolderPicker = true
+  }
+
+  function handleBulkFolderSelected(destFolderId: string, folderName: string, _destAccountId: string) {
+    showBulkFolderPicker = false
+    handleBulkMoveTo(destFolderId, folderName)
+  }
+
+  async function handleBulkMoveTo(destFolderId: string, folderName: string) {
+    try {
+      await MoveToFolder(selectedMessageIds, destFolderId)
+      toasts.success($_('toast.movedTo', { values: { folder: folderName } }), [{ label: $_('common.undo'), onClick: handleUndo }])
+      handleActionComplete(true)
+      clearChecked()
+    } catch (err) {
+      console.error('Bulk move failed:', err)
+      toasts.error($_('toast.failedToMove'))
+    }
+  }
+
   // Toggle sort order and persist to backend
   async function toggleSortOrder() {
     const newOrder = getMessageListSortOrder() === 'newest' ? 'oldest' : 'newest'
@@ -1425,6 +1591,95 @@
 <div class="flex flex-col h-full {isFlashing ? 'pane-focus-flash' : ''}">
   <!-- Header -->
   <div class="flex items-center justify-between px-4 py-3 border-b border-border">
+    {#if checkedThreadIds.size > 0}
+      <!-- Selection mode: bulk-action bar replaces the folder header.
+           Search state is untouched — the query/results are kept and the
+           search input returns when the selection is cleared. -->
+      <div class="flex items-center gap-2 min-w-0">
+        <!-- Select-all: only the LOADED page (50 at a time); indeterminate when partial -->
+        <input
+          bind:this={selectAllCheckboxRef}
+          type="checkbox"
+          class="h-4 w-4 shrink-0 cursor-pointer accent-primary"
+          checked={selectionAllChecked}
+          title={$_('messageList.selectAll')}
+          aria-label={$_('messageList.selectAll')}
+          onchange={handleBulkSelectAll}
+        />
+        <span class="text-sm font-semibold text-foreground whitespace-nowrap truncate min-w-0">
+          {$_('messageList.selected', { values: { count: checkedThreadIds.size } })}
+        </span>
+        <button
+          class="p-1.5 shrink-0 rounded-md hover:bg-muted transition-colors"
+          title={$_('messageList.clearSelection')}
+          aria-label={$_('messageList.clearSelection')}
+          onclick={clearChecked}
+        >
+          <Icon icon="mdi:close" class="w-5 h-5 text-muted-foreground" />
+        </button>
+      </div>
+      <div class="flex items-center gap-1 shrink-0">
+        <button
+          class="p-1.5 shrink-0 rounded-md hover:bg-muted transition-colors"
+          title={$_('contextMenu.markAsRead')}
+          aria-label={$_('contextMenu.markAsRead')}
+          onclick={handleBulkMarkRead}
+        >
+          <Icon icon="mdi:email-open-outline" class="w-5 h-5 text-muted-foreground" />
+        </button>
+        <button
+          class="p-1.5 shrink-0 rounded-md hover:bg-muted transition-colors"
+          title={$_('contextMenu.markAsUnread')}
+          aria-label={$_('contextMenu.markAsUnread')}
+          onclick={handleBulkMarkUnread}
+        >
+          <Icon icon="mdi:email-outline" class="w-5 h-5 text-muted-foreground" />
+        </button>
+        <button
+          class="p-1.5 shrink-0 rounded-md hover:bg-muted transition-colors"
+          title={$_('contextMenu.archive')}
+          aria-label={$_('contextMenu.archive')}
+          onclick={handleBulkArchive}
+        >
+          <Icon icon="mdi:archive-outline" class="w-5 h-5 text-muted-foreground" />
+        </button>
+        <button
+          class="p-1.5 shrink-0 rounded-md hover:bg-muted transition-colors"
+          title={$_(isTrashFolder ? 'contextMenu.deletePermanently' : 'contextMenu.delete')}
+          aria-label={$_(isTrashFolder ? 'contextMenu.deletePermanently' : 'contextMenu.delete')}
+          onclick={handleBulkDelete}
+        >
+          <Icon icon={isTrashFolder ? 'mdi:delete-forever' : 'mdi:delete-outline'} class="w-5 h-5 text-muted-foreground" />
+        </button>
+        <button
+          class="p-1.5 shrink-0 rounded-md hover:bg-muted transition-colors"
+          title={$_(isSpamFolder ? 'contextMenu.markAsNotSpam' : 'contextMenu.markAsSpam')}
+          aria-label={$_(isSpamFolder ? 'contextMenu.markAsNotSpam' : 'contextMenu.markAsSpam')}
+          onclick={handleBulkSpam}
+        >
+          <Icon icon={isSpamFolder ? 'mdi:email-check-outline' : 'mdi:alert-octagon-outline'} class="w-5 h-5 text-muted-foreground" />
+        </button>
+        <button
+          class="p-1.5 shrink-0 rounded-md hover:bg-muted transition-colors"
+          title={$_('contextMenu.moveTo')}
+          aria-label={$_('contextMenu.moveTo')}
+          onclick={openBulkMoveTo}
+        >
+          <Icon icon="mdi:folder-move-outline" class="w-5 h-5 text-muted-foreground" />
+        </button>
+        <button
+          class="p-1.5 shrink-0 rounded-md hover:bg-muted transition-colors"
+          title={$_(selectedHasUnstarred ? 'contextMenu.star' : 'contextMenu.removeStar')}
+          aria-label={$_(selectedHasUnstarred ? 'contextMenu.star' : 'contextMenu.removeStar')}
+          onclick={handleBulkToggleStar}
+        >
+          <Icon
+            icon={selectedHasUnstarred ? 'mdi:star-outline' : 'mdi:star'}
+            class="w-5 h-5 {selectedHasUnstarred ? 'text-muted-foreground' : 'text-yellow-500'}"
+          />
+        </button>
+      </div>
+    {:else}
     <div class="flex items-center gap-2">
       {#if showFolderToggle}
         <button
@@ -1592,6 +1847,7 @@
         />
       </button>
     </div>
+    {/if}
   </div>
 
   <!-- Active filter chip -->
@@ -1924,4 +2180,14 @@
   variant="destructive"
   onConfirm={handleEmptySpam}
   onCancel={() => { showEmptySpamConfirm = false }}
+/>
+
+<!-- Bulk Move to folder picker (reuses the context menu's picker) -->
+<FolderPickerDialog
+  bind:open={showBulkFolderPicker}
+  title={$_('contextMenu.moveTo')}
+  initialAccountId={bulkMoveInitialAccountId}
+  accounts={bulkAccounts}
+  excludeFolderId={folderId ?? ''}
+  onSelect={handleBulkFolderSelected}
 />

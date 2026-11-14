@@ -47,8 +47,12 @@
     if (open) selectedAccountId = initialAccountId
   })
 
-  // Load folders whenever the selected account changes
+  // Load folders whenever the selected account changes, and fresh on
+  // every open — otherwise a reopened dialog keeps the folder list from
+  // its first open and misses folders added/removed since (the bulk
+  // action bar and the context menu reuse one picker instance per list).
   $effect(() => {
+    if (!open) return
     const accountId = selectedAccountId
     if (!accountId) return
     const myVersion = ++loadVersion
