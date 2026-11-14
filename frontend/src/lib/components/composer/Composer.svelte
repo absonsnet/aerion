@@ -8,7 +8,7 @@
   import { smtp, account, app } from '../../../../wailsjs/go/models'
   // @ts-ignore - Wails runtime for events
   import { EventsOn, EventsOff } from '../../../../wailsjs/runtime/runtime.js'
-  import { type ComposerApi, COMPOSER_API_KEY, createMainWindowApi } from '$lib/composerApi'
+  import { type ComposerApi, type ComposerToolbarItem, COMPOSER_API_KEY, createMainWindowApi } from '$lib/composerApi'
   import { type ComposerContext, COMPOSER_CONTEXT_KEY } from '$lib/composerContext'
   import { isImageAllowedSync } from '$lib/stores/imageAllowlist.svelte'
   import { getAlwaysLoadImages } from '$lib/stores/settings.svelte'
@@ -32,8 +32,6 @@
   import RecipientInput from './RecipientInput.svelte'
   import EditorToolbar from './EditorToolbar.svelte'
   import AIWritingButton from '$extensions/ai-writing/frontend/components/AIWritingButton.svelte'
-  // @ts-ignore - wailsjs bindings (ListComposerToolbarItems lands after `make generate`)
-  import { ListComposerToolbarItems } from '../../../../wailsjs/go/app/App'
   import ComposerAttachmentList from './ComposerAttachmentList.svelte'
   import {
     addParagraphStyles,
@@ -484,25 +482,19 @@
   // --- Extension composer toolbar items (e.g. ai-writing) ---
   // Loaded once per composer mount, mirroring the extensionRegistry
   // rail-tab loading pattern (ListExtensionRailTabs at app startup).
-  // ListComposerToolbarItems already filters to enabled extensions
-  // server-side (app/extension_ui.go), so no extra gate is needed here;
-  // a disabled extension simply contributes no item. The registry also
-  // sorts by Order server-side. Structural type (not the generated
-  // v1.ComposerToolbarRequest) so this file type-checks before
-  // `make generate` lands the binding.
-  interface ComposerToolbarItem {
-    extensionId: string
-    label: string
-    icon: string
-    component: string
-    order?: number
-  }
-
+  // The items come from the resolved composer API, so the detached
+  // composer window reads its own process's registry (ComposerApp) while
+  // the inline composer reads the main App's — a direct App.js import
+  // here would throw in the detached window, where that binding does
+  // not exist. The backend already filters to enabled extensions
+  // server-side, so no extra gate is needed here; a disabled extension
+  // simply contributes no item. The registry also sorts by Order
+  // server-side. (ComposerToolbarItem lives in $lib/composerApi.)
   let composerToolbarItems = $state<ComposerToolbarItem[]>([])
 
   async function loadComposerToolbarItems(): Promise<void> {
     try {
-      composerToolbarItems = (await ListComposerToolbarItems()) || []
+      composerToolbarItems = (await api.listComposerToolbarItems()) || []
     } catch (err) {
       console.error('Failed to load composer toolbar items:', err)
       composerToolbarItems = []

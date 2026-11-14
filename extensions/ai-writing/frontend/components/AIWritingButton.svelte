@@ -55,13 +55,20 @@
     type AIWritingAction,
     type AIWritingImproveRequest,
   } from '$extensions/ai-writing/frontend/lib/aiwriting'
-  // @ts-ignore - wailsjs bindings (AIWriting_* land after `make generate`)
-  import { AIWriting_GetStatus, AIWriting_ListActions } from '$wailsjs/go/app/App'
+  // The backend calls go through the resolved composer API (Composer.svelte
+  // sets COMPOSER_API_KEY), not a direct App.js import: the detached
+  // composer window is a separate process whose bindings live on
+  // ComposerApp, so App.js calls would throw there and the button would
+  // silently never populate.
+  import { COMPOSER_API_KEY, type ComposerApi } from '$lib/composerApi'
 
   // The button lives inside Composer.svelte's snippet, which Svelte renders
   // in the defining component's context — getContext resolves to the
   // ComposerContext set by Composer.svelte (verified against Svelte 5.53.9).
   const composerContext = getContext<ComposerContext | undefined>(COMPOSER_CONTEXT_KEY) ?? null
+  // Same context mechanism for the window-aware backend API (main window:
+  // App bindings; detached composer window: ComposerApp bindings).
+  const api = getContext<ComposerApi>(COMPOSER_API_KEY)
 
   let reviewOpen = $state(false)
   let settingsOpen = $state(false)
@@ -170,10 +177,10 @@
     if (actions || actionsLoading) return
     actionsLoading = true
     try {
-      const list = (await AIWriting_ListActions()) as AIWritingAction[] | null
+      const list = (await api.aiWritingListActions()) as AIWritingAction[] | null
       actions = Array.isArray(list) ? list : []
     } catch (err) {
-      console.error('AIWriting_ListActions failed:', err)
+      console.error('aiWritingListActions failed:', err)
       toasts.error((err as Error)?.message ?? String(err))
       menuOpen = false
     } finally {
@@ -221,13 +228,13 @@
       return
     }
     try {
-      const status = (await AIWriting_GetStatus()) as { hasApiKey?: boolean } | null
+      const status = (await api.aiWritingGetStatus()) as { hasApiKey?: boolean } | null
       if (!status?.hasApiKey) {
         settingsOpen = true
         return
       }
     } catch (err) {
-      console.error('AIWriting_GetStatus failed:', err)
+      console.error('aiWritingGetStatus failed:', err)
       toasts.error((err as Error)?.message ?? String(err))
       return
     }
@@ -292,11 +299,13 @@
   bind:open={reviewOpen}
   {request}
   {composerContext}
+  {api}
   onClose={handleReviewClose}
   onOpenSettings={openSettingsFromReview}
 />
 
 <AIWritingSettingsDialog
   bind:open={settingsOpen}
+  {api}
   onClose={() => { settingsOpen = false }}
 />

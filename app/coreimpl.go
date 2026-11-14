@@ -11,6 +11,7 @@ import (
 	coreapi "github.com/hkdb/aerion/internal/core/api/v1"
 	"github.com/hkdb/aerion/internal/credentials"
 	"github.com/hkdb/aerion/internal/email"
+	extui "github.com/hkdb/aerion/internal/extensions/ui"
 	"github.com/hkdb/aerion/internal/logging"
 	"github.com/hkdb/aerion/internal/notification"
 	"github.com/hkdb/aerion/internal/oauth2"
@@ -189,9 +190,11 @@ func (c *coreImpl) Auth() coreapi.Auth {
 		manifest:    c.manifest,
 	}
 }
-func (c *coreImpl) UI() coreapi.UI                       { return uiCoreImpl{app: c.app} }
+func (c *coreImpl) UI() coreapi.UI {
+	return uiCoreImpl{registry: c.app.uiRegistry, openURL: c.app.OpenURL}
+}
 func (c *coreImpl) Notifications() coreapi.Notifications { return notificationsCoreImpl{app: c.app} }
-func (c *coreImpl) Storage() coreapi.Storage             { return storageCoreImpl{app: c.app} }
+func (c *coreImpl) Storage() coreapi.Storage             { return storageCoreImpl{credStore: c.app.credStore} }
 func (c *coreImpl) Events() coreapi.EventBus             { return c.app.coreEventBus() }
 func (c *coreImpl) Log() coreapi.Logger                  { return loggerCoreImpl{extensionID: c.extensionID} }
 func (c *coreImpl) HTML() coreapi.HTML                   { return htmlCoreImpl{sanitizer: sharedSanitizer} }
@@ -396,8 +399,12 @@ func (n notificationsCoreImpl) Show(req coreapi.NotifyRequest) error {
 // fully wired, delegating to credentials.Store for the keyring + AES-fallback
 // orchestration so extensions can stash sensitive values without ever
 // importing internal/credentials.
+//
+// The leaf impls below take the narrow store/registry they need instead of
+// the whole *App, so a second host (the detached composer window's
+// ComposerApp) can build the same Storage/UI surfaces from its own stores.
 type storageCoreImpl struct {
-	app *App
+	credStore *credentials.Store
 }
 
 func (s storageCoreImpl) KV(extensionID string) coreapi.KVStore {
@@ -405,11 +412,11 @@ func (s storageCoreImpl) KV(extensionID string) coreapi.KVStore {
 }
 
 func (s storageCoreImpl) Secrets(extensionID string) coreapi.Secrets {
-	return secretsCoreImpl{app: s.app, extensionID: extensionID}
+	return secretsCoreImpl{credStore: s.credStore, extensionID: extensionID}
 }
 
 func (s storageCoreImpl) HostSecrets() coreapi.HostSecrets {
-	return hostSecretsCoreImpl(s)
+	return hostSecretsCoreImpl{credStore: s.credStore}
 }
 
 // hostSecretsCoreImpl is the host implementation of coreapi.HostSecrets.
@@ -417,16 +424,16 @@ func (s storageCoreImpl) HostSecrets() coreapi.HostSecrets {
 // the key's class prefix to the matching credStore helper; add new prefixes
 // as new Pattern B consumers emerge.
 type hostSecretsCoreImpl struct {
-	app *App
+	credStore *credentials.Store
 }
 
 func (h hostSecretsCoreImpl) Get(key string) (string, error) {
-	if h.app.credStore == nil {
+	if h.credStore == nil {
 		return "", fmt.Errorf("storage.HostSecrets: credentials store not initialized")
 	}
 	switch {
 	case strings.HasPrefix(key, "carddav:"):
-		return h.app.credStore.GetCardDAVPassword(strings.TrimPrefix(key, "carddav:"))
+		return h.credStore.GetCardDAVPassword(strings.TrimPrefix(key, "carddav:"))
 	}
 	return "", fmt.Errorf("storage.HostSecrets: unsupported key prefix in %q", key)
 }
@@ -436,36 +443,36 @@ func (h hostSecretsCoreImpl) Get(key string) (string, error) {
 // Secrets(extensionID).Set(key, value)` once — the handle remembers the
 // scope for subsequent calls.
 type secretsCoreImpl struct {
-	app         *App
+	credStore   *credentials.Store
 	extensionID string
 }
 
 func (s secretsCoreImpl) Set(key, value string) error {
-	if s.app.credStore == nil {
+	if s.credStore == nil {
 		return fmt.Errorf("storage.Secrets: credentials store not initialized")
 	}
-	return s.app.credStore.SetExtensionSecret(s.extensionID, key, value)
+	return s.credStore.SetExtensionSecret(s.extensionID, key, value)
 }
 
 func (s secretsCoreImpl) Get(key string) (string, error) {
-	if s.app.credStore == nil {
+	if s.credStore == nil {
 		return "", fmt.Errorf("storage.Secrets: credentials store not initialized")
 	}
-	return s.app.credStore.GetExtensionSecret(s.extensionID, key)
+	return s.credStore.GetExtensionSecret(s.extensionID, key)
 }
 
 func (s secretsCoreImpl) Delete(key string) error {
-	if s.app.credStore == nil {
+	if s.credStore == nil {
 		return fmt.Errorf("storage.Secrets: credentials store not initialized")
 	}
-	return s.app.credStore.DeleteExtensionSecret(s.extensionID, key)
+	return s.credStore.DeleteExtensionSecret(s.extensionID, key)
 }
 
 func (s secretsCoreImpl) DeleteAll() error {
-	if s.app.credStore == nil {
+	if s.credStore == nil {
 		return fmt.Errorf("storage.Secrets: credentials store not initialized")
 	}
-	return s.app.credStore.DeleteAllExtensionSecrets(s.extensionID)
+	return s.credStore.DeleteAllExtensionSecrets(s.extensionID)
 }
 
 type stubKV struct {
@@ -532,34 +539,42 @@ func (z zerologStr) Error(msg string) { z.l.Error().Msg(msg) }
 // a single `coreapi.UI` surface that owns both registration methods AND
 // platform actions like OpenURL. The Registry stays focused on
 // registrations; platform-specific concerns live here.
+//
+// It takes the narrow pieces it needs (registry + an OpenURL opener) instead
+// of the whole *App, so a second host (the detached composer window's
+// ComposerApp) can build the same UI surface from its own registry.
 type uiCoreImpl struct {
-	app *App
+	registry *extui.Registry
+	openURL  func(string) error
 }
 
 func (u uiCoreImpl) RegisterRailTab(req coreapi.RailTabRequest) (coreapi.Unregister, error) {
-	return u.app.uiRegistry.RegisterRailTab(req)
+	return u.registry.RegisterRailTab(req)
 }
 func (u uiCoreImpl) RegisterSettingsTab(req coreapi.SettingsTabRequest) (coreapi.Unregister, error) {
-	return u.app.uiRegistry.RegisterSettingsTab(req)
+	return u.registry.RegisterSettingsTab(req)
 }
 func (u uiCoreImpl) RegisterContextMenuItem(req coreapi.ContextMenuRequest) (coreapi.Unregister, error) {
-	return u.app.uiRegistry.RegisterContextMenuItem(req)
+	return u.registry.RegisterContextMenuItem(req)
 }
 func (u uiCoreImpl) RegisterInboxView(req coreapi.InboxViewRequest) (coreapi.Unregister, error) {
-	return u.app.uiRegistry.RegisterInboxView(req)
+	return u.registry.RegisterInboxView(req)
 }
 func (u uiCoreImpl) RegisterAccountSetupHook(req coreapi.AccountSetupHookRequest) (coreapi.Unregister, error) {
-	return u.app.uiRegistry.RegisterAccountSetupHook(req)
+	return u.registry.RegisterAccountSetupHook(req)
 }
 func (u uiCoreImpl) RegisterComposerToolbar(req coreapi.ComposerToolbarRequest) (coreapi.Unregister, error) {
-	return u.app.uiRegistry.RegisterComposerToolbar(req)
+	return u.registry.RegisterComposerToolbar(req)
 }
 
-// OpenURL delegates to App.OpenURL which owns the protocol allowlist +
+// OpenURL delegates to the host's opener, which owns the protocol allowlist +
 // Linux portal-first path + xdg-open fallback. The extension never sees
 // internal/platform directly.
 func (u uiCoreImpl) OpenURL(url string) error {
-	return u.app.OpenURL(url)
+	if u.openURL == nil {
+		return fmt.Errorf("ui.OpenURL: no URL opener configured for this host")
+	}
+	return u.openURL(url)
 }
 
 // compile-time check: coreImpl satisfies coreapi.Core, extensionAuth satisfies coreapi.Auth

@@ -9,22 +9,25 @@ import (
 	goSync "sync"
 	"time"
 
+	extaiwritingbe "github.com/hkdb/aerion/extensions/ai-writing/backend"
 	"github.com/hkdb/aerion/internal/account"
 	"github.com/hkdb/aerion/internal/certificate"
 	"github.com/hkdb/aerion/internal/contact"
+	coreapi "github.com/hkdb/aerion/internal/core/api/v1"
 	"github.com/hkdb/aerion/internal/credentials"
 	"github.com/hkdb/aerion/internal/database"
 	"github.com/hkdb/aerion/internal/draft"
 	"github.com/hkdb/aerion/internal/email"
+	extui "github.com/hkdb/aerion/internal/extensions/ui"
 	"github.com/hkdb/aerion/internal/folder"
 	"github.com/hkdb/aerion/internal/imap"
 	"github.com/hkdb/aerion/internal/ipc"
 	"github.com/hkdb/aerion/internal/logging"
 	"github.com/hkdb/aerion/internal/message"
 	"github.com/hkdb/aerion/internal/oauth2"
+	"github.com/hkdb/aerion/internal/pgp"
 	"github.com/hkdb/aerion/internal/platform"
 	"github.com/hkdb/aerion/internal/settings"
-	"github.com/hkdb/aerion/internal/pgp"
 	"github.com/hkdb/aerion/internal/smime"
 	"github.com/hkdb/aerion/internal/smtp"
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
@@ -68,6 +71,19 @@ type ComposerApp struct {
 	credStore     *credentials.Store
 	certStore     *certificate.Store
 	settingsStore *settings.Store
+
+	// Extension hosting (AI Writing only). The detached composer is a
+	// separate OS process with its own Wails bindings, so it hosts the
+	// extension itself instead of reaching the main window's App
+	// bindings, which don't exist in this process. The bridge reads the
+	// same settings, per-extension SQLite and secrets as the main window
+	// (shared database, credential store and paths).
+	uiRegistry   *extui.Registry
+	aiWritingExt *extaiwritingbe.Extension
+
+	// Embedded AI Writing bridge: method promotion makes the AIWriting_*
+	// methods Wails-bindable on ComposerApp, mirroring App.
+	*extaiwritingbe.AIWritingBridge
 
 	// IMAP pool for sending/draft operations
 	imapPool *imap.Pool
@@ -176,6 +192,13 @@ func (c *ComposerApp) Startup(ctx context.Context) {
 	}
 	c.credStore = credStore
 
+	// Host the AI Writing extension in this process so the detached
+	// composer's toolbar button and dialogs work. The main window's
+	// App-bound ListComposerToolbarItems/AIWriting_* bindings don't exist
+	// in this process (separate Wails app, only ComposerApp bound), so
+	// without this the extension silently never appears.
+	c.initAIWritingExtension()
+
 	// Initialize certificate trust store (TOFU)
 	c.certStore = certificate.NewStore(db.DB)
 
@@ -246,6 +269,30 @@ func (c *ComposerApp) Startup(ctx context.Context) {
 	c.notifyReady()
 
 	log.Info().Msg("Composer window started successfully")
+}
+
+// initAIWritingExtension wires the AI Writing extension's Bridge into
+// ComposerApp, mirroring App.initAIWritingExtension. The detached composer
+// shares the database, credential store and paths with the main window, so
+// the bridge reads the same settings, per-extension SQLite and secrets.
+// Register wires the composer-toolbar button (and settings tab) into this
+// process's own UI registry, which ListComposerToolbarItems reads. The
+// returned Unregister is intentionally discarded: this process is
+// short-lived and exits with the window.
+func (c *ComposerApp) initAIWritingExtension() {
+	log := logging.WithComponent("composer")
+	c.uiRegistry = extui.NewRegistry()
+	c.aiWritingExt = extaiwritingbe.NewExtension()
+	core := newComposerCore(c.credStore, c.uiRegistry, c.aiWritingExt)
+	c.AIWritingBridge = extaiwritingbe.NewAIWritingBridge(extaiwritingbe.AIWritingBridgeDeps{
+		SettingsStore: c.settingsStore,
+		Paths:         c.paths,
+		DB:            c.db,
+		Core:          core,
+	})
+	if _, err := c.aiWritingExt.Register(core); err != nil {
+		log.Warn().Err(err).Msg("Failed to register AI Writing extension")
+	}
 }
 
 // Shutdown is called when the composer window is closing.
@@ -512,6 +559,45 @@ func (c *ComposerApp) GetComposeMode() *ComposeMode {
 		MessageID: c.config.MessageID,
 		DraftID:   c.config.DraftID,
 	}
+}
+
+// ListComposerToolbarItems returns composer-toolbar registrations for
+// currently enabled extensions only. Mirrors App.ListComposerToolbarItems —
+// the detached composer's registry is populated by initAIWritingExtension
+// during Startup, so the frontend's loadComposerToolbarItems finds the
+// AI Writing button here instead of on the (absent) main App binding.
+func (c *ComposerApp) ListComposerToolbarItems() ([]coreapi.ComposerToolbarRequest, error) {
+	if c.uiRegistry == nil {
+		return nil, nil
+	}
+	enabled, err := c.enabledExtensionSet()
+	if err != nil {
+		return nil, err
+	}
+	all := c.uiRegistry.ListComposerToolbarItems()
+	out := make([]coreapi.ComposerToolbarRequest, 0, len(all))
+	for _, item := range all {
+		if !enabled[item.ExtensionID] {
+			continue
+		}
+		out = append(out, item)
+	}
+	return out, nil
+}
+
+// enabledExtensionSet returns a set of currently-enabled extension names.
+func (c *ComposerApp) enabledExtensionSet() (map[string]bool, error) {
+	set := make(map[string]bool, len(settings.AllExtensionKeys))
+	for _, name := range settings.AllExtensionKeys {
+		enabled, err := c.settingsStore.IsExtensionEnabled(name)
+		if err != nil {
+			return nil, err
+		}
+		if enabled {
+			set[name] = true
+		}
+	}
+	return set, nil
 }
 
 // GetShowTitleBar returns whether the custom title bar should be shown.

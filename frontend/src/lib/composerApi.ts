@@ -10,7 +10,20 @@
  */
 
 // @ts-ignore - Wails generated imports
-import { smtp, account, contact, app, smime, pgp } from '../../wailsjs/go/models'
+import { smtp, account, contact, app, smime, pgp, backend } from '../../wailsjs/go/models'
+
+/**
+ * A composer-toolbar registration (extensionId + label/icon/component).
+ * Mirrors coreapi.ComposerToolbarRequest and the structural
+ * ComposerToolbarItem in Composer.svelte.
+ */
+export interface ComposerToolbarItem {
+  extensionId: string
+  label: string
+  icon: string
+  component: string
+  order?: number
+}
 
 /**
  * Interface for composer API operations.
@@ -109,6 +122,34 @@ export interface ComposerApi {
    * Returns undefined in detached composer windows.
    */
   openComposerWindow?: (accountId: string, mode: string, messageId: string, draftId: string, mailtoURL?: string) => Promise<void>
+
+  /**
+   * List composer-toolbar registrations for enabled extensions (e.g. ai-writing).
+   * Main window reads the main App registry; detached windows read the
+   * composer process's own registry (see app/detached_composer.go).
+   */
+  listComposerToolbarItems: () => Promise<ComposerToolbarItem[]>
+
+  /** AI Writing: list the available rewrite actions. */
+  aiWritingListActions: () => Promise<backend.ActionInfo[]>
+
+  /** AI Writing: rewrite the draft with the chosen action. */
+  aiWritingImprove: (req: backend.ImproveRequest) => Promise<backend.ImproveResult>
+
+  /** AI Writing: per-action prompt overrides. */
+  aiWritingGetActionPrompts: () => Promise<backend.ActionPromptInfo[]>
+
+  /** AI Writing: models the user can pick from. */
+  aiWritingListModels: () => Promise<backend.ModelInfo[]>
+
+  /** AI Writing: current settings. */
+  aiWritingGetSettings: () => Promise<backend.Settings>
+
+  /** AI Writing: save settings. */
+  aiWritingSaveSettings: (input: backend.SettingsInput) => Promise<void>
+
+  /** AI Writing: enabled state + API-key presence. */
+  aiWritingGetStatus: () => Promise<backend.Status>
 }
 
 /**
@@ -270,6 +311,46 @@ export function createMainWindowApi(): ComposerApi {
       const { OpenComposerWindow } = await import('../../wailsjs/go/app/App.js')
       return OpenComposerWindow(accountId, mode, messageId, draftId, mailtoURL || '')
     },
+
+    listComposerToolbarItems: async () => {
+      const { ListComposerToolbarItems } = await import('../../wailsjs/go/app/App.js')
+      return ListComposerToolbarItems() || []
+    },
+
+    aiWritingListActions: async () => {
+      const { AIWriting_ListActions } = await import('../../wailsjs/go/app/App.js')
+      return AIWriting_ListActions() || []
+    },
+
+    aiWritingImprove: async (req: backend.ImproveRequest) => {
+      const { AIWriting_Improve } = await import('../../wailsjs/go/app/App.js')
+      return AIWriting_Improve(req)
+    },
+
+    aiWritingGetActionPrompts: async () => {
+      const { AIWriting_GetActionPrompts } = await import('../../wailsjs/go/app/App.js')
+      return AIWriting_GetActionPrompts() || []
+    },
+
+    aiWritingListModels: async () => {
+      const { AIWriting_ListModels } = await import('../../wailsjs/go/app/App.js')
+      return AIWriting_ListModels() || []
+    },
+
+    aiWritingGetSettings: async () => {
+      const { AIWriting_GetSettings } = await import('../../wailsjs/go/app/App.js')
+      return AIWriting_GetSettings()
+    },
+
+    aiWritingSaveSettings: async (input: backend.SettingsInput) => {
+      const { AIWriting_SaveSettings } = await import('../../wailsjs/go/app/App.js')
+      return AIWriting_SaveSettings(input)
+    },
+
+    aiWritingGetStatus: async () => {
+      const { AIWriting_GetStatus } = await import('../../wailsjs/go/app/App.js')
+      return AIWriting_GetStatus()
+    },
   }
 }
 
@@ -418,6 +499,46 @@ export function createComposerWindowApi(_accountId: string): ComposerApi {
     getAllAccountIdentities: async () => {
       const { GetAllAccountIdentities } = await import('../../wailsjs/go/app/ComposerApp.js')
       return GetAllAccountIdentities()
+    },
+
+    listComposerToolbarItems: async () => {
+      const { ListComposerToolbarItems } = await import('../../wailsjs/go/app/ComposerApp.js')
+      return ListComposerToolbarItems() || []
+    },
+
+    aiWritingListActions: async () => {
+      const { AIWriting_ListActions } = await import('../../wailsjs/go/app/ComposerApp.js')
+      return AIWriting_ListActions() || []
+    },
+
+    aiWritingImprove: async (req: backend.ImproveRequest) => {
+      const { AIWriting_Improve } = await import('../../wailsjs/go/app/ComposerApp.js')
+      return AIWriting_Improve(req)
+    },
+
+    aiWritingGetActionPrompts: async () => {
+      const { AIWriting_GetActionPrompts } = await import('../../wailsjs/go/app/ComposerApp.js')
+      return AIWriting_GetActionPrompts() || []
+    },
+
+    aiWritingListModels: async () => {
+      const { AIWriting_ListModels } = await import('../../wailsjs/go/app/ComposerApp.js')
+      return AIWriting_ListModels() || []
+    },
+
+    aiWritingGetSettings: async () => {
+      const { AIWriting_GetSettings } = await import('../../wailsjs/go/app/ComposerApp.js')
+      return AIWriting_GetSettings()
+    },
+
+    aiWritingSaveSettings: async (input: backend.SettingsInput) => {
+      const { AIWriting_SaveSettings } = await import('../../wailsjs/go/app/ComposerApp.js')
+      return AIWriting_SaveSettings(input)
+    },
+
+    aiWritingGetStatus: async () => {
+      const { AIWriting_GetStatus } = await import('../../wailsjs/go/app/ComposerApp.js')
+      return AIWriting_GetStatus()
     },
   }
 }

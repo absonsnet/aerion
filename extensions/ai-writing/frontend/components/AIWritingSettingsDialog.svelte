@@ -40,15 +40,21 @@
     type AIWritingSaveSettingsInput,
     type AIWritingSettings,
   } from '$extensions/ai-writing/frontend/lib/aiwriting'
-  // @ts-ignore - wailsjs bindings (AIWriting_* land after `make generate`)
-  import { AIWriting_GetActionPrompts, AIWriting_GetSettings, AIWriting_SaveSettings } from '$wailsjs/go/app/App'
+  // The backend calls go through the composer API, passed as a prop from
+  // AIWritingButton (same reason as the review dialog: the dialog content
+  // is portaled, so getContext does not resolve here). The API is
+  // window-aware — main window: App bindings; detached composer window:
+  // ComposerApp bindings.
+  import type { ComposerApi } from '$lib/composerApi'
 
   interface Props {
     open: boolean
+    /** Window-aware backend API from AIWritingButton (via getContext there). */
+    api: ComposerApi
     onClose?: () => void
   }
 
-  let { open = $bindable(false), onClose }: Props = $props()
+  let { open = $bindable(false), api, onClose }: Props = $props()
 
   let loading = $state(false)
   let loadError = $state('')
@@ -93,7 +99,7 @@
     apiKey = ''
     showApiKey = false
     try {
-      const s = (await AIWriting_GetSettings()) as AIWritingSettings
+      const s = (await api.aiWritingGetSettings()) as AIWritingSettings
       selectedModel = s.selectedModel || DEFAULT_MODEL
       temperature = typeof s.temperature === 'number' ? s.temperature : DEFAULT_TEMPERATURE
       maxTokens = s.maxTokens ? s.maxTokens : DEFAULT_MAX_TOKENS
@@ -101,7 +107,7 @@
       customModel = s.customModel || ''
       useConversationHistory = s.useConversationHistory ?? true
       hasApiKey = s.hasApiKey ?? false
-      const rows = (await AIWriting_GetActionPrompts()) as AIWritingActionPrompt[] | null
+      const rows = (await api.aiWritingGetActionPrompts()) as AIWritingActionPrompt[] | null
       actionPrompts = Array.isArray(rows) ? rows : []
       // Textbox text per action: the stored custom prompt, else the
       // built-in default. Prefer the Improve action on open.
@@ -205,7 +211,7 @@
         actionPrompts: overrides,
         useConversationHistory,
       }
-      await AIWriting_SaveSettings(input)
+      await api.aiWritingSaveSettings(input)
       if (apiKey.trim() !== '') hasApiKey = true
       apiKey = ''
       status = { kind: 'success', message: $_('aiwriting.settings.saved') }

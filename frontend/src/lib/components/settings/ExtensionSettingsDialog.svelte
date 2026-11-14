@@ -15,6 +15,12 @@
   import ContactsSettingsDialog from '$extensions/contacts/frontend/components/ContactsSettingsDialog.svelte'
   import CalendarSettingsDialog from '$extensions/calendar/frontend/components/CalendarSettingsDialog.svelte'
   import AIWritingSettingsDialog from '$extensions/ai-writing/frontend/components/AIWritingSettingsDialog.svelte'
+  // This dispatcher is mounted only in App.svelte (main window), so the
+  // settings dialog gets the main-window API here. The detached composer
+  // window's button passes its own (ComposerApp) API instead.
+  import { createMainWindowApi } from '$lib/composerApi'
+
+  const mainWindowApi = createMainWindowApi()
 
   let openExtension = $derived(getOpenSettingsExtension())
 
@@ -37,5 +43,6 @@
 
 <AIWritingSettingsDialog
   open={aiWritingOpen}
+  api={mainWindowApi}
   onClose={closeExtensionSettings}
 />

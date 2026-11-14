@@ -35,7 +35,12 @@
     type AIWritingImproveResult,
   } from '$extensions/ai-writing/frontend/lib/aiwriting'
   // @ts-ignore - wailsjs bindings (AIWriting_* land after `make generate`)
-  import { AIWriting_Improve } from '$wailsjs/go/app/App'
+  // The backend calls go through the composer API, passed as a prop from
+  // AIWritingButton (same reason as composerContext above: the dialog
+  // content is portaled, so getContext does not resolve here). The API is
+  // window-aware — main window: App bindings; detached composer window:
+  // ComposerApp bindings.
+  import type { ComposerApi } from '$lib/composerApi'
 
   interface Props {
     open: boolean
@@ -43,13 +48,15 @@
     request: AIWritingImproveRequest | null
     /** Composer context from AIWritingButton (via getContext there). */
     composerContext: ComposerContext | null
+    /** Window-aware backend API from AIWritingButton (via getContext there). */
+    api: ComposerApi
     onClose?: () => void
     /** Open the settings dialog (parent closes this dialog first, mirroring
      *  TB's popup closing when it opens the options page). */
     onOpenSettings?: () => void
   }
 
-  let { open = $bindable(false), request, composerContext, onClose, onOpenSettings }: Props = $props()
+  let { open = $bindable(false), request, composerContext, api, onClose, onOpenSettings }: Props = $props()
 
   type ViewState = 'loading' | 'error' | 'review'
 
@@ -91,7 +98,7 @@
     if (!req) return
     resetForRun()
     try {
-      const raw = (await AIWriting_Improve({
+      const raw = (await api.aiWritingImprove({
         actionId: req.actionId,
         draftHtml: req.draftHtml,
         quotedHtml: req.quotedHtml,
