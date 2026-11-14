@@ -845,10 +845,13 @@
   }
 
   function selectConversation(threadId: string, index: number, event?: MouseEvent) {
-    // Shift+click: range select (preserve anchor)
+    // Shift+click: range select (preserve anchor). With no anchor yet (the
+    // first click in this folder is a Shift+click), the clicked row becomes
+    // the anchor so the next Shift+click ranges from it.
     if (event?.shiftKey) {
-      const start = lastClickedIndex !== null ? Math.min(lastClickedIndex, index) : index
-      const end = lastClickedIndex !== null ? Math.max(lastClickedIndex, index) : index
+      if (lastClickedIndex === null) lastClickedIndex = index
+      const start = Math.min(lastClickedIndex, index)
+      const end = Math.max(lastClickedIndex, index)
       const newChecked = new Set(checkedThreadIds)
       for (let i = start; i <= end; i++) {
         newChecked.add(activeList[i].threadId)
@@ -1226,6 +1229,10 @@
     const conv = activeList[newIndex]
     if (conv) {
       selectedThreadId = conv.threadId
+      // Keyboard focus moves the range anchor too, so a later Shift+click
+      // or Shift+checkbox ranges from the keyboard-focused row, not from
+      // a stale mouse click.
+      lastClickedIndex = newIndex
       scrollToIndex(newIndex)
       // Blur any focused element so Enter key triggers openSelected() instead of the button
       ;(document.activeElement as HTMLElement)?.blur?.()
@@ -1250,6 +1257,7 @@
     const conv = activeList[newIndex]
     if (conv) {
       selectedThreadId = conv.threadId
+      lastClickedIndex = newIndex
       scrollToIndex(newIndex)
       // Blur any focused element so Enter key triggers openSelected() instead of the button
       ;(document.activeElement as HTMLElement)?.blur?.()
@@ -1260,6 +1268,7 @@
   export function selectFirst() {
     if (activeList.length === 0) return
     selectedThreadId = activeList[0].threadId
+    lastClickedIndex = 0
     scrollToIndex(0)
     // Blur any focused element so Enter key triggers openSelected() instead of the button
     ;(document.activeElement as HTMLElement)?.blur?.()
@@ -1271,6 +1280,7 @@
     if (activeList.length === 0) return
     const last = activeList.length - 1
     selectedThreadId = activeList[last].threadId
+    lastClickedIndex = last
     scrollToIndex(last)
     // Blur any focused element so Enter key triggers openSelected() instead of the button
     ;(document.activeElement as HTMLElement)?.blur?.()
@@ -1300,6 +1310,7 @@
     }
     pendingSelectThreadId = null
     selectedThreadId = threadId
+    lastClickedIndex = index
     scrollToIndex(index)
   }
 
@@ -1377,6 +1388,7 @@
     newChecked.add(activeList[currentIndex].threadId)
     newChecked.add(conv.threadId)
     checkedThreadIds = newChecked
+    lastClickedIndex = newIndex
 
     // Move focus (but don't open in viewer)
     selectedThreadId = conv.threadId
@@ -1401,6 +1413,7 @@
     newChecked.add(activeList[currentIndex].threadId)
     newChecked.add(conv.threadId)
     checkedThreadIds = newChecked
+    lastClickedIndex = newIndex
 
     // Move focus (but don't open in viewer)
     selectedThreadId = conv.threadId

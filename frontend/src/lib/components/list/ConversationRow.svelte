@@ -436,6 +436,29 @@
     playSwipeFeedback(kind)
   }
 
+  // Row keyboard access. Only the row itself — a keydown bubbling up from
+  // a child button (checkbox, star) keeps that button's native Enter/Space
+  // activation. Without the target check, Space on a DOM-focused row fired
+  // BOTH this handler (open, via onSelect) and the global Space handler
+  // (toggle check), so Space opened the message instead of only toggling
+  // its check. Enter opens (same as a plain click); Space toggles this
+  // row's check only, and stopPropagation keeps the global handler from
+  // toggling a second (possibly different) row.
+  function handleRowKeydown(e: KeyboardEvent) {
+    if (e.target !== e.currentTarget) return
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      e.stopPropagation()
+      onSelect()
+      return
+    }
+    if (e.key === ' ') {
+      e.preventDefault()
+      e.stopPropagation()
+      onCheck(!checked)
+    }
+  }
+
   function handleRowClick(e: MouseEvent) {
     if (swipeConsumedClick) {
       swipeConsumedClick = false
@@ -464,7 +487,7 @@
       ? 'bg-primary/20'
       : 'hover:bg-muted/50'} {getAccentBarUnread() && hasUnread && getAccentUnreadStyle() === 'bar' ? 'border-l-2 border-l-primary' : ''} {swipeAnim === 'select' ? 'swipe-select-anim' : ''} {swipeAnim === 'delete' ? 'swipe-delete-anim' : ''}"
     onclick={handleRowClick}
-    onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect() }}}
+    onkeydown={handleRowKeydown}
     ondragstart={handleDragStart}
     ontouchstart={handleTouchStart}
     ontouchmove={handleTouchMove}

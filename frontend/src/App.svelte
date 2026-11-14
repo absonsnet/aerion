@@ -1035,19 +1035,29 @@
           messageListRef?.toggleFolderSync()
           return
         case 'a':
+          // Ctrl-A must not hijack text selection inside inputs (e.g. the
+          // list search box) — there the browser's native select-all-text
+          // applies. Same guard for Ctrl-Shift-A (sync all).
+          if (inInput) return
           if (e.shiftKey) {
             // Ctrl-Shift-A: Toggle sync all accounts (start sync or cancel if already running)
             e.preventDefault()
             sidebarRef?.toggleSync()
             return
           }
-          // Ctrl-A: Select all text in viewer, or select all messages in list
-          e.preventDefault()
+          // Ctrl-A: select all text in the viewer, or select all LOADED
+          // messages when the list is focused. Any other pane: no-op, so a
+          // stray Ctrl-A never bulk-selects messages out of context.
           if (focusedPane === 'viewer') {
+            e.preventDefault()
             viewerRef?.selectAllText()
             return
           }
-          messageListRef?.selectAll()
+          if (focusedPane === 'messageList') {
+            e.preventDefault()
+            messageListRef?.selectAll()
+            return
+          }
           return
         case 'l':
           e.preventDefault()
@@ -1745,7 +1755,7 @@
 <!-- Composer Modal -->
 {#if showComposer && composerAccountId}
   <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-    <div class="{getLayoutMode() === 'narrow' ? 'w-full h-full bg-background overflow-hidden' : 'w-full max-w-5xl h-[80vh] bg-background rounded-lg shadow-xl overflow-hidden'}">
+    <div class="{getLayoutMode() === 'narrow' ? 'w-full h-full bg-background overflow-hidden' : 'w-full max-w-4xl h-[80vh] bg-background rounded-lg shadow-xl overflow-hidden'}">
       <Composer
         accountId={composerAccountId}
         initialMessage={composerInitialMessage}
