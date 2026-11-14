@@ -502,3 +502,150 @@ func TestSliceRows(t *testing.T) {
 		t.Fatalf("out-of-range slice %v", sel)
 	}
 }
+
+// --- RenderForQueue / RawSender (Phase 2) --------------------------------
+
+func TestRenderForQueue(t *testing.T) {
+	svc := NewService(ServiceDeps{})
+	var queued []QueuedMessage
+	var results []RowResult
+	out, err := svc.RenderForQueue(context.Background(), RunRequest{
+		Template: testTemplate(), Rows: testRows(), AccountID: "acc1",
+	}, func(qm QueuedMessage) { queued = append(queued, qm) },
+		func(r RowResult) { results = append(results, r) })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.QueuedCount != 3 || out.SentCount != 0 || out.FailedCount != 0 {
+		t.Fatalf("outcome %+v", out)
+	}
+	if len(queued) != 3 || len(results) != 3 {
+		t.Fatalf("queued %d results %d", len(queued), len(results))
+	}
+	for i, qm := range queued {
+		row := testRows()[i]
+		if qm.RowIndex != i || qm.Email != row["Email"] {
+			t.Fatalf("row %d queued %+v", i, qm)
+		}
+		if qm.From != "sender@example.com" || len(qm.To) != 1 || qm.To[0] != row["Email"] {
+			t.Fatalf("row %d envelope from %q to %v", i, qm.From, qm.To)
+		}
+		if qm.Subject != "Hello "+row["FirstName"] {
+			t.Fatalf("row %d subject %q", i, qm.Subject)
+		}
+		// The raw bytes are the final rendered message.
+		raw := string(qm.Raw)
+		if !strings.Contains(raw, "Hello "+row["FirstName"]) || !strings.Contains(raw, row["Email"]) {
+			t.Fatalf("row %d raw %q", i, raw)
+		}
+		if !strings.Contains(raw, "Hi "+row["FirstName"]+", your code is "+row["Code"]+".") {
+			t.Fatalf("row %d raw missing body: %q", i, raw)
+		}
+		if results[i].Status != RowQueued || results[i].Index != i || results[i].Email != row["Email"] {
+			t.Fatalf("row %d result %+v", i, results[i])
+		}
+	}
+	// Duplicates are skipped, not queued — same rule as Execute.
+	dupRows := append(testRows(), testRows()[0])
+	queued = nil
+	results = nil
+	out, err = svc.RenderForQueue(context.Background(), RunRequest{
+		Template: testTemplate(), Rows: dupRows, AccountID: "acc1",
+	}, func(qm QueuedMessage) { queued = append(queued, qm) },
+		func(r RowResult) { results = append(results, r) })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.QueuedCount != 3 || out.SkippedCount != 1 || len(queued) != 3 {
+		t.Fatalf("dup outcome %+v queued %d", out, len(queued))
+	}
+	// An invalid row is skipped (empty To) and the run continues.
+	badRows := []map[string]string{
+		{"FirstName": "No", "LastName": "Mail", "Email": "", "Code": "X"},
+		testRows()[0],
+	}
+	queued = nil
+	out, err = svc.RenderForQueue(context.Background(), RunRequest{
+		Template: testTemplate(), Rows: badRows, AccountID: "acc1",
+	}, func(qm QueuedMessage) { queued = append(queued, qm) }, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.QueuedCount != 1 || out.SkippedCount != 1 || len(queued) != 1 {
+		t.Fatalf("bad-row outcome %+v queued %d", out, len(queued))
+	}
+}
+
+func TestRawSenderSendsAndSavesToSent(t *testing.T) {
+	sender := &fakeSender{}
+	saved := &fakeSentSaver{}
+	factory := &fakeSenderFactory{sender: sender}
+	svc := NewService(ServiceDeps{SenderFactory: factory, SentSaver: saved})
+	rs, err := svc.OpenRawSender(context.Background(), "acc1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	msg := QueuedMessage{
+		Email: "john@example.com", From: "sender@example.com",
+		To: []string{"john@example.com"}, Raw: []byte("Subject: hi\r\n\r\nbody"),
+	}
+	if err := rs.Send(context.Background(), msg); err != nil {
+		t.Fatal(err)
+	}
+	if err := rs.Send(context.Background(), msg); err != nil {
+		t.Fatal(err)
+	}
+	if err := rs.Close(); err != nil {
+		t.Fatal(err)
+	}
+	// One connection for both sends.
+	if factory.created != 1 {
+		t.Fatalf("connections created %d, want 1", factory.created)
+	}
+	if len(sender.sent) != 2 || sender.sent[0].from != "sender@example.com" {
+		t.Fatalf("sent %+v", sender.sent)
+	}
+	if len(saved.saved) != 2 || string(saved.saved[0]) != "Subject: hi\r\n\r\nbody" {
+		t.Fatalf("saved to Sent %d", len(saved.saved))
+	}
+}
+
+func TestRawSenderSendFailureDoesNotSaveToSent(t *testing.T) {
+	sender := &fakeSender{fail: map[string]error{"jane@example.com": errors.New("452 too many emails")}}
+	saved := &fakeSentSaver{}
+	svc := NewService(ServiceDeps{SenderFactory: &fakeSenderFactory{sender: sender}, SentSaver: saved})
+	rs, err := svc.OpenRawSender(context.Background(), "acc1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rs.Close()
+	msg := QueuedMessage{
+		Email: "jane@example.com", From: "sender@example.com",
+		To: []string{"jane@example.com"}, Raw: []byte("Subject: hi\r\n\r\nbody"),
+	}
+	if err := rs.Send(context.Background(), msg); err == nil {
+		t.Fatal("expected send error")
+	}
+	if len(saved.saved) != 0 {
+		t.Fatalf("failed send must not save to Sent: %d", len(saved.saved))
+	}
+	// A Sent-save failure must NOT fail the send (message is out).
+	sender.fail = map[string]error{}
+	saved.fail = errors.New("imap append failed")
+	if err := rs.Send(context.Background(), QueuedMessage{
+		Email: "john@example.com", From: "sender@example.com",
+		To: []string{"john@example.com"}, Raw: []byte("x"),
+	}); err != nil {
+		t.Fatalf("Sent-save failure must not fail the send: %v", err)
+	}
+	if len(sender.sent) != 1 {
+		t.Fatalf("sent %d", len(sender.sent))
+	}
+}
+
+func TestOpenRawSenderWithoutFactory(t *testing.T) {
+	svc := NewService(ServiceDeps{})
+	if _, err := svc.OpenRawSender(context.Background(), "acc1"); err == nil {
+		t.Fatal("expected error without a sender factory")
+	}
+}

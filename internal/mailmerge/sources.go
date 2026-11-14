@@ -11,6 +11,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/hkdb/aerion/internal/contact"
+	"github.com/xuri/excelize/v2"
 	"golang.org/x/text/encoding/charmap"
 	"golang.org/x/text/transform"
 )
@@ -336,6 +337,104 @@ func stringifyJSONValue(v any) string {
 		}
 		return string(raw)
 	}
+}
+
+// ---------------------------------------------------------------------------
+// XLSX source (Phase 2)
+// ---------------------------------------------------------------------------
+// excelize (github.com/xuri/excelize/v2, BSD-3-Clause, pure Go) is the
+// maintained Go spreadsheet library; the module moved from the qax-os
+// org to xuri, which is why the import path is xuri/excelize.
+//
+// ODS is deliberately NOT supported: excelize does not read ODS, and
+// the pure-Go ODS options are unmaintained one-person libraries
+// (github.com/ksev/ods: "only covers my own needs";
+// github.com/multiprocessio/go-openoffice: "rudimentary", last touched
+// 2022; the only complete alternative, Aspose.Cells for Go, is a
+// commercial CGo/cloud product). An ODS file therefore errors with a
+// clear message instead of a half-working parse.
+
+// ListXLSXSheets returns the workbook's sheet names, in order.
+func ListXLSXSheets(data []byte) ([]string, error) {
+	f, err := openXLSX(data)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	return f.GetSheetList(), nil
+}
+
+// ParseXLSX parses an .xlsx workbook the same way ParseCSV parses a
+// CSV: the first row of the sheet is the headers, every following row
+// is one recipient. sheet selects the sheet by name ("" = the first
+// sheet). Fully-empty rows are skipped, matching encoding/csv's
+// blank-line behaviour; short rows pad missing cells with "".
+// The result is the SAME []map[string]string + columns shape as CSV,
+// so XLSX rows merge identically to CSV rows.
+func ParseXLSX(data []byte, sheet string) (*ParsedData, error) {
+	f, err := openXLSX(data)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	sheets := f.GetSheetList()
+	if len(sheets) == 0 {
+		return nil, fmt.Errorf("mailmerge: XLSX workbook has no sheets")
+	}
+	if sheet == "" {
+		sheet = sheets[0]
+	}
+	rows, err := f.GetRows(sheet)
+	if err != nil {
+		return nil, fmt.Errorf("mailmerge: read XLSX sheet %q: %w", sheet, err)
+	}
+	if len(rows) == 0 {
+		return nil, fmt.Errorf("mailmerge: XLSX sheet %q is empty", sheet)
+	}
+	headers := rows[0]
+	if len(headers) == 0 || (len(headers) == 1 && strings.TrimSpace(headers[0]) == "") {
+		return nil, fmt.Errorf("mailmerge: XLSX first row must contain column names")
+	}
+	columns := dedupColumns(headers)
+	out := &ParsedData{Columns: columns}
+	for _, rec := range rows[1:] {
+		if rowIsEmpty(rec) {
+			continue
+		}
+		row := make(map[string]string, len(columns))
+		for i, col := range columns {
+			if i < len(rec) {
+				row[col] = rec[i]
+			} else {
+				row[col] = ""
+			}
+		}
+		out.Rows = append(out.Rows, row)
+	}
+	return out, nil
+}
+
+// openXLSX opens an .xlsx workbook from bytes. A corrupt/empty file or
+// a non-XLSX file (e.g. an ODS renamed to .xlsx) errors here.
+func openXLSX(data []byte) (*excelize.File, error) {
+	if len(bytes.TrimSpace(data)) == 0 {
+		return nil, fmt.Errorf("mailmerge: empty XLSX file")
+	}
+	f, err := excelize.OpenReader(bytes.NewReader(data))
+	if err != nil {
+		return nil, fmt.Errorf("mailmerge: parse XLSX: %w", err)
+	}
+	return f, nil
+}
+
+// rowIsEmpty reports whether every cell of a spreadsheet row is blank.
+func rowIsEmpty(rec []string) bool {
+	for _, c := range rec {
+		if strings.TrimSpace(c) != "" {
+			return false
+		}
+	}
+	return true
 }
 
 // ---------------------------------------------------------------------------

@@ -72,8 +72,8 @@ export interface MailMergeTemplate {
 export interface MailMergeRunRequest {
   template: MailMergeTemplate
   rows: Row[]
-  sourceKind: string // "csv" | "json" | "contacts"
-  deliverMode: string // "drafts" | "send" ("send later" maps to "drafts")
+  sourceKind: string // "csv" | "json" | "xlsx" | "contacts"
+  deliverMode: string // "drafts" | "send" | "later" ("later" = outbox queue)
   pauseSeconds: number
   randomPause: boolean
   startRow: number
@@ -116,7 +116,7 @@ export interface MailMergeRenderedMessage {
 export interface MailMergeRowResult {
   index: number
   email: string
-  status: string // sent | draft-saved | failed | skipped | held
+  status: string // sent | draft-saved | failed | skipped | held | queued
   error?: string
   timestamp: string
 }
@@ -126,12 +126,13 @@ export interface MailMergeRun {
   createdAt: string
   accountId: string
   deliverMode: string
-  status: string // running | done | cancelled | held
+  status: string // running | done | cancelled | held | queued
   totalRows: number
   sentCount: number
   failedCount: number
   skippedCount: number
   heldCount: number
+  queuedCount: number
   rows: MailMergeRowResult[]
 }
 
@@ -146,12 +147,71 @@ export interface MailMergeRunSummary {
   failedCount: number
   skippedCount: number
   heldCount: number
+  queuedCount: number
 }
 
 export interface MailMergeParsedFile {
   columns: string[]
   rowCount: number
   previewRows: Row[]
+  sheets?: string[] // XLSX workbook sheet names, in order
+}
+
+export interface MailMergeParsedFileFull {
+  columns: string[]
+  rows: Row[]
+  sheets?: string[]
+  rowCount: number
+}
+
+// --- Outbox queue (Phase 2) ---
+
+export interface MailMergeQueuedItem {
+  id: string
+  runId: string
+  rowIndex: number
+  accountId: string
+  recipient: string
+  subject: string
+  fromAddress: string
+  to: string[]
+  status: string // queued | sending | sent | failed | cancelled
+  attempts: number
+  maxAttempts: number
+  nextAttemptAt: string
+  lastError?: string
+  createdAt: string
+  sentAt?: string
+}
+
+export interface MailMergeQueueRunStats {
+  runId: string
+  queued: number
+  sent: number
+  failed: number
+  cancelled: number
+  paused: boolean
+}
+
+export interface MailMergeQueueStats {
+  total: number
+  queued: number
+  sent: number
+  failed: number
+  cancelled: number
+  runs: MailMergeQueueRunStats[]
+}
+
+export interface MailMergeQueueConfig {
+  perHour: number
+  paused: boolean
+}
+
+export interface MailMergeDispatchResult {
+  sent: number
+  failed: number
+  remaining: number
+  queued: number
 }
 
 export interface MailMergeContactsResult {
@@ -187,6 +247,14 @@ export function normalizeRenderedMessage(raw: MailMergeRenderedMessage): MailMer
 
 export function normalizeRun(raw: MailMergeRun): MailMergeRun {
   return { ...raw, rows: raw.rows ?? [] }
+}
+
+export function normalizeQueueItems(raw: MailMergeQueuedItem[] | null | undefined): MailMergeQueuedItem[] {
+  return (raw ?? []).map((item) => ({ ...item, to: item.to ?? [] }))
+}
+
+export function normalizeQueueStats(raw: MailMergeQueueStats): MailMergeQueueStats {
+  return { ...raw, runs: raw.runs ?? [] }
 }
 
 // ---------------------------------------------------------------------------

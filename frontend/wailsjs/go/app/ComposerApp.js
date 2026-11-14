@@ -166,6 +166,14 @@ export function LookupWKD(arg1) {
   return window['go']['app']['ComposerApp']['LookupWKD'](arg1);
 }
 
+export function MailMerge_CancelQueuedItem(arg1) {
+  return window['go']['app']['ComposerApp']['MailMerge_CancelQueuedItem'](arg1);
+}
+
+export function MailMerge_CancelQueuedRun(arg1) {
+  return window['go']['app']['ComposerApp']['MailMerge_CancelQueuedRun'](arg1);
+}
+
 export function MailMerge_CancelRemaining(arg1) {
   return window['go']['app']['ComposerApp']['MailMerge_CancelRemaining'](arg1);
 }
@@ -178,6 +186,14 @@ export function MailMerge_GetContacts() {
   return window['go']['app']['ComposerApp']['MailMerge_GetContacts']();
 }
 
+export function MailMerge_GetQueueConfig() {
+  return window['go']['app']['ComposerApp']['MailMerge_GetQueueConfig']();
+}
+
+export function MailMerge_GetQueueStats() {
+  return window['go']['app']['ComposerApp']['MailMerge_GetQueueStats']();
+}
+
 export function MailMerge_GetRun(arg1) {
   return window['go']['app']['ComposerApp']['MailMerge_GetRun'](arg1);
 }
@@ -186,12 +202,28 @@ export function MailMerge_GetSettings(arg1) {
   return window['go']['app']['ComposerApp']['MailMerge_GetSettings'](arg1);
 }
 
+export function MailMerge_ListQueue() {
+  return window['go']['app']['ComposerApp']['MailMerge_ListQueue']();
+}
+
 export function MailMerge_ListRuns() {
   return window['go']['app']['ComposerApp']['MailMerge_ListRuns']();
 }
 
 export function MailMerge_ParseFile(arg1, arg2) {
   return window['go']['app']['ComposerApp']['MailMerge_ParseFile'](arg1, arg2);
+}
+
+export function MailMerge_ParseFileFull(arg1, arg2, arg3) {
+  return window['go']['app']['ComposerApp']['MailMerge_ParseFileFull'](arg1, arg2, arg3);
+}
+
+export function MailMerge_PauseQueue() {
+  return window['go']['app']['ComposerApp']['MailMerge_PauseQueue']();
+}
+
+export function MailMerge_PauseQueuedRun(arg1) {
+  return window['go']['app']['ComposerApp']['MailMerge_PauseQueuedRun'](arg1);
 }
 
 export function MailMerge_PickAttachmentDir() {
@@ -206,8 +238,24 @@ export function MailMerge_Preview(arg1, arg2, arg3) {
   return window['go']['app']['ComposerApp']['MailMerge_Preview'](arg1, arg2, arg3);
 }
 
+export function MailMerge_ResumeQueue() {
+  return window['go']['app']['ComposerApp']['MailMerge_ResumeQueue']();
+}
+
+export function MailMerge_ResumeQueuedRun(arg1) {
+  return window['go']['app']['ComposerApp']['MailMerge_ResumeQueuedRun'](arg1);
+}
+
 export function MailMerge_ResumeRun(arg1) {
   return window['go']['app']['ComposerApp']['MailMerge_ResumeRun'](arg1);
+}
+
+export function MailMerge_RetryFailedRun(arg1) {
+  return window['go']['app']['ComposerApp']['MailMerge_RetryFailedRun'](arg1);
+}
+
+export function MailMerge_SaveQueueConfig(arg1) {
+  return window['go']['app']['ComposerApp']['MailMerge_SaveQueueConfig'](arg1);
 }
 
 export function MailMerge_SaveSettings(arg1, arg2) {
@@ -220,6 +268,14 @@ export function MailMerge_SendAllRemaining(arg1) {
 
 export function MailMerge_SendNextBatch(arg1) {
   return window['go']['app']['ComposerApp']['MailMerge_SendNextBatch'](arg1);
+}
+
+export function MailMerge_SendUnsent() {
+  return window['go']['app']['ComposerApp']['MailMerge_SendUnsent']();
+}
+
+export function MailMerge_SendUnsentRun(arg1) {
+  return window['go']['app']['ComposerApp']['MailMerge_SendUnsentRun'](arg1);
 }
 
 export function MailMerge_StartRun(arg1) {
@@ -274,6 +330,14 @@ export function Shutdown(arg1) {
   return window['go']['app']['ComposerApp']['Shutdown'](arg1);
 }
 
+export function StartQueueRunner() {
+  return window['go']['app']['ComposerApp']['StartQueueRunner']();
+}
+
 export function Startup(arg1) {
   return window['go']['app']['ComposerApp']['Startup'](arg1);
+}
+
+export function StopQueueRunner() {
+  return window['go']['app']['ComposerApp']['StopQueueRunner']();
 }

@@ -40,8 +40,8 @@ type GlobalAttachment struct {
 type RunRequest struct {
 	Template      Template            `json:"template"`
 	Rows          []map[string]string `json:"rows"`
-	SourceKind    string              `json:"sourceKind"`  // "csv" | "json" | "contacts"
-	DeliverMode   string              `json:"deliverMode"` // "drafts" | "send"
+	SourceKind    string              `json:"sourceKind"`  // "csv" | "json" | "xlsx" | "contacts"
+	DeliverMode   string              `json:"deliverMode"` // "drafts" | "send" | "later"
 	PauseSeconds  int                 `json:"pauseSeconds"`
 	RandomPause   bool                `json:"randomPause"` // pause is random 0–PauseSeconds
 	StartRow      int                 `json:"startRow"`
@@ -59,6 +59,10 @@ const (
 	RowFailed     = "failed"
 	RowSkipped    = "skipped"
 	RowHeld       = "held"
+	// RowQueued is a row whose rendered message was placed in the
+	// persisted outbox queue (Phase 2 "Send later") instead of being
+	// sent or saved as a draft.
+	RowQueued = "queued"
 )
 
 // RowResult is one row's outcome in a run.
@@ -77,6 +81,10 @@ const (
 	RunDone      = "done"
 	RunCancelled = "cancelled"
 	RunHeld      = "held"
+	// RunQueued is a "Send later" run whose rows were all placed in the
+	// outbox queue: the run itself finished, but nothing was sent yet.
+	// The queue runner (or Send Unsent) moves the rows to sent.
+	RunQueued = "queued"
 )
 
 // Run is a persisted merge run with its per-row log.
@@ -85,12 +93,13 @@ type Run struct {
 	CreatedAt    time.Time   `json:"createdAt"`
 	AccountID    string      `json:"accountId"`
 	DeliverMode  string      `json:"deliverMode"`
-	Status       string      `json:"status"` // running | done | cancelled | held
+	Status       string      `json:"status"` // running | done | cancelled | held | queued
 	TotalRows    int         `json:"totalRows"`
 	SentCount    int         `json:"sentCount"`
 	FailedCount  int         `json:"failedCount"`
 	SkippedCount int         `json:"skippedCount"`
 	HeldCount    int         `json:"heldCount"`
+	QueuedCount  int         `json:"queuedCount"`
 	Rows         []RowResult `json:"rows"`
 }
 
@@ -106,6 +115,7 @@ type RunSummary struct {
 	FailedCount  int       `json:"failedCount"`
 	SkippedCount int       `json:"skippedCount"`
 	HeldCount    int       `json:"heldCount"`
+	QueuedCount  int       `json:"queuedCount"`
 }
 
 // Summary derives a RunSummary from a Run.
@@ -115,12 +125,13 @@ func (r *Run) Summary() RunSummary {
 		DeliverMode: r.DeliverMode, Status: r.Status, TotalRows: r.TotalRows,
 		SentCount: r.SentCount, FailedCount: r.FailedCount,
 		SkippedCount: r.SkippedCount, HeldCount: r.HeldCount,
+		QueuedCount: r.QueuedCount,
 	}
 }
 
 // RecomputeCounts recounts the per-status totals from r.Rows.
 func (r *Run) RecomputeCounts() {
-	r.SentCount, r.FailedCount, r.SkippedCount, r.HeldCount = 0, 0, 0, 0
+	r.SentCount, r.FailedCount, r.SkippedCount, r.HeldCount, r.QueuedCount = 0, 0, 0, 0, 0
 	for _, row := range r.Rows {
 		switch row.Status {
 		case RowSent, RowDraftSaved:
@@ -131,6 +142,8 @@ func (r *Run) RecomputeCounts() {
 			r.SkippedCount++
 		case RowHeld:
 			r.HeldCount++
+		case RowQueued:
+			r.QueuedCount++
 		}
 	}
 }
@@ -147,11 +160,39 @@ type RenderedMessage struct {
 	Attachments []string `json:"attachments"` // resolved per-row attachment paths
 }
 
-// ParsedFile is the result of parsing a CSV/JSON source file.
+// ParsedFile is the result of parsing a CSV/JSON/XLSX source file.
 type ParsedFile struct {
 	Columns     []string            `json:"columns"`
 	RowCount    int                 `json:"rowCount"`
 	PreviewRows []map[string]string `json:"previewRows"`
+	// Sheets is the workbook's sheet names, in order (XLSX only; empty
+	// for CSV/JSON). The first sheet is the default.
+	Sheets []string `json:"sheets,omitempty"`
+}
+
+// ParsedFileFull is the result of parsing a source file with ALL rows
+// (not just the 3-row preview). XLSX uses this path: the frontend has
+// no XLSX parser, so the backend returns the full table. CSV/JSON keep
+// their frontend-local parse (see extensions/mail-merge/frontend/lib/
+// mailmerge.ts); this method also serves them for symmetry.
+type ParsedFileFull struct {
+	Columns  []string            `json:"columns"`
+	Rows     []map[string]string `json:"rows"`
+	Sheets   []string            `json:"sheets,omitempty"`
+	RowCount int                 `json:"rowCount"`
+}
+
+// QueuedMessage is one row rendered for the outbox queue: the final
+// RFC822 bytes, fixed at queue time — sending just transmits these
+// bytes, it never re-renders. From/To are the envelope values the
+// SMTP sender needs alongside the bytes.
+type QueuedMessage struct {
+	RowIndex int
+	Email    string // first To address, for the run log + queue view
+	Subject  string
+	From     string
+	To       []string
+	Raw      []byte
 }
 
 // SliceRows applies the 1-based inclusive StartRow/StopRow range to

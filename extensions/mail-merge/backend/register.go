@@ -27,8 +27,9 @@ func (e *Extension) Manifest() coreapi.Manifest { return e.manifest }
 
 // Register wires the Mail Merge extension's UI surfaces: the Mail Merge
 // button in the composer toolbar (covering both inline and detached
-// composers since they share Composer.svelte) and the Mail Merge tab in
-// the Settings dialog.
+// composers since they share Composer.svelte), the Mail Merge rail tab
+// for the outbox queue / job history (Phase 2), and the Mail Merge tab
+// in the Settings dialog.
 //
 // Runs once per Aerion process lifetime at App.Startup, regardless of
 // enabled state — descriptive registrations persist across enable/disable
@@ -44,18 +45,32 @@ func (e *Extension) Register(core coreapi.Core) (coreapi.Unregister, error) {
 		return nil, fmt.Errorf("mail-merge: register composer toolbar: %w", err)
 	}
 
+	unregRail, err := core.UI().RegisterRailTab(coreapi.RailTabRequest{
+		ExtensionID: e.manifest.ID,
+		Label:       "Mail Merge",
+		Icon:        "mdi:email-multiple",
+		Component:   "MailMergeQueuePane",
+		Order:       30,
+	})
+	if err != nil {
+		unregToolbar()
+		return nil, fmt.Errorf("mail-merge: register rail tab: %w", err)
+	}
+
 	unregSettings, err := core.UI().RegisterSettingsTab(coreapi.SettingsTabRequest{
 		ExtensionID: e.manifest.ID,
 		Label:       "Mail Merge",
 		Component:   "MailMergeSettingsDialog",
 	})
 	if err != nil {
+		unregRail()
 		unregToolbar()
 		return nil, fmt.Errorf("mail-merge: register settings tab: %w", err)
 	}
 
 	return func() {
 		unregSettings()
+		unregRail()
 		unregToolbar()
 	}, nil
 }

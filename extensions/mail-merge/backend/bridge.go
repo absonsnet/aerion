@@ -55,6 +55,16 @@ type MailMergeBridge struct {
 	mu            sync.Mutex
 	active        map[string]*activeRun
 	attachmentDir string
+
+	// Queue runner state. The runner is started explicitly by the
+	// MAIN process only (App.Startup → StartQueueRunner); see queue.go.
+	// nowFunc / queueTickIntervalOverride / queueMaxAttemptsOverride
+	// are test hooks (nil/0 = production defaults).
+	runnerRunning             bool
+	runnerStop                chan struct{}
+	nowFunc                   func() time.Time
+	queueTickIntervalOverride time.Duration
+	queueMaxAttemptsOverride  int
 }
 
 type activeRun struct {
@@ -190,8 +200,10 @@ func (b *MailMergeBridge) effectiveAttachmentDir(req hostmm.RunRequest) string {
 // + nil error, no errors surfaced. ensureInit runs once per process;
 // subsequent calls are the cost of one sync.Once check.
 
-// MailMerge_ParseFile parses a CSV or JSON source file into columns +
-// rows. kind is "csv" or "json". PreviewRows holds the first 3 rows.
+// MailMerge_ParseFile parses a CSV, JSON or XLSX source file into
+// columns + rows. kind is "csv", "json" or "xlsx" (first sheet).
+// PreviewRows holds the first 3 rows; Sheets holds the workbook's
+// sheet names for XLSX (empty otherwise).
 func (b *MailMergeBridge) MailMerge_ParseFile(path string, kind string) (hostmm.ParsedFile, error) {
 	if !b.gateEnabled() {
 		return hostmm.ParsedFile{}, nil
@@ -204,11 +216,17 @@ func (b *MailMergeBridge) MailMerge_ParseFile(path string, kind string) (hostmm.
 		return hostmm.ParsedFile{}, fmt.Errorf("mail-merge: read file: %w", err)
 	}
 	var parsed *hostmm.ParsedData
+	var sheets []string
 	switch kind {
 	case "csv":
 		parsed, err = hostmm.ParseCSV(data, "")
 	case "json":
 		parsed, err = hostmm.ParseJSON(data)
+	case "xlsx":
+		parsed, err = hostmm.ParseXLSX(data, "")
+		if err == nil {
+			sheets, _ = hostmm.ListXLSXSheets(data)
+		}
 	default:
 		return hostmm.ParsedFile{}, fmt.Errorf("mail-merge: unknown file kind %q", kind)
 	}
@@ -219,7 +237,46 @@ func (b *MailMergeBridge) MailMerge_ParseFile(path string, kind string) (hostmm.
 	if len(preview) > 3 {
 		preview = preview[:3]
 	}
-	return hostmm.ParsedFile{Columns: parsed.Columns, RowCount: len(parsed.Rows), PreviewRows: preview}, nil
+	return hostmm.ParsedFile{Columns: parsed.Columns, RowCount: len(parsed.Rows), PreviewRows: preview, Sheets: sheets}, nil
+}
+
+// MailMerge_ParseFileFull parses a source file and returns ALL rows
+// (not just the 3-row preview). XLSX uses this path — the frontend has
+// no XLSX parser, so the backend returns the full table. sheet selects
+// the workbook sheet by name ("" = first sheet; ignored for CSV/JSON).
+func (b *MailMergeBridge) MailMerge_ParseFileFull(path string, kind string, sheet string) (hostmm.ParsedFileFull, error) {
+	if !b.gateEnabled() {
+		return hostmm.ParsedFileFull{}, nil
+	}
+	if err := b.ensureInit(); err != nil {
+		return hostmm.ParsedFileFull{}, err
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return hostmm.ParsedFileFull{}, fmt.Errorf("mail-merge: read file: %w", err)
+	}
+	var parsed *hostmm.ParsedData
+	var sheets []string
+	switch kind {
+	case "csv":
+		parsed, err = hostmm.ParseCSV(data, "")
+	case "json":
+		parsed, err = hostmm.ParseJSON(data)
+	case "xlsx":
+		parsed, err = hostmm.ParseXLSX(data, sheet)
+		if err == nil {
+			sheets, _ = hostmm.ListXLSXSheets(data)
+		}
+	default:
+		return hostmm.ParsedFileFull{}, fmt.Errorf("mail-merge: unknown file kind %q", kind)
+	}
+	if err != nil {
+		return hostmm.ParsedFileFull{}, err
+	}
+	if parsed.Rows == nil {
+		parsed.Rows = []map[string]string{}
+	}
+	return hostmm.ParsedFileFull{Columns: parsed.Columns, Rows: parsed.Rows, Sheets: sheets, RowCount: len(parsed.Rows)}, nil
 }
 
 // MailMerge_GetContacts returns all unified contacts (local + CardDAV +
@@ -286,6 +343,11 @@ func (b *MailMergeBridge) MailMerge_Validate(tmpl hostmm.Template, rows []map[st
 // Rows whose To resolves empty after rendering are skipped + logged; a
 // To that still contains {{ after rendering is never sent. Duplicates
 // (same To address twice) are suppressed with a count shown.
+//
+// Deliver modes: "drafts" (save per-recipient drafts), "send" (send
+// now, safety cap applies), "later" (Phase 2: render each row into
+// the persisted outbox queue — nothing is sent by the run itself;
+// the background runner or Send Unsent dispatches the queue).
 func (b *MailMergeBridge) MailMerge_StartRun(req hostmm.RunRequest) (string, error) {
 	if !b.gateEnabled() {
 		return "", nil
@@ -298,7 +360,7 @@ func (b *MailMergeBridge) MailMerge_StartRun(req hostmm.RunRequest) (string, err
 	if v := hostmm.Validate(req.Template, selected, req.AttachmentDir); len(v.UnresolvedVariables) > 0 {
 		return "", fmt.Errorf("mail-merge: unresolved variable(s): %s", strings.Join(v.UnresolvedVariables, ", "))
 	}
-	if req.DeliverMode != "drafts" && req.DeliverMode != "send" {
+	if req.DeliverMode != "drafts" && req.DeliverMode != "send" && req.DeliverMode != "later" {
 		return "", fmt.Errorf("mail-merge: unknown deliver mode %q", req.DeliverMode)
 	}
 	runID := uuid.NewString()
@@ -314,7 +376,11 @@ func (b *MailMergeBridge) MailMerge_StartRun(req hostmm.RunRequest) (string, err
 	if err := b.store.SaveRun(run, req); err != nil {
 		return "", err
 	}
-	b.launchExecution(run, req, nil)
+	if req.DeliverMode == "later" {
+		b.launchQueueExecution(run, req, nil)
+	} else {
+		b.launchExecution(run, req, nil)
+	}
 	return runID, nil
 }
 
@@ -427,7 +493,11 @@ func (b *MailMergeBridge) MailMerge_ResumeRun(runID string) (string, error) {
 	if err := b.store.SaveRun(newRun, req); err != nil {
 		return "", err
 	}
-	b.launchExecution(newRun, req, nil)
+	if req.DeliverMode == "later" {
+		b.launchQueueExecution(newRun, req, nil)
+	} else {
+		b.launchExecution(newRun, req, nil)
+	}
 	return newID, nil
 }
 
@@ -530,6 +600,8 @@ func (b *MailMergeBridge) MailMerge_PickFile(kind string) (string, error) {
 		filter = wailsRuntime.FileFilter{DisplayName: "CSV Files (*.csv)", Pattern: "*.csv"}
 	case "json":
 		filter = wailsRuntime.FileFilter{DisplayName: "JSON Files (*.json)", Pattern: "*.json"}
+	case "xlsx":
+		filter = wailsRuntime.FileFilter{DisplayName: "Excel Files (*.xlsx)", Pattern: "*.xlsx"}
 	default:
 		return "", fmt.Errorf("mail-merge: unknown file kind %q", kind)
 	}
@@ -748,4 +820,117 @@ func (b *MailMergeBridge) sendBatch(runID string, capped bool) error {
 	}
 	b.launchExecution(run, sub, take)
 	return nil
+}
+
+// launchQueueExecution runs a "Send later" run in a goroutine: each
+// row is rendered into its final RFC822 bytes (Service.RenderForQueue)
+// and enqueued in the persisted outbox queue; the run's rows are
+// recorded as "queued". Nothing is sent here — the background runner
+// (main process only) or Send Unsent dispatches the queue. Mirrors
+// launchExecution's bookkeeping (active-run map, live tally,
+// terminal status); indexMap translates executed positions back to
+// the persisted run's row indices (nil = identity, for fresh runs).
+func (b *MailMergeBridge) launchQueueExecution(run *hostmm.Run, req hostmm.RunRequest, indexMap []int) {
+	ctx, cancel := context.WithCancel(context.Background())
+	ar := &activeRun{cancel: cancel, done: make(chan struct{})}
+	b.mu.Lock()
+	b.active[run.ID] = ar
+	b.mu.Unlock()
+
+	go func() {
+		defer func() {
+			b.mu.Lock()
+			delete(b.active, run.ID)
+			b.mu.Unlock()
+			close(ar.done)
+		}()
+		deactivate := func() {
+			b.mu.Lock()
+			delete(b.active, run.ID)
+			b.mu.Unlock()
+		}
+		now := b.queueNow()
+		outcome, err := b.deps.Service.RenderForQueue(ctx, req,
+			func(qm hostmm.QueuedMessage) {
+				if indexMap != nil {
+					if qm.RowIndex < 0 || qm.RowIndex >= len(indexMap) {
+						return
+					}
+					qm.RowIndex = indexMap[qm.RowIndex]
+				}
+				item := QueuedItem{
+					ID:            uuid.NewString(),
+					RunID:         run.ID,
+					RowIndex:      qm.RowIndex,
+					AccountID:     req.AccountID,
+					Recipient:     qm.Email,
+					Subject:       qm.Subject,
+					FromAddress:   qm.From,
+					To:            qm.To,
+					RawMessage:    qm.Raw,
+					Status:        QueueStatusQueued,
+					Attempts:      0,
+					MaxAttempts:   b.queueMaxAttempts(),
+					NextAttemptAt: now,
+					CreatedAt:     now,
+				}
+				_ = b.store.EnqueueItem(item)
+			},
+			func(r hostmm.RowResult) {
+				if indexMap != nil {
+					if r.Index < 0 || r.Index >= len(indexMap) {
+						return
+					}
+					r.Index = indexMap[r.Index]
+				}
+				if err := b.store.SaveRowResult(run.ID, r); err != nil {
+					return
+				}
+				b.mu.Lock()
+				switch r.Status {
+				case hostmm.RowSent, hostmm.RowDraftSaved:
+					run.SentCount++
+				case hostmm.RowFailed:
+					run.FailedCount++
+				case hostmm.RowSkipped:
+					run.SkippedCount++
+				case hostmm.RowHeld:
+					run.HeldCount++
+				case hostmm.RowQueued:
+					run.QueuedCount++
+				}
+				b.mu.Unlock()
+				_ = b.store.UpdateRunStatusAndCounts(run)
+				b.emitRunUpdated(run.ID)
+			})
+		if err != nil {
+			// The whole run failed before/without per-row results
+			// (e.g. a bad base64 global attachment) — same contract
+			// as launchExecution: mark cancelled, log stays as-is.
+			b.mu.Lock()
+			run.Status = hostmm.RunCancelled
+			b.mu.Unlock()
+			_ = b.store.UpdateRunStatusAndCounts(run)
+			b.emitRunUpdated(run.ID)
+			deactivate()
+			return
+		}
+		final, ferr := b.store.GetRun(run.ID)
+		if ferr != nil || final == nil {
+			return
+		}
+		final.RecomputeCounts()
+		switch {
+		case outcome.Cancelled:
+			final.Status = hostmm.RunCancelled
+		case final.QueuedCount > 0:
+			final.Status = hostmm.RunQueued
+		default:
+			final.Status = hostmm.RunDone
+		}
+		_ = b.store.UpdateRunStatusAndCounts(final)
+		b.emitRunUpdated(run.ID)
+		b.emitQueueUpdated()
+		deactivate()
+	}()
 }

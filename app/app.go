@@ -710,6 +710,15 @@ func (a *App) Startup(ctx context.Context) {
 		a.extensionUnregs = append(a.extensionUnregs, unreg)
 	}
 
+	// Start the Mail Merge outbox queue runner. MAIN PROCESS ONLY:
+	// the detached composer hosts the same extension (shared SQLite)
+	// and must never start a second runner — see
+	// extensions/mail-merge/backend/queue.go. StartQueueRunner is
+	// idempotent and gates on the enabled flag each tick, so starting
+	// it here while the extension is disabled is harmless until the
+	// user enables it.
+	a.MailMergeBridge.StartQueueRunner()
+
 	// Wire up network connectivity check so CardDAV scheduler skips ticks when offline
 	if a.networkMonitor != nil {
 		a.carddavScheduler.SetConnectivityCheck(a.networkMonitor.IsConnected)

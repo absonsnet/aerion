@@ -54,6 +54,7 @@
       case 'done': return 'Done'
       case 'cancelled': return 'Cancelled'
       case 'held': return 'Held — over cap'
+      case 'queued': return 'Queued — awaiting dispatch'
       default: return status
     }
   }
@@ -65,7 +66,16 @@
       case 'failed': return 'Failed'
       case 'skipped': return 'Skipped'
       case 'held': return 'Held — over cap'
+      case 'queued': return 'Queued'
       default: return status
+    }
+  }
+
+  function deliverModeLabel(mode: string): string {
+    switch (mode) {
+      case 'send': return 'Send now'
+      case 'later': return 'Send later (queued)'
+      default: return 'Save as drafts'
     }
   }
 
@@ -206,6 +216,9 @@
         {#if run.heldCount > 0}
           <span class="text-amber-700 dark:text-amber-400">Held: {run.heldCount}</span>
         {/if}
+        {#if run.queuedCount > 0}
+          <span class="text-amber-700 dark:text-amber-400">Queued: {run.queuedCount}</span>
+        {/if}
         <span class="text-xs text-muted-foreground">{formatTime(run.createdAt)}</span>
       </div>
 
@@ -322,8 +335,9 @@
             onclick={() => selectHistory(item.id)}
           >
             <span class="font-medium">{statusLabel(item.status)}</span>
-            <span>{item.deliverMode === 'send' ? 'Send now' : 'Save as drafts'}</span>
+            <span>{deliverModeLabel(item.deliverMode)}</span>
             <span>{item.sentCount}/{item.totalRows} sent/saved</span>
+            {#if item.queuedCount > 0}<span class="text-amber-700 dark:text-amber-400">{item.queuedCount} queued</span>{/if}
             {#if item.failedCount > 0}<span class="text-destructive">{item.failedCount} failed</span>{/if}
             {#if item.heldCount > 0}<span class="text-amber-700 dark:text-amber-400">{item.heldCount} held</span>{/if}
             {#if item.skippedCount > 0}<span class="text-muted-foreground">{item.skippedCount} skipped</span>{/if}

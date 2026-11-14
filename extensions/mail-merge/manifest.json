@@ -3,9 +3,10 @@
   "capabilities": [
     "mail.merge",
     "ui.composer-toolbar",
-    "ui.settings-tab"
+    "ui.settings-tab",
+    "ui.rail-tab"
   ],
-  "description": "Create and save or send multiple individual and personalised messages from one draft (CSV, JSON, or contacts as the recipient source).",
+  "description": "Create and save or send multiple individual and personalised messages from one draft (CSV, JSON, XLSX, or contacts as the recipient source). Send later queues messages in a persisted outbox with scheduled dispatch.",
   "id": "mail-merge",
   "minAerionVersion": "0.3.0",
   "name": "Mail Merge",

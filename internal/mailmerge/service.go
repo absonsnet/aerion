@@ -93,6 +93,7 @@ type Outcome struct {
 	FailedCount  int
 	SkippedCount int
 	HeldCount    int
+	QueuedCount  int
 	Cancelled    bool
 }
 
@@ -228,16 +229,160 @@ func (s *Service) pause(ctx context.Context, req RunRequest) bool {
 	}
 }
 
-// processRow renders, validates and delivers one row, returning its
-// RowResult. seenTo/sentAttempted are updated by the caller-visible
-// side effects (duplicate suppression, cap counting).
-func (s *Service) processRow(ctx context.Context, req RunRequest, row map[string]string, origIndex int, globalAtts []smtp.Attachment, sender MailSender, seenTo map[string]bool, sentAttempted *int, capLimit int) RowResult {
-	now := time.Now()
-	fail := func(err string) RowResult {
-		return RowResult{Index: origIndex, Status: RowFailed, Error: err, Timestamp: now}
+// RenderForQueue renders a run for the outbox queue (Phase 2 "Send
+// later") instead of delivering it: every accepted row is built into
+// its final RFC822 bytes and handed to onQueued, and a RowQueued
+// result is reported per row via onProgress. The message is fixed at
+// queue time — the queue runner never re-renders.
+//
+// Same row semantics as Execute: duplicates suppressed, per-row
+// failures recorded without stopping the run, ctx cancel stops after
+// the current row (remaining rows skipped). No pause between rows
+// (rendering is local work) and no safety cap (the cap governs
+// sending, and the queue runner enforces the per-hour budget when
+// the messages actually go out).
+func (s *Service) RenderForQueue(ctx context.Context, req RunRequest, onQueued func(QueuedMessage), onProgress func(RowResult)) (Outcome, error) {
+	if ctx == nil {
+		ctx = context.Background()
 	}
-	skip := func(email, err string) RowResult {
-		return RowResult{Index: origIndex, Email: email, Status: RowSkipped, Error: err, Timestamp: now}
+	var out Outcome
+	emit := func(r RowResult) {
+		switch r.Status {
+		case RowSent, RowDraftSaved:
+			out.SentCount++
+		case RowFailed:
+			out.FailedCount++
+		case RowSkipped:
+			out.SkippedCount++
+		case RowHeld:
+			out.HeldCount++
+		case RowQueued:
+			out.QueuedCount++
+		}
+		if onProgress != nil {
+			onProgress(r)
+		}
+	}
+	if req.AccountID == "" {
+		return out, fmt.Errorf("mailmerge: account is required")
+	}
+	globalAtts, err := decodeGlobalAttachments(req.Template.GlobalAttachments)
+	if err != nil {
+		return out, err
+	}
+	rows, indices := SliceRows(req.Rows, req.StartRow, req.StopRow)
+	seenTo := map[string]bool{}
+	for pos, row := range rows {
+		origIndex := indices[pos]
+		if ctx.Err() != nil {
+			out.Cancelled = true
+			emit(RowResult{Index: origIndex, Status: RowSkipped, Error: "cancelled before processing", Timestamp: time.Now()})
+			for j := pos + 1; j < len(rows); j++ {
+				emit(RowResult{Index: indices[j], Status: RowSkipped, Error: "cancelled before processing", Timestamp: time.Now()})
+			}
+			return out, nil
+		}
+		now := time.Now()
+		bm, bad := s.buildMessage(req, row, origIndex, globalAtts, seenTo)
+		if bad != nil {
+			emit(*bad)
+			continue
+		}
+		seenTo[strings.ToLower(strings.TrimSpace(bm.email))] = true
+		raw, err := bm.msg.ToRFC822()
+		if err != nil {
+			emit(RowResult{Index: origIndex, Email: bm.email, Status: RowFailed, Error: fmt.Sprintf("build message: %v", err), Timestamp: now})
+			continue
+		}
+		if onQueued != nil {
+			onQueued(QueuedMessage{
+				RowIndex: origIndex,
+				Email:    bm.email,
+				Subject:  bm.msg.Subject,
+				From:     bm.fromAddr.Address,
+				To:       addressStrings(bm.toAddrs),
+				Raw:      raw,
+			})
+		}
+		emit(RowResult{Index: origIndex, Email: bm.email, Status: RowQueued, Timestamp: now})
+	}
+	return out, nil
+}
+
+// RawSender is one reused SMTP connection for sending already-rendered
+// queue bytes: Connect + Login happen once (via SenderFactory, exactly
+// like a normal send run), Send per queued item, Close at the end. The
+// queue runner opens one RawSender per account per dispatch tick, so a
+// batch still uses one connection per account — the same reuse as a
+// normal send run, and the same SentSaver as a normal send.
+type RawSender struct {
+	sender    MailSender
+	saver     SentSaver
+	accountID string
+}
+
+// OpenRawSender opens the run's single SMTP connection for an account.
+func (s *Service) OpenRawSender(ctx context.Context, accountID string) (*RawSender, error) {
+	if s.deps.SenderFactory == nil {
+		return nil, fmt.Errorf("mailmerge: no SMTP sender configured")
+	}
+	sender, err := s.deps.SenderFactory.NewSender(ctx, accountID)
+	if err != nil {
+		return nil, fmt.Errorf("mailmerge: connect SMTP: %w", err)
+	}
+	return &RawSender{sender: sender, saver: s.deps.SentSaver, accountID: accountID}, nil
+}
+
+// Send transmits one already-rendered queued message, then saves it to
+// Sent the same way a normal send does. A Sent-save failure must NOT
+// fail the send (the message is already out).
+func (rs *RawSender) Send(ctx context.Context, m QueuedMessage) error {
+	if err := rs.sender.SendMail(m.From, m.To, m.Raw); err != nil {
+		return err
+	}
+	if rs.saver != nil {
+		if err := rs.saver.SaveToSent(ctx, rs.accountID, m.Raw); err != nil {
+			slog := logging.WithComponent("mailmerge")
+			slog.Warn().Err(err).Str("email", m.Email).Msg("Failed to save queued sent message to Sent folder")
+		}
+	}
+	return nil
+}
+
+// Close closes the SMTP connection.
+func (rs *RawSender) Close() error { return rs.sender.Close() }
+
+// addressStrings returns the bare addresses of a parsed address list
+// (the envelope recipients for SendMail).
+func addressStrings(addrs []mail.Address) []string {
+	out := make([]string, 0, len(addrs))
+	for _, a := range addrs {
+		out = append(out, a.Address)
+	}
+	return out
+}
+
+// builtMessage is one row fully rendered and composed, plus the parsed
+// sender/recipients the delivery paths need.
+type builtMessage struct {
+	msg      smtp.ComposeMessage
+	fromAddr mail.Address
+	toAddrs  []mail.Address
+	email    string // first To address
+}
+
+// buildMessage renders one row and builds its ComposeMessage. It
+// returns a non-nil *RowResult (skip/fail, Index/Email filled) when
+// the row must not be delivered, and nil otherwise. Shared by
+// processRow (drafts/send) and RenderForQueue ("Send later") so all
+// three deliver modes render identically.
+func (s *Service) buildMessage(req RunRequest, row map[string]string, origIndex int, globalAtts []smtp.Attachment, seenTo map[string]bool) (*builtMessage, *RowResult) {
+	now := time.Now()
+	fail := func(err string) *RowResult {
+		return &RowResult{Index: origIndex, Status: RowFailed, Error: err, Timestamp: now}
+	}
+	skip := func(email, err string) *RowResult {
+		return &RowResult{Index: origIndex, Email: email, Status: RowSkipped, Error: err, Timestamp: now}
 	}
 
 	// Render the template. A missing variable fails the row (the bridge
@@ -246,46 +391,46 @@ func (s *Service) processRow(ctx context.Context, req RunRequest, row map[string
 	rendered, err := RenderRow(req.Template, row, req.AttachmentDir, origIndex)
 	if err != nil {
 		if names := missingErrorNames(err); len(names) > 0 {
-			return fail(fmt.Sprintf("unresolved variable(s): %s", strings.Join(names, ", ")))
+			return nil, fail(fmt.Sprintf("unresolved variable(s): %s", strings.Join(names, ", ")))
 		}
-		return fail(err.Error())
+		return nil, fail(err.Error())
 	}
 
 	// From: required, must parse.
 	fromRendered, err := Render(req.Template.From, row)
 	if err != nil {
 		if names := missingErrorNames(err); len(names) > 0 {
-			return fail(fmt.Sprintf("unresolved variable(s): %s", strings.Join(names, ", ")))
+			return nil, fail(fmt.Sprintf("unresolved variable(s): %s", strings.Join(names, ", ")))
 		}
-		return fail(err.Error())
+		return nil, fail(err.Error())
 	}
 	fromAddr, err := mail.ParseAddress(strings.TrimSpace(fromRendered))
 	if err != nil || strings.TrimSpace(fromRendered) == "" {
-		return fail(fmt.Sprintf("invalid From address %q", fromRendered))
+		return nil, fail(fmt.Sprintf("invalid From address %q", fromRendered))
 	}
 
 	// To: empty, still-templated, unparseable or invalid addresses are
 	// skipped and logged — never sent.
 	toStr := strings.TrimSpace(rendered.To)
 	if toStr == "" {
-		return skip("", "empty To address")
+		return nil, skip("", "empty To address")
 	}
 	if strings.Contains(toStr, "{{") {
-		return skip("", fmt.Sprintf("To still contains an unresolved variable: %q", toStr))
+		return nil, skip("", fmt.Sprintf("To still contains an unresolved variable: %q", toStr))
 	}
 	toAddrs, err := parseAddressList(toStr)
 	if err != nil || len(toAddrs) == 0 {
-		return skip("", fmt.Sprintf("invalid To address %q", toStr))
+		return nil, skip("", fmt.Sprintf("invalid To address %q", toStr))
 	}
 	for _, a := range toAddrs {
 		if !validEmail(a.Address) {
-			return skip("", fmt.Sprintf("invalid To address %q", a.Address))
+			return nil, skip("", fmt.Sprintf("invalid To address %q", a.Address))
 		}
 	}
 	email := toAddrs[0].Address
 	dupKey := strings.ToLower(strings.TrimSpace(email))
 	if seenTo[dupKey] {
-		return skip(email, "duplicate recipient — already sent in this run")
+		return nil, skip(email, "duplicate recipient — already sent in this run")
 	}
 
 	// Cc / Bcc: invalid entries are dropped, the row still goes out.
@@ -295,9 +440,9 @@ func (s *Service) processRow(ctx context.Context, req RunRequest, row map[string
 	var replyTo *smtp.Address
 	if rt, err := Render(req.Template.ReplyTo, row); err != nil {
 		if names := missingErrorNames(err); len(names) > 0 {
-			return fail(fmt.Sprintf("unresolved variable(s): %s", strings.Join(names, ", ")))
+			return nil, fail(fmt.Sprintf("unresolved variable(s): %s", strings.Join(names, ", ")))
 		}
-		return fail(err.Error())
+		return nil, fail(err.Error())
 	} else if strings.TrimSpace(rt) != "" {
 		if parsed, perr := mail.ParseAddress(strings.TrimSpace(rt)); perr == nil && validEmail(parsed.Address) {
 			replyTo = &smtp.Address{Name: parsed.Name, Address: parsed.Address}
@@ -310,7 +455,7 @@ func (s *Service) processRow(ctx context.Context, req RunRequest, row map[string
 	if skipped != nil {
 		skipped.Index = origIndex
 		skipped.Email = email
-		return *skipped
+		return nil, skipped
 	}
 
 	msg := smtp.ComposeMessage{
@@ -328,6 +473,24 @@ func (s *Service) processRow(ctx context.Context, req RunRequest, row map[string
 		msg.TextBody = rendered.BodyText
 		msg.HTMLBody = rendered.BodyHTML
 	}
+	return &builtMessage{msg: msg, fromAddr: *fromAddr, toAddrs: toAddrs, email: email}, nil
+}
+
+// processRow renders, validates and delivers one row, returning its
+// RowResult. seenTo/sentAttempted are updated by the caller-visible
+// side effects (duplicate suppression, cap counting).
+func (s *Service) processRow(ctx context.Context, req RunRequest, row map[string]string, origIndex int, globalAtts []smtp.Attachment, sender MailSender, seenTo map[string]bool, sentAttempted *int, capLimit int) RowResult {
+	now := time.Now()
+	fail := func(err string) RowResult {
+		return RowResult{Index: origIndex, Status: RowFailed, Error: err, Timestamp: now}
+	}
+
+	bm, bad := s.buildMessage(req, row, origIndex, globalAtts, seenTo)
+	if bad != nil {
+		return *bad
+	}
+	dupKey := strings.ToLower(strings.TrimSpace(bm.email))
+	email := bm.email
 
 	// The row is accepted for delivery: it now counts for duplicate
 	// suppression even if the send/draft itself fails (a retry is the
@@ -339,7 +502,7 @@ func (s *Service) processRow(ctx context.Context, req RunRequest, row map[string
 	switch req.DeliverMode {
 	case "drafts":
 		markSeen()
-		if err := s.deps.DraftSaver.SaveDraft(req.AccountID, msg); err != nil {
+		if err := s.deps.DraftSaver.SaveDraft(req.AccountID, bm.msg); err != nil {
 			return fail(fmt.Sprintf("save draft: %v", err))
 		}
 		return RowResult{Index: origIndex, Email: email, Status: RowDraftSaved, Timestamp: now}
@@ -348,11 +511,11 @@ func (s *Service) processRow(ctx context.Context, req RunRequest, row map[string
 			return RowResult{Index: origIndex, Email: email, Status: RowHeld, Error: "held — over cap", Timestamp: now}
 		}
 		markSeen()
-		raw, err := msg.ToRFC822()
+		raw, err := bm.msg.ToRFC822()
 		if err != nil {
 			return fail(fmt.Sprintf("build message: %v", err))
 		}
-		if err := sender.SendMail(fromAddr.Address, msg.AllRecipients(), raw); err != nil {
+		if err := sender.SendMail(bm.fromAddr.Address, bm.msg.AllRecipients(), raw); err != nil {
 			return fail(fmt.Sprintf("send: %v", err))
 		}
 		*sentAttempted++

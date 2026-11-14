@@ -13,15 +13,20 @@
   // parsed in the frontend (see lib/mailmerge.ts — ParseFile returns
   // only 3 preview rows, so the full table comes from the file bytes
   // read via the existing readFileAsAttachment binding); Contacts loads
-  // all unified records via MailMerge_GetContacts.
+  // all unified records via MailMerge_GetContacts. XLSX has no
+  // frontend parser, so it goes through the backend full-parse path
+  // (MailMerge_ParseFileFull) — first sheet by default, sheet picker
+  // when the workbook has more than one.
   //
   // Deliver modes (settled decisions): Save as drafts [DEFAULT] /
-  // Send now / Send later. Phase 1 has no outbox queue, so Send later
-  // generates drafts and the run log is the bulk-send path — the label
-  // says so. The safety cap applies at SEND time only, never to draft
-  // generation. Preview & validate blocks Start while any variable is
-  // unresolved; invalid emails, duplicates and empty-To rows are
-  // listed as will-be-skipped, never run-blocking.
+  // Send now / Send later. Phase 2 Send later renders each row into
+  // the persisted outbox queue — nothing is sent by the run itself;
+  // the background runner sends up to N per hour (see the Mail Merge
+  // rail tab), or Send Unsent sends them now. The safety cap applies
+  // at SEND time only, never to draft generation or queueing. Preview
+  // & validate blocks Start while any variable is unresolved; invalid
+  // emails, duplicates and empty-To rows are listed as will-be-skipped,
+  // never run-blocking.
 
   import Icon from '@iconify/svelte'
   import * as Dialog from '$lib/components/ui/dialog'
@@ -40,6 +45,7 @@
     normalizeRenderedMessage,
     normalizeValidationResult,
     parseSourceBytes,
+    type MailMergeParsedFileFull,
     type MailMergeRenderedMessage,
     type MailMergeRunRequest,
     type MailMergeSettings,
@@ -58,7 +64,7 @@
 
   let { open = $bindable(false), api, composerContext, accountId, onClose }: Props = $props()
 
-  type SourceKind = 'csv' | 'json' | 'contacts'
+  type SourceKind = 'csv' | 'json' | 'xlsx' | 'contacts'
   type DeliverChoice = 'drafts' | 'send' | 'later'
 
   // --- Template (snapshot of the live draft, editable here) ---
@@ -81,6 +87,9 @@
   let rows = $state<Row[]>([])
   let fileWarning = $state('')
   let sourceBusy = $state(false)
+  // XLSX sheet selection (backend full-parse path only).
+  let sheets = $state<string[]>([])
+  let selectedSheet = $state('')
 
   // --- Batch / deliver ---
   let deliverMode = $state<DeliverChoice>('drafts')
@@ -194,14 +203,21 @@
     validation = null
     previews = []
     previewError = ''
+    sheets = []
+    selectedSheet = ''
   }
 
-  async function pickSourceFile(kind: 'csv' | 'json'): Promise<void> {
+  async function pickSourceFile(kind: 'csv' | 'json' | 'xlsx'): Promise<void> {
     sourceBusy = true
     fileWarning = ''
     try {
       const path = await api.mailMergePickFile(kind)
       if (!path) return
+      if (kind === 'xlsx') {
+        // No frontend XLSX parser: the backend returns the full table.
+        await loadXlsx(path, '')
+        return
+      }
       // Read the file bytes via the existing attachment reader, then
       // parse locally (backend ParseFile returns preview rows only).
       const att = await api.readFileAsAttachment(path)
@@ -211,6 +227,8 @@
       sourceLabel = path
       columns = parsed.columns
       rows = parsed.rows
+      sheets = []
+      selectedSheet = ''
       validation = null
       previews = []
       // Server-side cross-check (columns + row count).
@@ -234,6 +252,35 @@
     }
   }
 
+  /** Load an XLSX file via the backend full-parse path. sheet "" = first sheet. */
+  async function loadXlsx(path: string, sheet: string): Promise<void> {
+    sourceBusy = true
+    fileWarning = ''
+    try {
+      const full = (await api.mailMergeParseFileFull(path, 'xlsx', sheet)) as MailMergeParsedFileFull
+      sourceKind = 'xlsx'
+      sourceLabel = path
+      columns = full.columns || []
+      rows = (full.rows || []) as Row[]
+      sheets = full.sheets || []
+      selectedSheet = sheet || sheets[0] || ''
+      validation = null
+      previews = []
+    } catch (err) {
+      const msg = (err as Error)?.message ?? String(err)
+      console.error('mailMerge loadXlsx failed:', err)
+      toasts.error(msg)
+      fileWarning = msg
+    } finally {
+      sourceBusy = false
+    }
+  }
+
+  async function handleSheetChange(sheet: string): Promise<void> {
+    if (!sourceLabel || sheet === selectedSheet) return
+    await loadXlsx(sourceLabel, sheet)
+  }
+
   async function loadContacts(): Promise<void> {
     sourceBusy = true
     fileWarning = ''
@@ -243,6 +290,8 @@
       sourceLabel = 'All contacts (local, CardDAV, Google, Microsoft)'
       columns = result.columns || []
       rows = (result.rows || []) as Row[]
+      sheets = []
+      selectedSheet = ''
       validation = null
       previews = []
     } catch (err) {
@@ -306,9 +355,11 @@
         template: buildTemplate(),
         rows,
         sourceKind: sourceKind ?? 'csv',
-        // "Send later" has no outbox queue in Phase 1: it generates
-        // drafts, and the run log below is the bulk-send path.
-        deliverMode: deliverMode === 'send' ? 'send' : 'drafts',
+        // "Send later" queues the rendered messages in the persisted
+        // outbox (Phase 2) — nothing is sent by this run. The safety
+        // cap does not apply to queueing; the per-hour budget governs
+        // when the queued messages go out.
+        deliverMode: deliverMode === 'send' ? 'send' : deliverMode === 'later' ? 'later' : 'drafts',
         pauseSeconds,
         randomPause,
         startRow,
@@ -402,6 +453,9 @@
           <Button variant={sourceKind === 'json' ? 'default' : 'outline'} size="sm" disabled={sourceBusy} onclick={() => void pickSourceFile('json')}>
             JSON file…
           </Button>
+          <Button variant={sourceKind === 'xlsx' ? 'default' : 'outline'} size="sm" disabled={sourceBusy} onclick={() => void pickSourceFile('xlsx')}>
+            XLSX file…
+          </Button>
           <Button variant={sourceKind === 'contacts' ? 'default' : 'outline'} size="sm" disabled={sourceBusy} onclick={() => void loadContacts()}>
             Contacts
           </Button>
@@ -416,6 +470,21 @@
         {/if}
         {#if sourceLabel}
           <p class="text-xs text-muted-foreground break-all">{sourceLabel}</p>
+        {/if}
+        {#if sourceKind === 'xlsx' && sheets.length > 1}
+          <div class="flex items-center gap-2">
+            <label for="mm-sheet" class="text-sm text-muted-foreground">Sheet</label>
+            <select
+              id="mm-sheet"
+              value={selectedSheet}
+              onchange={(e) => void handleSheetChange(e.currentTarget.value)}
+              class="rounded-md border border-input bg-background px-2 py-1 text-sm text-foreground"
+            >
+              {#each sheets as sheet (sheet)}
+                <option value={sheet}>{sheet}</option>
+              {/each}
+            </select>
+          </div>
         {/if}
         {#if fileWarning}
           <p class="text-xs text-amber-700 dark:text-amber-400">{fileWarning}</p>
@@ -481,7 +550,7 @@
           </label>
           <label class="flex items-start gap-2 text-sm">
             <input type="radio" name="mm-deliver" value="later" bind:group={deliverMode} class="mt-0.5" />
-            <span><span class="font-medium">Send later</span> <span class="text-muted-foreground">(Phase 1: generates drafts, then bulk-send them from the run log below — there is no outbox queue yet)</span></span>
+            <span><span class="font-medium">Send later</span> <span class="text-muted-foreground">(queues each message in the outbox — sent automatically, up to 100 per hour, or now via Send Unsent in the Mail Merge rail tab)</span></span>
           </label>
         </div>
 
@@ -615,7 +684,7 @@
           {#if startBusy}
             <Icon icon="mdi:loading" class="w-4 h-4 mr-1 animate-spin" />
           {/if}
-          {deliverMode === 'send' ? 'Start sending' : deliverMode === 'later' ? 'Generate drafts (send later)' : 'Generate drafts'}
+          {deliverMode === 'send' ? 'Start sending' : deliverMode === 'later' ? 'Queue for later sending' : 'Generate drafts'}
         </Button>
       </div>
     </div>

@@ -14,6 +14,7 @@ import { smtp, account, contact, app, smime, pgp, backend } from '../../wailsjs/
 import type {
   MailMergeContactsResult,
   MailMergeParsedFile,
+  MailMergeParsedFileFull,
   MailMergeRenderedMessage,
   MailMergeRun,
   MailMergeRunRequest,
@@ -170,8 +171,11 @@ export interface ComposerApi {
   // not the generated backend.Settings — the generator kept only the
   // ai-writing Settings shape for that name (see mailmerge.ts header).
 
-  /** Mail Merge: parse a CSV/JSON source file (columns + row count + first 3 rows). */
+  /** Mail Merge: parse a CSV/JSON/XLSX source file (columns + row count + first 3 rows). */
   mailMergeParseFile: (path: string, kind: string) => Promise<MailMergeParsedFile>
+
+  /** Mail Merge: parse a source file with ALL rows (the XLSX path — the frontend has no XLSX parser). sheet: "" = first sheet. */
+  mailMergeParseFileFull: (path: string, kind: string, sheet: string) => Promise<MailMergeParsedFileFull>
 
   /** Mail Merge: all unified contacts as merge rows + columns. */
   mailMergeGetContacts: () => Promise<MailMergeContactsResult>
@@ -212,7 +216,7 @@ export interface ComposerApi {
   /** Mail Merge: save one account's settings. */
   mailMergeSaveSettings: (accountId: string, settings: MailMergeSettings) => Promise<void>
 
-  /** Mail Merge: pick a CSV/JSON source file; "" when cancelled. */
+  /** Mail Merge: pick a CSV/JSON/XLSX source file; "" when cancelled. */
   mailMergePickFile: (kind: string) => Promise<string>
 
   /** Mail Merge: pick the folder per-row attachment filenames resolve against. */
@@ -422,6 +426,11 @@ export function createMainWindowApi(): ComposerApi {
     mailMergeParseFile: async (path: string, kind: string) => {
       const { MailMerge_ParseFile } = await import('../../wailsjs/go/app/App.js')
       return MailMerge_ParseFile(path, kind)
+    },
+
+    mailMergeParseFileFull: async (path: string, kind: string, sheet: string) => {
+      const { MailMerge_ParseFileFull } = await import('../../wailsjs/go/app/App.js')
+      return MailMerge_ParseFileFull(path, kind, sheet)
     },
 
     mailMergeGetContacts: async () => {
@@ -693,6 +702,11 @@ export function createComposerWindowApi(_accountId: string): ComposerApi {
     mailMergeParseFile: async (path: string, kind: string) => {
       const { MailMerge_ParseFile } = await import('../../wailsjs/go/app/ComposerApp.js')
       return MailMerge_ParseFile(path, kind)
+    },
+
+    mailMergeParseFileFull: async (path: string, kind: string, sheet: string) => {
+      const { MailMerge_ParseFileFull } = await import('../../wailsjs/go/app/ComposerApp.js')
+      return MailMerge_ParseFileFull(path, kind, sheet)
     },
 
     mailMergeGetContacts: async () => {

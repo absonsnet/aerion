@@ -934,6 +934,24 @@ export namespace backend {
 	        this.columns = source["columns"];
 	    }
 	}
+	export class DispatchResult {
+	    sent: number;
+	    failed: number;
+	    remaining: number;
+	    queued: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new DispatchResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.sent = source["sent"];
+	        this.failed = source["failed"];
+	        this.remaining = source["remaining"];
+	        this.queued = source["queued"];
+	    }
+	}
 	export class Organizer {
 	    email: string;
 	    cn?: string;
@@ -1426,6 +1444,143 @@ export namespace backend {
 	}
 	
 	
+	export class QueueConfig {
+	    perHour: number;
+	    paused: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new QueueConfig(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.perHour = source["perHour"];
+	        this.paused = source["paused"];
+	    }
+	}
+	export class QueueRunStats {
+	    runId: string;
+	    queued: number;
+	    sent: number;
+	    failed: number;
+	    cancelled: number;
+	    paused: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new QueueRunStats(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.runId = source["runId"];
+	        this.queued = source["queued"];
+	        this.sent = source["sent"];
+	        this.failed = source["failed"];
+	        this.cancelled = source["cancelled"];
+	        this.paused = source["paused"];
+	    }
+	}
+	export class QueueStats {
+	    total: number;
+	    queued: number;
+	    sent: number;
+	    failed: number;
+	    cancelled: number;
+	    runs: QueueRunStats[];
+	
+	    static createFrom(source: any = {}) {
+	        return new QueueStats(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.total = source["total"];
+	        this.queued = source["queued"];
+	        this.sent = source["sent"];
+	        this.failed = source["failed"];
+	        this.cancelled = source["cancelled"];
+	        this.runs = this.convertValues(source["runs"], QueueRunStats);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class QueuedItem {
+	    id: string;
+	    runId: string;
+	    rowIndex: number;
+	    accountId: string;
+	    recipient: string;
+	    subject: string;
+	    fromAddress: string;
+	    to: string[];
+	    status: string;
+	    attempts: number;
+	    maxAttempts: number;
+	    // Go type: time
+	    nextAttemptAt: any;
+	    lastError?: string;
+	    // Go type: time
+	    createdAt: any;
+	    // Go type: time
+	    sentAt?: any;
+	
+	    static createFrom(source: any = {}) {
+	        return new QueuedItem(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.runId = source["runId"];
+	        this.rowIndex = source["rowIndex"];
+	        this.accountId = source["accountId"];
+	        this.recipient = source["recipient"];
+	        this.subject = source["subject"];
+	        this.fromAddress = source["fromAddress"];
+	        this.to = source["to"];
+	        this.status = source["status"];
+	        this.attempts = source["attempts"];
+	        this.maxAttempts = source["maxAttempts"];
+	        this.nextAttemptAt = this.convertValues(source["nextAttemptAt"], null);
+	        this.lastError = source["lastError"];
+	        this.createdAt = this.convertValues(source["createdAt"], null);
+	        this.sentAt = this.convertValues(source["sentAt"], null);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	
 	
 	export class ResizedContactPhoto {
@@ -2092,6 +2247,7 @@ export namespace mailmerge {
 	    columns: string[];
 	    rowCount: number;
 	    previewRows: any[];
+	    sheets?: string[];
 	
 	    static createFrom(source: any = {}) {
 	        return new ParsedFile(source);
@@ -2102,6 +2258,25 @@ export namespace mailmerge {
 	        this.columns = source["columns"];
 	        this.rowCount = source["rowCount"];
 	        this.previewRows = source["previewRows"];
+	        this.sheets = source["sheets"];
+	    }
+	}
+	export class ParsedFileFull {
+	    columns: string[];
+	    rows: any[];
+	    sheets?: string[];
+	    rowCount: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new ParsedFileFull(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.columns = source["columns"];
+	        this.rows = source["rows"];
+	        this.sheets = source["sheets"];
+	        this.rowCount = source["rowCount"];
 	    }
 	}
 	export class RenderedMessage {
@@ -2181,6 +2356,7 @@ export namespace mailmerge {
 	    failedCount: number;
 	    skippedCount: number;
 	    heldCount: number;
+	    queuedCount: number;
 	    rows: RowResult[];
 	
 	    static createFrom(source: any = {}) {
@@ -2199,6 +2375,7 @@ export namespace mailmerge {
 	        this.failedCount = source["failedCount"];
 	        this.skippedCount = source["skippedCount"];
 	        this.heldCount = source["heldCount"];
+	        this.queuedCount = source["queuedCount"];
 	        this.rows = this.convertValues(source["rows"], RowResult);
 	    }
 	
@@ -2336,6 +2513,7 @@ export namespace mailmerge {
 	    failedCount: number;
 	    skippedCount: number;
 	    heldCount: number;
+	    queuedCount: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new RunSummary(source);
@@ -2353,6 +2531,7 @@ export namespace mailmerge {
 	        this.failedCount = source["failedCount"];
 	        this.skippedCount = source["skippedCount"];
 	        this.heldCount = source["heldCount"];
+	        this.queuedCount = source["queuedCount"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
