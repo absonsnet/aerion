@@ -1,5 +1,14 @@
 # CHANGELOG
 
+**v0.5.0 - 14-11-2026**
+---
+
+- Mail Merge: turn one draft into one personalised message per recipient, using the same `{{...}}` template syntax as Thunderbird's Mail Merge add-on, including conditionals
+- Recipient sources: CSV, JSON, XLSX, and all unified contacts
+- Deliver modes: Save as drafts (default), Send Later via a persisted outbox queue, and Send Now — with per-recipient preview, pre-flight validation, and a run log with resume
+- Safety cap on recipients per run (optional, default 100) with held-batch dispatch, plus scheduled dispatch from the outbox
+- Per-recipient S/MIME and PGP signing
+
 **v0.4.3 - 14-11-2026**
 ---
 
