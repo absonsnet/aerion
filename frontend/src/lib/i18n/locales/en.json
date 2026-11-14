@@ -202,6 +202,7 @@
     "messageSent": "Message sent",
     "failedToSend": "Failed to send.",
     "noRecipients": "Please add at least one recipient",
+    "mergeVariableRecipient": "This draft has a mail-merge variable ({{...}}) in the recipients. Use Mail Merge to send it.",
     "failedToLoadDraft": "Failed to load draft",
     "certImported": "Certificate imported for {email}",
     "pgpKeyImported": "PGP key imported for {email}",

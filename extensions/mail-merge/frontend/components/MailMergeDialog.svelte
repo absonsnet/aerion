@@ -459,7 +459,7 @@
     <Dialog.Header>
       <Dialog.Title>Mail Merge</Dialog.Title>
       <Dialog.Description>
-        One personalised message per recipient, from this draft as the template. Variables use Thunderbird's {'{{…}}'} syntax.
+        One personalised message per recipient, from this draft as the template. Put {'{{Email}}'} in the To field and use {'{{…}}'} variables in the subject and body — only the part you wrote is merged, quoted or forwarded content is not sent.
       </Dialog.Description>
     </Dialog.Header>
 
@@ -467,36 +467,6 @@
       {#if dialogError}
         <p class="text-sm text-destructive">{dialogError}</p>
       {/if}
-
-      <!-- Template -->
-      <section class="space-y-2">
-        <h3 class="text-sm font-medium">Template — from this draft</h3>
-        <p class="text-xs text-muted-foreground">
-          Only the part you wrote is merged; quoted or forwarded content is not sent. To, Cc, Bcc and Subject may contain variables such as {'{{Email}}'} or {'{{FirstName}}'}.
-        </p>
-        <div class="grid grid-cols-[88px_1fr] items-center gap-2">
-          <label for="mm-from" class="text-sm text-muted-foreground">From</label>
-          <Input id="mm-from" type="text" bind:value={fromAddress} />
-          <label for="mm-to" class="text-sm text-muted-foreground">To</label>
-          <Input id="mm-to" type="text" bind:value={toTemplate} placeholder={'{{Email}} or {{FirstName}} {{LastName}} <{{Email}}>'} />
-          <label for="mm-cc" class="text-sm text-muted-foreground">Cc</label>
-          <Input id="mm-cc" type="text" bind:value={ccTemplate} />
-          <label for="mm-bcc" class="text-sm text-muted-foreground">Bcc</label>
-          <Input id="mm-bcc" type="text" bind:value={bccTemplate} />
-          <label for="mm-replyto" class="text-sm text-muted-foreground">Reply-To</label>
-          <Input id="mm-replyto" type="text" bind:value={replyToTemplate} />
-          <label for="mm-subject" class="text-sm text-muted-foreground">Subject</label>
-          <Input id="mm-subject" type="text" bind:value={subjectTemplate} />
-        </div>
-        <p class="text-xs text-muted-foreground">
-          Body: {isPlainText ? 'plain text' : 'rich text'} — {bodyText.trim() ? `${bodyText.trim().length} characters` : 'empty'}.
-          {#if globalAttachments.length > 0}
-            Global attachments (same file for everyone): {globalAttachments.map((a) => a.filename).join(', ')}.
-          {:else}
-            No global attachments.
-          {/if}
-        </p>
-      </section>
 
       <!-- Source -->
       <section class="space-y-2">

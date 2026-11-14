@@ -117,6 +117,30 @@
   }
 
   function addRecipient(value: string) {
+    // Mail Merge: accept a template variable as the address, e.g. {{Email}}
+    // or {{FirstName}} {{LastName}} <{{Email}}>. The email regex below
+    // requires an @, so a bare template would otherwise be dropped and the
+    // merge would see an empty To. The merge's own validation is the
+    // backstop for a variable that renders to a non-address.
+    if (value.includes('{{')) {
+      const templateRegex = /^(?:(.+?)\s*<)?(\{\{[^}]+\}\})>?$/
+      const templateMatch = value.match(templateRegex)
+      if (templateMatch) {
+        const name = templateMatch[1]?.trim() || ''
+        const address = templateMatch[2]
+        if (recipients.some(r => (r.address || (r as any).email || '').toLowerCase() === address.toLowerCase())) {
+          inputValue = ''
+          return
+        }
+        const templateAddress = new smtp.Address({ name, address })
+        recipients = [...recipients, templateAddress]
+        inputValue = ''
+        suggestions = []
+        showSuggestions = false
+        return
+      }
+    }
+
     // Parse email address (handle "Name <email@example.com>" format)
     const emailRegex = /^(?:(.+?)\s*<)?([^\s<>]+@[^\s<>]+)>?$/
     const match = value.match(emailRegex)

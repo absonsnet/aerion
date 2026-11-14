@@ -1379,6 +1379,18 @@
       return
     }
 
+    // Mail Merge: a {{...}} template in the recipients means this draft is
+    // a merge template, not a sendable message. Block normal Send so the
+    // variable is never sent literally to the SMTP server.
+    const hasMergeVariable = [...toRecipients, ...ccRecipients, ...bccRecipients].some((r) => r.address.includes('{{'))
+    if (hasMergeVariable) {
+      addToast({
+        type: 'error',
+        message: $_('composer.mergeVariableRecipient'),
+      })
+      return
+    }
+
     const selectedIdentity = identities.find(i => i.id === selectedIdentityId)
     if (!selectedIdentity) {
       addToast({
