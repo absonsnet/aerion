@@ -39,6 +39,7 @@ import (
 	"github.com/hkdb/aerion/internal/oauth2"
 	"github.com/hkdb/aerion/internal/pgp"
 	"github.com/hkdb/aerion/internal/platform"
+	"github.com/hkdb/aerion/internal/reaction"
 	"github.com/hkdb/aerion/internal/settings"
 	"github.com/hkdb/aerion/internal/smime"
 	"github.com/hkdb/aerion/internal/sync"
@@ -213,6 +214,7 @@ type App struct {
 	folderStore         *folder.Store
 	messageStore        *message.Store
 	attachmentStore     *message.AttachmentStore
+	reactionStore       *reaction.Store
 	contactStore        *contact.Store
 	draftStore          *draft.Store
 	settingsStore       *settings.Store
@@ -547,6 +549,7 @@ func (a *App) Startup(ctx context.Context) {
 	a.folderStore = folder.NewStore(db)
 	a.messageStore = message.NewStore(db)
 	a.attachmentStore = message.NewAttachmentStore(db)
+	a.reactionStore = reaction.NewStore(db)
 	a.contactStore = contact.NewStore(db.DB)
 	a.draftStore = draft.NewStore(db)
 	a.settingsStore = settings.NewStore(db)
@@ -628,6 +631,7 @@ func (a *App) Startup(ctx context.Context) {
 	// Wire S/MIME and PGP verifiers into sync engine for signature verification during body parsing
 	a.syncEngine.SetSMIMEVerifier(a.smimeVerifier)
 	a.syncEngine.SetPGPVerifier(a.pgpVerifier)
+	a.syncEngine.SetReactionStore(a.reactionStore)
 
 	// Set up sync progress callback to emit events to frontend
 	a.syncEngine.SetProgressCallback(func(progress sync.SyncProgress) {

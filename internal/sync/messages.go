@@ -964,6 +964,11 @@ func (e *Engine) finalizeSavedHeaders(accountID string, saved []*message.Message
 		if err := e.messageStore.ReconcileThreadsForNewMessage(accountID, m.ID, m.MessageID, m.ThreadID, m.InReplyTo); err != nil {
 			e.log.Warn().Err(err).Str("messageId", m.ID).Msg("Failed to reconcile threads")
 		}
+
+		// A reaction may have arrived before this message (recorded pending
+		// against its Message-ID). Link it now, and hide the reaction email
+		// that was a regular message until its original showed up.
+		e.linkPendingReactions(accountID, m.MessageID, m.ID)
 	}
 }
 

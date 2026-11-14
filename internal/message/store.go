@@ -66,7 +66,7 @@ func (s *Store) ListByFolder(folderID string, offset, limit int) ([]*MessageHead
 		SELECT id, account_id, folder_id, uid, subject, from_name, from_email,
 		       date, snippet, is_read, is_starred, has_attachments
 		FROM messages
-		WHERE folder_id = ?
+		WHERE folder_id = ? AND is_hidden = 0
 		ORDER BY date DESC
 		LIMIT ? OFFSET ?
 	`
@@ -138,6 +138,7 @@ func (s *Store) ListConversationsUnifiedInbox(offset, limit int, sortOrder, filt
 		FROM messages m
 		INNER JOIN folders f ON m.folder_id = f.id AND f.folder_type = 'inbox'
 		INNER JOIN accounts a ON f.account_id = a.id AND a.enabled = 1
+		WHERE m.is_hidden = 0
 		GROUP BY COALESCE(m.thread_id, m.id), a.id` +
 		filterHavingClause(filter, "m.") + `
 		` + orderClause + `
@@ -210,9 +211,9 @@ func (s *Store) ListConversationsUnifiedInbox(offset, limit int, sortOrder, filt
 // CountConversationsUnifiedInbox returns the total count of conversations across all inbox folders
 func (s *Store) CountConversationsUnifiedInbox(filter string) (int, error) {
 	filterCond := filterWhereClause(filter, "m.")
-	wherePart := ""
+	wherePart := " WHERE m.is_hidden = 0"
 	if filterCond != "" {
-		wherePart = " WHERE" + filterCond[len(" AND"):]
+		wherePart += filterCond
 	}
 
 	query := `
@@ -280,7 +281,7 @@ func (s *Store) GetUnifiedInboxUnreadCount() (int, error) {
 // CountUnreadByFolder returns the unread message count for a folder
 func (s *Store) CountUnreadByFolder(folderID string) (int, error) {
 	var count int
-	err := s.db.QueryRow("SELECT COUNT(*) FROM messages WHERE folder_id = ? AND is_read = 0", folderID).Scan(&count)
+	err := s.db.QueryRow("SELECT COUNT(*) FROM messages WHERE folder_id = ? AND is_read = 0 AND is_hidden = 0", folderID).Scan(&count)
 	if err != nil {
 		return 0, fmt.Errorf("failed to count unread messages: %w", err)
 	}
@@ -290,7 +291,7 @@ func (s *Store) CountUnreadByFolder(folderID string) (int, error) {
 // CountReadByFolder returns the read message count for a folder
 func (s *Store) CountReadByFolder(folderID string) (int, error) {
 	var count int
-	err := s.db.QueryRow("SELECT COUNT(*) FROM messages WHERE folder_id = ? AND is_read = 1", folderID).Scan(&count)
+	err := s.db.QueryRow("SELECT COUNT(*) FROM messages WHERE folder_id = ? AND is_read = 1 AND is_hidden = 0", folderID).Scan(&count)
 	if err != nil {
 		return 0, fmt.Errorf("failed to count read messages: %w", err)
 	}
@@ -299,7 +300,7 @@ func (s *Store) CountReadByFolder(folderID string) (int, error) {
 
 // GetUnreadMessageIDsByFolder returns the IDs of all unread messages in a folder
 func (s *Store) GetUnreadMessageIDsByFolder(folderID string) ([]string, error) {
-	rows, err := s.db.Query("SELECT id FROM messages WHERE folder_id = ? AND is_read = 0", folderID)
+	rows, err := s.db.Query("SELECT id FROM messages WHERE folder_id = ? AND is_read = 0 AND is_hidden = 0", folderID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query unread messages: %w", err)
 	}
@@ -318,7 +319,7 @@ func (s *Store) GetUnreadMessageIDsByFolder(folderID string) ([]string, error) {
 
 // GetReadMessageIDsByFolder returns the IDs of all read messages in a folder
 func (s *Store) GetReadMessageIDsByFolder(folderID string) ([]string, error) {
-	rows, err := s.db.Query("SELECT id FROM messages WHERE folder_id = ? AND is_read = 1", folderID)
+	rows, err := s.db.Query("SELECT id FROM messages WHERE folder_id = ? AND is_read = 1 AND is_hidden = 0", folderID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query read messages: %w", err)
 	}
@@ -337,7 +338,7 @@ func (s *Store) GetReadMessageIDsByFolder(folderID string) ([]string, error) {
 
 // GetAllIDsByFolder returns the IDs of all messages in a folder
 func (s *Store) GetAllIDsByFolder(folderID string) ([]string, error) {
-	rows, err := s.db.Query("SELECT id FROM messages WHERE folder_id = ?", folderID)
+	rows, err := s.db.Query("SELECT id FROM messages WHERE folder_id = ? AND is_hidden = 0", folderID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query messages: %w", err)
 	}
@@ -800,6 +801,42 @@ func (s *Store) Delete(id string) error {
 	return nil
 }
 
+// MarkHidden hides a message from the message list. Used for reaction
+// emails once their reaction is recorded and linked to the original: the
+// row is kept (deleting it would make the next sync re-fetch the UID as
+// new) but excluded from every list/count/search/without-body query. It
+// also marks the message read and its body fetched so a hidden row never
+// inflates unread counts and is never re-fetched for a body.
+func (s *Store) MarkHidden(id string) error {
+	_, err := s.db.Exec(
+		"UPDATE messages SET is_hidden = 1, is_read = 1, body_fetched = 1 WHERE id = ?",
+		id,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to hide message: %w", err)
+	}
+	return nil
+}
+
+// GetInternalIDByMessageID returns the internal id of a message by its
+// Message-ID header value within an account. The comparison ignores
+// surrounding angle brackets, so In-Reply-To values and Message-ID values
+// match regardless of which form the server sent. Returns sql.ErrNoRows
+// when no such message is in the DB.
+func (s *Store) GetInternalIDByMessageID(accountID, messageID string) (string, error) {
+	var id string
+	err := s.db.QueryRow(
+		`SELECT id FROM messages
+		 WHERE account_id = ? AND REPLACE(REPLACE(message_id, '<', ''), '>', '') = ?
+		 LIMIT 1`,
+		accountID, normalizeMessageID(messageID),
+	).Scan(&id)
+	if err != nil {
+		return "", err
+	}
+	return id, nil
+}
+
 // DeleteByUID deletes a message by folder ID and UID
 func (s *Store) DeleteByUID(folderID string, uid uint32) error {
 	_, err := s.db.Exec("DELETE FROM messages WHERE folder_id = ? AND uid = ?", folderID, uid)
@@ -910,7 +947,7 @@ func (s *Store) GetMessagesWithoutBody(folderID string, limit int, sinceDate tim
 	if sinceDate.IsZero() {
 		query = `
 			SELECT id FROM messages
-			WHERE folder_id = ? AND (
+			WHERE folder_id = ? AND is_hidden = 0 AND (
 				body_fetched = 0 OR
 				(body_fetched = 1 AND smime_encrypted = 0 AND pgp_encrypted = 0 AND (body_text IS NULL OR body_text = '') AND (body_html IS NULL OR body_html = ''))
 			) AND body_failed = 0
@@ -921,7 +958,7 @@ func (s *Store) GetMessagesWithoutBody(folderID string, limit int, sinceDate tim
 	} else {
 		query = `
 			SELECT id FROM messages
-			WHERE folder_id = ? AND (
+			WHERE folder_id = ? AND is_hidden = 0 AND (
 				body_fetched = 0 OR
 				(body_fetched = 1 AND smime_encrypted = 0 AND pgp_encrypted = 0 AND (body_text IS NULL OR body_text = '') AND (body_html IS NULL OR body_html = ''))
 			) AND body_failed = 0 AND (date >= ? OR date < '1970-01-01')
@@ -966,7 +1003,7 @@ func (s *Store) GetMessagesWithoutBodyAndSize(folderID string, limit int, sinceD
 	if sinceDate.IsZero() {
 		query = `
 			SELECT id, size FROM messages
-			WHERE folder_id = ? AND (
+			WHERE folder_id = ? AND is_hidden = 0 AND (
 				body_fetched = 0 OR
 				(body_fetched = 1 AND smime_encrypted = 0 AND pgp_encrypted = 0 AND (body_text IS NULL OR body_text = '') AND (body_html IS NULL OR body_html = ''))
 			) AND body_failed = 0
@@ -977,7 +1014,7 @@ func (s *Store) GetMessagesWithoutBodyAndSize(folderID string, limit int, sinceD
 	} else {
 		query = `
 			SELECT id, size FROM messages
-			WHERE folder_id = ? AND (
+			WHERE folder_id = ? AND is_hidden = 0 AND (
 				body_fetched = 0 OR
 				(body_fetched = 1 AND smime_encrypted = 0 AND pgp_encrypted = 0 AND (body_text IS NULL OR body_text = '') AND (body_html IS NULL OR body_html = ''))
 			) AND body_failed = 0 AND (date >= ? OR date < '1970-01-01')
@@ -1014,7 +1051,7 @@ func (s *Store) CountMessagesWithoutBody(folderID string, sinceDate time.Time) (
 	// Exclude encrypted messages which intentionally have empty body (decrypted on-view)
 	if sinceDate.IsZero() {
 		err = s.db.QueryRow(
-			`SELECT COUNT(*) FROM messages WHERE folder_id = ? AND (
+			`SELECT COUNT(*) FROM messages WHERE folder_id = ? AND is_hidden = 0 AND (
 				body_fetched = 0 OR
 				(body_fetched = 1 AND smime_encrypted = 0 AND pgp_encrypted = 0 AND (body_text IS NULL OR body_text = '') AND (body_html IS NULL OR body_html = ''))
 			) AND body_failed = 0`,
@@ -1022,7 +1059,7 @@ func (s *Store) CountMessagesWithoutBody(folderID string, sinceDate time.Time) (
 		).Scan(&count)
 	} else {
 		err = s.db.QueryRow(
-			`SELECT COUNT(*) FROM messages WHERE folder_id = ? AND (
+			`SELECT COUNT(*) FROM messages WHERE folder_id = ? AND is_hidden = 0 AND (
 				body_fetched = 0 OR
 				(body_fetched = 1 AND smime_encrypted = 0 AND pgp_encrypted = 0 AND (body_text IS NULL OR body_text = '') AND (body_html IS NULL OR body_html = ''))
 			) AND body_failed = 0 AND (date >= ? OR date < '1970-01-01')`,
@@ -1039,7 +1076,7 @@ func (s *Store) CountMessagesWithoutBody(folderID string, sinceDate time.Time) (
 // CountByFolder returns the total message count for a folder
 func (s *Store) CountByFolder(folderID string) (int, error) {
 	var count int
-	err := s.db.QueryRow("SELECT COUNT(*) FROM messages WHERE folder_id = ?", folderID).Scan(&count)
+	err := s.db.QueryRow("SELECT COUNT(*) FROM messages WHERE folder_id = ? AND is_hidden = 0", folderID).Scan(&count)
 	if err != nil {
 		return 0, fmt.Errorf("failed to count messages: %w", err)
 	}
@@ -1327,7 +1364,7 @@ func (s *Store) ListConversationsByFolder(folderID string, offset, limit int, so
 			MAX(CASE WHEN smime_encrypted = 1 OR pgp_encrypted = 1 THEN 1 ELSE 0 END) as is_encrypted,
 			%s as participants_json
 		FROM messages
-		WHERE folder_id = ?
+		WHERE folder_id = ? AND is_hidden = 0
 		GROUP BY COALESCE(thread_id, id)`+
 		filterHavingClause(filter, "")+`
 		`+orderClause+`
@@ -1477,7 +1514,7 @@ func (s *Store) CountConversationsByFolder(folderID, filter string) (int, error)
 	query := `
 		SELECT COUNT(DISTINCT COALESCE(thread_id, id))
 		FROM messages
-		WHERE folder_id = ?
+		WHERE folder_id = ? AND is_hidden = 0
 	` + filterWhereClause(filter, "")
 
 	var count int
@@ -1545,7 +1582,7 @@ func (s *Store) GetConversation(threadID, folderID string) (*Conversation, error
 			MAX(m.date) as latest_date
 		FROM messages m
 		INNER JOIN folders f ON m.folder_id = f.id
-		WHERE m.account_id = ? AND (
+		WHERE m.account_id = ? AND m.is_hidden = 0 AND (
 			REPLACE(REPLACE(COALESCE(m.thread_id, m.id), '<', ''), '>', '') = ?
 			OR REPLACE(REPLACE(m.message_id, '<', ''), '>', '') = ?
 			OR REPLACE(REPLACE(m.in_reply_to, '<', ''), '>', '') = ?
@@ -1591,7 +1628,7 @@ func (s *Store) GetConversation(threadID, folderID string) (*Conversation, error
 		       m.received_at
 		FROM messages m
 		INNER JOIN folders f ON m.folder_id = f.id
-		WHERE m.account_id = ? AND (
+		WHERE m.account_id = ? AND m.is_hidden = 0 AND (
 			REPLACE(REPLACE(COALESCE(m.thread_id, m.id), '<', ''), '>', '') = ?
 			OR REPLACE(REPLACE(m.message_id, '<', ''), '>', '') = ?
 			OR REPLACE(REPLACE(m.in_reply_to, '<', ''), '>', '') = ?
@@ -2361,7 +2398,7 @@ func (s *Store) SearchConversations(folderID, query string, offset, limit int, f
 		SELECT COUNT(DISTINCT COALESCE(m.thread_id, m.id))
 		FROM messages m
 		JOIN messages_fts fts ON m.rowid = fts.rowid
-		WHERE m.folder_id = ? AND messages_fts MATCH ?
+		WHERE m.folder_id = ? AND m.is_hidden = 0 AND messages_fts MATCH ?
 	` + filterWhereClause(filter, "m.")
 	var totalCount int
 	err := s.db.QueryRow(countQuery, folderID, ftsQuery).Scan(&totalCount)
@@ -2398,7 +2435,7 @@ func (s *Store) SearchConversations(folderID, query string, offset, limit int, f
 			json_group_array(json_object('name', m.from_name, 'email', m.from_email, 'date', m.date, 'snippet', m.snippet)) as participants_json
 		FROM messages m
 		JOIN messages_fts fts ON m.rowid = fts.rowid
-		WHERE m.folder_id = ? AND messages_fts MATCH ?
+		WHERE m.folder_id = ? AND m.is_hidden = 0 AND messages_fts MATCH ?
 		GROUP BY COALESCE(m.thread_id, m.id)` +
 		filterHavingClause(filter, "m.") + `
 		ORDER BY latest_date DESC
@@ -2490,7 +2527,7 @@ func (s *Store) SearchConversationsUnifiedInbox(query string, offset, limit int,
 		JOIN messages_fts fts ON m.rowid = fts.rowid
 		INNER JOIN folders f ON m.folder_id = f.id AND f.folder_type = 'inbox'
 		INNER JOIN accounts a ON f.account_id = a.id AND a.enabled = 1
-		WHERE messages_fts MATCH ?
+		WHERE m.is_hidden = 0 AND messages_fts MATCH ?
 	` + filterWhereClause(filter, "m.")
 	var totalCount int
 	err := s.db.QueryRow(countQuery, ftsQuery).Scan(&totalCount)
@@ -2527,7 +2564,7 @@ func (s *Store) SearchConversationsUnifiedInbox(query string, offset, limit int,
 		JOIN messages_fts fts ON m.rowid = fts.rowid
 		INNER JOIN folders f ON m.folder_id = f.id AND f.folder_type = 'inbox'
 		INNER JOIN accounts a ON f.account_id = a.id AND a.enabled = 1
-		WHERE messages_fts MATCH ?
+		WHERE m.is_hidden = 0 AND messages_fts MATCH ?
 		GROUP BY COALESCE(m.thread_id, m.id), a.id` +
 		filterHavingClause(filter, "m.") + `
 		ORDER BY latest_date DESC
