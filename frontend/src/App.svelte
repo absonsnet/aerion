@@ -25,6 +25,7 @@
   import { accountStore } from '$lib/stores/accounts.svelte'
   import { addToast } from '$lib/stores/toast'
   import { loadSettings, getThemeMode, getShowTitleBar, getNativeTitleBar, getComposerMode, getMailtoMode } from '$lib/stores/settings.svelte'
+  import { loadWindowControlsLayout } from '$lib/stores/windowControls.svelte'
   import { loadImageAllowlist } from '$lib/stores/imageAllowlist.svelte'
   import { initTheme, applyThemeFromMode, handleSystemThemeEvent, handleMediaQueryChange } from '$lib/stores/theme.svelte'
   import { loadUIState, saveUIState, paneConstraints, getActiveExtension, setActiveExtension } from '$lib/stores/uiState.svelte'
@@ -393,6 +394,10 @@
     // Load application settings (including theme mode) and apply theme
     const storedThemeMode = await loadSettings()
     await initTheme(storedThemeMode, GetSystemTheme)
+
+    // Detect the window-controls layout (side, order, style) once at
+    // startup; the title bar reads it reactively from the store.
+    await loadWindowControlsLayout()
 
     // Load image allowlist cache for synchronous checks in EmailBody
     loadImageAllowlist()

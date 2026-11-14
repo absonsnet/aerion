@@ -14,6 +14,7 @@
     themeMode: string
     nativeTitleBar: boolean
     showTitleBar: boolean
+    windowControlsSide: string
     runBackground: boolean
     startHidden: boolean
     autostart: boolean
@@ -22,6 +23,7 @@
     onDensityChange: (value: string) => void
     onThemeChange: (value: string) => void
     onTitleBarChange: (nativeTitleBar: boolean, showTitleBar: boolean) => void
+    onWindowControlsSideChange: (value: string) => void
     onRunBackgroundChange: (value: boolean) => void
     onStartHiddenChange: (value: boolean) => void
     onAutostartChange: (value: boolean) => void
@@ -42,6 +44,7 @@
     themeMode = $bindable(),
     nativeTitleBar = $bindable(),
     showTitleBar = $bindable(),
+    windowControlsSide = $bindable(),
     runBackground = $bindable(),
     startHidden = $bindable(),
     autostart = $bindable(),
@@ -50,6 +53,7 @@
     onDensityChange,
     onThemeChange,
     onTitleBarChange,
+    onWindowControlsSideChange,
     onRunBackgroundChange,
     onStartHiddenChange,
     onAutostartChange,
@@ -161,6 +165,22 @@
     return titleBarOptions.find(opt => opt.value === value)?.label || value
   }
 
+  // Window controls side options (only applies to the Aerion title bar)
+  const windowControlsSideOptions = $derived([
+    { value: 'auto', label: $_('settingsGeneral.windowControlsAuto') },
+    { value: 'left', label: $_('settingsGeneral.windowControlsLeft') },
+    { value: 'right', label: $_('settingsGeneral.windowControlsRight') },
+  ])
+
+  function getWindowControlsSideLabel(value: string): string {
+    return windowControlsSideOptions.find(opt => opt.value === value)?.label || value
+  }
+
+  function handleWindowControlsSideChange(value: string) {
+    windowControlsSide = value
+    onWindowControlsSideChange?.(value)
+  }
+
   function handleDelayInput(e: Event) {
     const target = e.target as HTMLInputElement
     const value = parseFloat(target.value)
@@ -226,6 +246,27 @@
         {$_('settingsGeneral.titleBarHelp')}
       </p>
     </div>
+
+    {#if titleBarValue === 'aerion'}
+      <div class="space-y-2">
+        <Label>{$_('settingsGeneral.windowControls')}</Label>
+        <Select.Root value={windowControlsSide} onValueChange={handleWindowControlsSideChange}>
+          <Select.Trigger>
+            <Select.Value>
+              {getWindowControlsSideLabel(windowControlsSide)}
+            </Select.Value>
+          </Select.Trigger>
+          <Select.Content>
+            {#each windowControlsSideOptions as opt (opt.value)}
+              <Select.Item value={opt.value} label={opt.label} />
+            {/each}
+          </Select.Content>
+        </Select.Root>
+        <p class="text-xs text-muted-foreground">
+          {$_('settingsGeneral.windowControlsHelp')}
+        </p>
+      </div>
+    {/if}
 
     <div class="space-y-2">
       <Label>{$_('settingsGeneral.language')}</Label>

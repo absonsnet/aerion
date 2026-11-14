@@ -261,6 +261,13 @@ type App struct {
 	eventBus         *eventBusCoreImpl
 	eventBusInitOnce goSync.Once
 
+	// windowControlsLayout is the detected window-controls layout (side,
+	// order, style), computed once on first use — the desktop-environment
+	// probe runs subprocesses, so it is cached rather than re-run on
+	// every call.
+	windowControlsLayout     platform.WindowControlsLayout
+	windowControlsLayoutOnce goSync.Once
+
 	// S/MIME
 	smimeStore     *smime.Store
 	smimeSigner    *smime.Signer

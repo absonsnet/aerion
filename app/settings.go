@@ -7,6 +7,7 @@ import (
 	"github.com/hkdb/aerion/internal/account"
 	"github.com/hkdb/aerion/internal/certificate"
 	"github.com/hkdb/aerion/internal/logging"
+	"github.com/hkdb/aerion/internal/platform"
 	"github.com/hkdb/aerion/internal/settings"
 	"github.com/hkdb/aerion/internal/smtp"
 )
@@ -370,6 +371,29 @@ func (a *App) GetNativeTitleBar() (bool, error) {
 // SetNativeTitleBar sets whether the native OS title bar is enabled.
 func (a *App) SetNativeTitleBar(enabled bool) error {
 	return a.settingsStore.SetNativeTitleBar(enabled)
+}
+
+// GetWindowControlsSide returns the manual title-bar button-side override
+// ("auto", "left", or "right"). "auto" follows the detected layout.
+func (a *App) GetWindowControlsSide() (string, error) {
+	return a.settingsStore.GetWindowControlsSide()
+}
+
+// SetWindowControlsSide sets the manual title-bar button-side override.
+func (a *App) SetWindowControlsSide(side string) error {
+	return a.settingsStore.SetWindowControlsSide(side)
+}
+
+// GetWindowControlsLayout returns the detected window-controls layout
+// (side, order, style) for this OS and desktop environment. The layout is
+// computed once and cached; the frontend reads it once at startup. The
+// Settings override (GetWindowControlsSide) is applied in the frontend,
+// not here.
+func (a *App) GetWindowControlsLayout() (platform.WindowControlsLayout, error) {
+	a.windowControlsLayoutOnce.Do(func() {
+		a.windowControlsLayout = platform.DetectWindowControlsLayout()
+	})
+	return a.windowControlsLayout, nil
 }
 
 // GetAlwaysLoadImages returns whether remote images should always be loaded

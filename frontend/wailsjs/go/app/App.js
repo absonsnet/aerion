@@ -774,6 +774,14 @@ export function GetUnifiedInboxUnreadCount() {
   return window['go']['app']['App']['GetUnifiedInboxUnreadCount']();
 }
 
+export function GetWindowControlsLayout() {
+  return window['go']['app']['App']['GetWindowControlsLayout']();
+}
+
+export function GetWindowControlsSide() {
+  return window['go']['app']['App']['GetWindowControlsSide']();
+}
+
 export function HasPGPKey(arg1) {
   return window['go']['app']['App']['HasPGPKey'](arg1);
 }
@@ -1400,6 +1408,10 @@ export function SetTermsAccepted(arg1) {
 
 export function SetThemeMode(arg1) {
   return window['go']['app']['App']['SetThemeMode'](arg1);
+}
+
+export function SetWindowControlsSide(arg1) {
+  return window['go']['app']['App']['SetWindowControlsSide'](arg1);
 }
 
 export function ShowWindow() {

@@ -16,6 +16,7 @@ import {settings} from '../models';
 import {pgp} from '../models';
 import {smime} from '../models';
 import {appstate} from '../models';
+import {platform} from '../models';
 import {sync} from '../models';
 import {draft} from '../models';
 import {mailmerge} from '../models';
@@ -406,6 +407,10 @@ export function GetUnifiedInboxCount(arg1:string):Promise<number>;
 
 export function GetUnifiedInboxUnreadCount():Promise<number>;
 
+export function GetWindowControlsLayout():Promise<platform.WindowControlsLayout>;
+
+export function GetWindowControlsSide():Promise<string>;
+
 export function HasPGPKey(arg1:string):Promise<boolean>;
 
 export function HasSMIMECertificate(arg1:string):Promise<boolean>;
@@ -719,6 +724,8 @@ export function SetStartHidden(arg1:boolean):Promise<void>;
 export function SetTermsAccepted(arg1:boolean):Promise<void>;
 
 export function SetThemeMode(arg1:string):Promise<void>;
+
+export function SetWindowControlsSide(arg1:string):Promise<void>;
 
 export function ShowWindow():Promise<void>;
 

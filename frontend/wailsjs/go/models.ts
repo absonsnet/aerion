@@ -3152,6 +3152,27 @@ export namespace pgp {
 
 }
 
+export namespace platform {
+	
+	export class WindowControlsLayout {
+	    side: string;
+	    order: string[];
+	    style: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new WindowControlsLayout(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.side = source["side"];
+	        this.order = source["order"];
+	        this.style = source["style"];
+	    }
+	}
+
+}
+
 export namespace settings {
 	
 	export class AllowlistEntry {

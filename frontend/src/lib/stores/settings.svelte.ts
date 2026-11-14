@@ -2,7 +2,7 @@
 // Provides reactive state for application settings
 
 // @ts-ignore - wailsjs path
-import { GetMessageListDensity, GetMessageListSortOrder, GetThemeMode, GetShowTitleBar, GetRunBackground, GetStartHidden, GetAutostart, GetLanguage, GetComposerMode, GetMailtoMode, GetComposerFormat, GetNativeTitleBar, GetAlwaysLoadImages, GetDarkMailContent, GetDarkComposerBody, GetAccentBarUnread, GetAccentUnreadStyle, GetShowMessageListCircles, GetShowMessageListProfilePics, GetAlwaysShowMessageCheckbox, GetShowViewerCircles, GetSpellcheckEnabled, GetSpellcheckLanguages, GetSpellcheckCustomWords } from '../../../wailsjs/go/app/App'
+import { GetMessageListDensity, GetMessageListSortOrder, GetThemeMode, GetShowTitleBar, GetRunBackground, GetStartHidden, GetAutostart, GetLanguage, GetComposerMode, GetMailtoMode, GetComposerFormat, GetNativeTitleBar, GetAlwaysLoadImages, GetDarkMailContent, GetDarkComposerBody, GetAccentBarUnread, GetAccentUnreadStyle, GetShowMessageListCircles, GetShowMessageListProfilePics, GetAlwaysShowMessageCheckbox, GetShowViewerCircles, GetSpellcheckEnabled, GetSpellcheckLanguages, GetSpellcheckCustomWords, GetWindowControlsSide } from '../../../wailsjs/go/app/App'
 import { setLocale as setI18nLocale, locale as i18nLocale } from '$lib/i18n'
 import { get } from 'svelte/store'
 import { loadDateFnsLocale, getDateFnsLocale } from '$lib/i18n/dateFnsLocale'
@@ -23,6 +23,8 @@ export type ThemeMode =
   | 'yaru-light' | 'yaru-dark'
   | 'vs-code-light' | 'vs-code-dark'
 
+export type WindowControlsSide = 'auto' | 'left' | 'right'
+
 // Module-level reactive state
 let messageListDensity = $state<MessageListDensity>('standard')
 let messageListSortOrder = $state<MessageListSortOrder>('newest')
@@ -39,6 +41,7 @@ let composerMode = $state<ComposerMode>('inline')
 let mailtoMode = $state<ComposerMode>('inline')
 let composerFormat = $state<ComposerFormat>('rich')
 let nativeTitleBar = $state<boolean>(false)
+let windowControlsSide = $state<WindowControlsSide>('auto')
 let alwaysLoadImages = $state<boolean>(false)
 let darkMailContent = $state<boolean>(false)
 let darkComposerBody = $state<boolean>(false)
@@ -108,6 +111,10 @@ export function getComposerFormat(): ComposerFormat {
 
 export function getNativeTitleBar(): boolean {
   return nativeTitleBar
+}
+
+export function getWindowControlsSide(): WindowControlsSide {
+  return windowControlsSide
 }
 
 export function getAlwaysLoadImages(): boolean {
@@ -215,6 +222,10 @@ export function setNativeTitleBar(v: boolean) {
   nativeTitleBar = v
 }
 
+export function setWindowControlsSide(v: WindowControlsSide) {
+  windowControlsSide = v
+}
+
 export function setAlwaysLoadImages(v: boolean) {
   alwaysLoadImages = v
 }
@@ -254,7 +265,7 @@ export function setShowViewerCircles(v: boolean) {
 // Load settings from backend (call on app startup)
 export async function loadSettings(): Promise<ThemeMode> {
   try {
-    const [density, sortOrder, theme, titleBar, runBg, startHid, autoSt, lang, compMode, mailMode, compFormat, nativeTB, alwaysImages, darkMail, darkComposer, accentBar, accentStyle, listCircles, listProfilePics, alwaysCheckbox, viewerCircles, scEnabled, scLangs, scWords] = await Promise.all([
+    const [density, sortOrder, theme, titleBar, runBg, startHid, autoSt, lang, compMode, mailMode, compFormat, nativeTB, alwaysImages, darkMail, darkComposer, accentBar, accentStyle, listCircles, listProfilePics, alwaysCheckbox, viewerCircles, scEnabled, scLangs, scWords, wcSide] = await Promise.all([
       GetMessageListDensity(),
       GetMessageListSortOrder(),
       GetThemeMode(),
@@ -279,6 +290,7 @@ export async function loadSettings(): Promise<ThemeMode> {
       GetSpellcheckEnabled(),
       GetSpellcheckLanguages(),
       GetSpellcheckCustomWords(),
+      GetWindowControlsSide(),
     ])
     messageListDensity = (density as MessageListDensity) || 'standard'
     messageListSortOrder = (sortOrder as MessageListSortOrder) || 'newest'
@@ -303,6 +315,7 @@ export async function loadSettings(): Promise<ThemeMode> {
     spellcheckEnabled = scEnabled ?? true
     spellcheckLanguages = scLangs ?? []
     spellcheckCustomWords = scWords ?? []
+    windowControlsSide = (wcSide as WindowControlsSide) || 'auto'
     // Apply saved language (if set, overrides system detection from initI18n)
     if (lang) {
       language = lang

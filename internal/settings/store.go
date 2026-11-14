@@ -31,6 +31,7 @@ const (
 	KeyMailtoMode                 = "mailto_mode"
 	KeyComposerFormat             = "composer_format"
 	KeyNativeTitleBar             = "native_titlebar"
+	KeyWindowControlsSide         = "window_controls_side" // "auto" | "left" | "right"; manual override for the title-bar button side
 	KeyAlwaysLoadImages           = "always_load_images"
 	KeyDarkMailContent            = "dark_mail_content"
 	KeyDarkComposerBody           = "dark_composer_body"
@@ -836,6 +837,41 @@ func (s *Store) SetComposerFormat(format string) error {
 		return fmt.Errorf("invalid composer format: %s (must be 'rich' or 'plain')", format)
 	}
 	return s.Set(KeyComposerFormat, format)
+}
+
+// WindowControlsSide values for the title-bar button-side override.
+const (
+	WindowControlsSideAuto  = "auto"  // Follow the detected OS / desktop-environment layout
+	WindowControlsSideLeft  = "left"  // Force the buttons to the left
+	WindowControlsSideRight = "right" // Force the buttons to the right
+)
+
+// GetWindowControlsSide returns the manual title-bar button-side override.
+// Defaults to "auto" (follow the detected layout). An unknown stored value
+// also falls back to "auto" rather than failing the settings load.
+func (s *Store) GetWindowControlsSide() (string, error) {
+	value, err := s.Get(KeyWindowControlsSide)
+	if err != nil {
+		return WindowControlsSideAuto, err
+	}
+	switch value {
+	case "", WindowControlsSideAuto:
+		return WindowControlsSideAuto, nil
+	case WindowControlsSideLeft, WindowControlsSideRight:
+		return value, nil
+	default:
+		return WindowControlsSideAuto, nil
+	}
+}
+
+// SetWindowControlsSide sets the manual title-bar button-side override.
+func (s *Store) SetWindowControlsSide(side string) error {
+	switch side {
+	case WindowControlsSideAuto, WindowControlsSideLeft, WindowControlsSideRight:
+		return s.Set(KeyWindowControlsSide, side)
+	default:
+		return fmt.Errorf("invalid window controls side: %s (must be 'auto', 'left', or 'right')", side)
+	}
 }
 
 // GetNativeTitleBar returns whether the native OS title bar should be used
