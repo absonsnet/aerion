@@ -1,0 +1,456 @@
+package mailmerge
+
+import (
+	"context"
+	"encoding/base64"
+	"fmt"
+	"math/rand/v2"
+	"mime"
+	"net/mail"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
+
+	"github.com/hkdb/aerion/internal/logging"
+	"github.com/hkdb/aerion/internal/smtp"
+)
+
+// DraftSaver is the narrow host-injected draft path: one SaveDraft call
+// per row in "drafts" deliver mode. The host adapts App.SaveDraft /
+// ComposerApp.SaveDraft (which return draft results the run does not
+// need). internal/mailmerge never imports the app package.
+type DraftSaver interface {
+	SaveDraft(accountID string, msg smtp.ComposeMessage) error
+}
+
+// MailSender is one reused SMTP connection for a whole send run:
+// Connect + Login happen once (via SenderFactory), SendMail per row,
+// Close at the end. Never a fresh connection per message.
+type MailSender interface {
+	SendMail(from string, to []string, msg []byte) error
+	Close() error
+}
+
+// SenderFactory builds the run's single SMTP connection for an account
+// (password or OAuth2, exactly like the host's normal send path).
+type SenderFactory interface {
+	NewSender(ctx context.Context, accountID string) (MailSender, error)
+}
+
+// SentSaver mirrors the host's save-to-Sent behaviour: after each send,
+// save the message to Sent the same way App.SendMessage does (skipped
+// entirely when the provider auto-saves Sent mail). A save failure must
+// NOT fail the send — the host logs it and moves on.
+type SentSaver interface {
+	SaveToSent(ctx context.Context, accountID string, rawMsg []byte) error
+}
+
+// ContactLister returns the unified contact set (local + CardDAV +
+// Google + Microsoft) as merge rows. The host adapts
+// contactStore.ListRecords; the service never touches coreapi.Contacts
+// (nil in the detached composer process).
+type ContactLister interface {
+	ListContacts() ([]map[string]string, []string, error)
+}
+
+// ServiceDeps bundles the host-provided collaborators. A nil dep fails
+// only the operation that needs it (Execute validates the dep for the
+// requested deliver mode; ListContacts validates ContactLister).
+type ServiceDeps struct {
+	DraftSaver    DraftSaver
+	SenderFactory SenderFactory
+	SentSaver     SentSaver
+	ContactLister ContactLister
+}
+
+// Service is the host-side run orchestrator. It owns no UI and no
+// persistence: the bridge calls Execute in a goroutine, receives one
+// RowResult per row via onProgress (for the run log), and persists the
+// run. Constructed by the host (App and ComposerApp) and injected into
+// the bridge as a plain object — never closures (EXT_RULES R2).
+type Service struct {
+	deps ServiceDeps
+}
+
+// NewService constructs the service. It opens nothing and starts no
+// goroutines.
+func NewService(deps ServiceDeps) *Service {
+	return &Service{deps: deps}
+}
+
+// ListContacts returns all unified contacts as merge rows.
+func (s *Service) ListContacts() ([]map[string]string, []string, error) {
+	if s.deps.ContactLister == nil {
+		return nil, nil, fmt.Errorf("mailmerge: no contact lister configured")
+	}
+	return s.deps.ContactLister.ListContacts()
+}
+
+// Outcome is the final tally of an Execute call.
+type Outcome struct {
+	SentCount    int
+	FailedCount  int
+	SkippedCount int
+	HeldCount    int
+	Cancelled    bool
+}
+
+// Execute runs a merge over the req's Start/Stop slice. It is
+// synchronous — the bridge runs it in a goroutine — and reports every
+// row's outcome to onProgress as it happens (nil-safe).
+//
+//   - Drafts mode: one DraftSaver.SaveDraft per row; the safety cap does
+//     NOT apply (draft generation is harmless).
+//   - Send mode: ONE reused SMTP connection; after each send the message
+//     is saved to Sent via SentSaver (best-effort). The cap applies at
+//     SEND time only: once CapLimit rows have been sent, the rest are
+//     recorded "held — over cap" and NOT sent.
+//   - Cancel (ctx) stops after the current message; unprocessed rows are
+//     recorded as skipped ("cancelled before processing").
+//   - Per-row failure never stops the run: the error is recorded and the
+//     next row is processed (the Thunderbird add-on stops with no record;
+//     we do not).
+func (s *Service) Execute(ctx context.Context, req RunRequest, onProgress func(RowResult)) (Outcome, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	var out Outcome
+	emit := func(r RowResult) {
+		switch r.Status {
+		case RowSent, RowDraftSaved:
+			out.SentCount++
+		case RowFailed:
+			out.FailedCount++
+		case RowSkipped:
+			out.SkippedCount++
+		case RowHeld:
+			out.HeldCount++
+		}
+		if onProgress != nil {
+			onProgress(r)
+		}
+	}
+
+	if req.AccountID == "" {
+		return out, fmt.Errorf("mailmerge: account is required")
+	}
+	switch req.DeliverMode {
+	case "drafts":
+		if s.deps.DraftSaver == nil {
+			return out, fmt.Errorf("mailmerge: no draft saver configured")
+		}
+	case "send":
+		if s.deps.SenderFactory == nil {
+			return out, fmt.Errorf("mailmerge: no SMTP sender configured")
+		}
+	default:
+		return out, fmt.Errorf("mailmerge: unknown deliver mode %q", req.DeliverMode)
+	}
+
+	// Global attachments are decoded once; the bytes are shared read-only
+	// across rows. A bad base64 payload fails the run before any row.
+	globalAtts, err := decodeGlobalAttachments(req.Template.GlobalAttachments)
+	if err != nil {
+		return out, err
+	}
+
+	rows, indices := SliceRows(req.Rows, req.StartRow, req.StopRow)
+
+	var sender MailSender
+	if req.DeliverMode == "send" {
+		sender, err = s.deps.SenderFactory.NewSender(ctx, req.AccountID)
+		if err != nil {
+			return out, fmt.Errorf("mailmerge: connect SMTP: %w", err)
+		}
+		defer func() {
+			_ = sender.Close()
+		}()
+	}
+
+	seenTo := map[string]bool{} // lowercased first-To addresses already sent/saved/attempted
+	sentAttempted := 0          // successful sends, for the cap
+	capLimit := req.CapLimit
+	if capLimit <= 0 {
+		capLimit = 100
+	}
+
+	for pos, row := range rows {
+		origIndex := indices[pos]
+		if ctx.Err() != nil {
+			out.Cancelled = true
+			emit(RowResult{Index: origIndex, Status: RowSkipped, Error: "cancelled before processing", Timestamp: time.Now()})
+			// Mark every remaining row skipped too.
+			for j := pos + 1; j < len(rows); j++ {
+				emit(RowResult{Index: indices[j], Status: RowSkipped, Error: "cancelled before processing", Timestamp: time.Now()})
+			}
+			return out, nil
+		}
+
+		result := s.processRow(ctx, req, row, origIndex, globalAtts, sender, seenTo, &sentAttempted, capLimit)
+		emit(result)
+
+		// Pause between messages (not after the last one), only after a
+		// message was actually produced. Skipped/held/failed rows do
+		// not consume a pause.
+		if pos < len(rows)-1 && (result.Status == RowSent || result.Status == RowDraftSaved) {
+			if !s.pause(ctx, req) {
+				out.Cancelled = true
+				for j := pos + 1; j < len(rows); j++ {
+					emit(RowResult{Index: indices[j], Status: RowSkipped, Error: "cancelled before processing", Timestamp: time.Now()})
+				}
+				return out, nil
+			}
+		}
+	}
+	return out, nil
+}
+
+// pause sleeps between two messages: exactly PauseSeconds, or a random
+// 0–PauseSeconds when RandomPause is set. Returns false when the
+// context was cancelled during the pause.
+func (s *Service) pause(ctx context.Context, req RunRequest) bool {
+	seconds := req.PauseSeconds
+	if req.RandomPause {
+		if seconds <= 0 {
+			return true
+		}
+		seconds = rand.IntN(seconds + 1) // 0–X inclusive
+	}
+	if seconds <= 0 {
+		return true
+	}
+	select {
+	case <-ctx.Done():
+		return false
+	case <-time.After(time.Duration(seconds) * time.Second):
+		return true
+	}
+}
+
+// processRow renders, validates and delivers one row, returning its
+// RowResult. seenTo/sentAttempted are updated by the caller-visible
+// side effects (duplicate suppression, cap counting).
+func (s *Service) processRow(ctx context.Context, req RunRequest, row map[string]string, origIndex int, globalAtts []smtp.Attachment, sender MailSender, seenTo map[string]bool, sentAttempted *int, capLimit int) RowResult {
+	now := time.Now()
+	fail := func(err string) RowResult {
+		return RowResult{Index: origIndex, Status: RowFailed, Error: err, Timestamp: now}
+	}
+	skip := func(email, err string) RowResult {
+		return RowResult{Index: origIndex, Email: email, Status: RowSkipped, Error: err, Timestamp: now}
+	}
+
+	// Render the template. A missing variable fails the row (the bridge
+	// blocks the run on unresolved variables first, so this is the
+	// defence-in-depth path).
+	rendered, err := RenderRow(req.Template, row, req.AttachmentDir, origIndex)
+	if err != nil {
+		if names := missingErrorNames(err); len(names) > 0 {
+			return fail(fmt.Sprintf("unresolved variable(s): %s", strings.Join(names, ", ")))
+		}
+		return fail(err.Error())
+	}
+
+	// From: required, must parse.
+	fromRendered, err := Render(req.Template.From, row)
+	if err != nil {
+		if names := missingErrorNames(err); len(names) > 0 {
+			return fail(fmt.Sprintf("unresolved variable(s): %s", strings.Join(names, ", ")))
+		}
+		return fail(err.Error())
+	}
+	fromAddr, err := mail.ParseAddress(strings.TrimSpace(fromRendered))
+	if err != nil || strings.TrimSpace(fromRendered) == "" {
+		return fail(fmt.Sprintf("invalid From address %q", fromRendered))
+	}
+
+	// To: empty, still-templated, unparseable or invalid addresses are
+	// skipped and logged — never sent.
+	toStr := strings.TrimSpace(rendered.To)
+	if toStr == "" {
+		return skip("", "empty To address")
+	}
+	if strings.Contains(toStr, "{{") {
+		return skip("", fmt.Sprintf("To still contains an unresolved variable: %q", toStr))
+	}
+	toAddrs, err := parseAddressList(toStr)
+	if err != nil || len(toAddrs) == 0 {
+		return skip("", fmt.Sprintf("invalid To address %q", toStr))
+	}
+	for _, a := range toAddrs {
+		if !validEmail(a.Address) {
+			return skip("", fmt.Sprintf("invalid To address %q", a.Address))
+		}
+	}
+	email := toAddrs[0].Address
+	dupKey := strings.ToLower(strings.TrimSpace(email))
+	if seenTo[dupKey] {
+		return skip(email, "duplicate recipient — already sent in this run")
+	}
+
+	// Cc / Bcc: invalid entries are dropped, the row still goes out.
+	// ReplyTo: a single address; invalid means no Reply-To, not a failure.
+	ccAddrs := parseLenient(rendered.Cc)
+	bccAddrs := parseLenient(rendered.Bcc)
+	var replyTo *smtp.Address
+	if rt, err := Render(req.Template.ReplyTo, row); err != nil {
+		if names := missingErrorNames(err); len(names) > 0 {
+			return fail(fmt.Sprintf("unresolved variable(s): %s", strings.Join(names, ", ")))
+		}
+		return fail(err.Error())
+	} else if strings.TrimSpace(rt) != "" {
+		if parsed, perr := mail.ParseAddress(strings.TrimSpace(rt)); perr == nil && validEmail(parsed.Address) {
+			replyTo = &smtp.Address{Name: parsed.Name, Address: parsed.Address}
+		}
+	}
+
+	// Per-row attachments: read from disk per row (never hold all
+	// rendered messages in memory). A missing file skips the row.
+	rowAtts, skipped := s.resolveRowAttachments(req, row)
+	if skipped != nil {
+		skipped.Index = origIndex
+		skipped.Email = email
+		return *skipped
+	}
+
+	msg := smtp.ComposeMessage{
+		From:        smtp.Address{Name: fromAddr.Name, Address: fromAddr.Address},
+		To:          toSMTP(toAddrs),
+		Cc:          toSMTP(ccAddrs),
+		Bcc:         toSMTP(bccAddrs),
+		ReplyTo:     replyTo,
+		Subject:     rendered.Subject,
+		Attachments: append(append([]smtp.Attachment{}, globalAtts...), rowAtts...),
+	}
+	if req.Template.IsPlainText {
+		msg.TextBody = rendered.BodyText
+	} else {
+		msg.TextBody = rendered.BodyText
+		msg.HTMLBody = rendered.BodyHTML
+	}
+
+	// The row is accepted for delivery: it now counts for duplicate
+	// suppression even if the send/draft itself fails (a retry is the
+	// resume path, not a silent second attempt in this run). Held rows
+	// do NOT mark the address — both copies stay held and the duplicate
+	// is caught when the batch actually sends.
+	markSeen := func() { seenTo[dupKey] = true }
+
+	switch req.DeliverMode {
+	case "drafts":
+		markSeen()
+		if err := s.deps.DraftSaver.SaveDraft(req.AccountID, msg); err != nil {
+			return fail(fmt.Sprintf("save draft: %v", err))
+		}
+		return RowResult{Index: origIndex, Email: email, Status: RowDraftSaved, Timestamp: now}
+	case "send":
+		if req.CapEnabled && *sentAttempted >= capLimit {
+			return RowResult{Index: origIndex, Email: email, Status: RowHeld, Error: "held — over cap", Timestamp: now}
+		}
+		markSeen()
+		raw, err := msg.ToRFC822()
+		if err != nil {
+			return fail(fmt.Sprintf("build message: %v", err))
+		}
+		if err := sender.SendMail(fromAddr.Address, msg.AllRecipients(), raw); err != nil {
+			return fail(fmt.Sprintf("send: %v", err))
+		}
+		*sentAttempted++
+		// Save to Sent the way App.SendMessage does. A failure here
+		// must not fail the send (the message is already out).
+		if s.deps.SentSaver != nil {
+			if err := s.deps.SentSaver.SaveToSent(ctx, req.AccountID, raw); err != nil {
+				slog := logging.WithComponent("mailmerge")
+				slog.Warn().Err(err).Str("email", email).Msg("Failed to save sent message to Sent folder")
+			}
+		}
+		return RowResult{Index: origIndex, Email: email, Status: RowSent, Timestamp: now}
+	default:
+		return fail(fmt.Sprintf("unknown deliver mode %q", req.DeliverMode))
+	}
+}
+
+// resolveRowAttachments renders the per-row attachment field and reads
+// each file from disk. A missing/unreadable file skips the row (the
+// returned RowResult is non-nil in that case; the caller fills in its
+// Index/Email).
+func (s *Service) resolveRowAttachments(req RunRequest, row map[string]string) ([]smtp.Attachment, *RowResult) {
+	paths := ResolveAttachmentPaths(req.Template.AttachmentField, row, req.AttachmentDir)
+	if len(paths) == 0 {
+		return nil, nil
+	}
+	atts := make([]smtp.Attachment, 0, len(paths))
+	for _, p := range paths {
+		content, err := os.ReadFile(p)
+		if err != nil {
+			skipped := RowResult{Status: RowSkipped, Error: fmt.Sprintf("attachment file not found: %s", p), Timestamp: time.Now()}
+			return nil, &skipped
+		}
+		ct := mime.TypeByExtension(filepath.Ext(p))
+		if ct == "" {
+			ct = "application/octet-stream"
+		}
+		atts = append(atts, smtp.Attachment{
+			Filename:    filepath.Base(p),
+			ContentType: ct,
+			Content:     content,
+		})
+	}
+	return atts, nil
+}
+
+// parseLenient parses an address list, dropping entries that do not
+// parse or are not valid emails. Never errors.
+func parseLenient(s string) []mail.Address {
+	addrs, err := parseAddressList(s)
+	if err != nil {
+		return nil
+	}
+	out := addrs[:0]
+	for _, a := range addrs {
+		if validEmail(a.Address) {
+			out = append(out, a)
+		}
+	}
+	return out
+}
+
+func toSMTP(addrs []mail.Address) []smtp.Address {
+	out := make([]smtp.Address, 0, len(addrs))
+	for _, a := range addrs {
+		out = append(out, smtp.Address{Name: a.Name, Address: a.Address})
+	}
+	return out
+}
+
+// decodeGlobalAttachments base64-decodes the template's global
+// attachments once per run.
+func decodeGlobalAttachments(in []GlobalAttachment) ([]smtp.Attachment, error) {
+	if len(in) == 0 {
+		return nil, nil
+	}
+	out := make([]smtp.Attachment, 0, len(in))
+	for _, g := range in {
+		var content []byte
+		if g.DataBase64 != "" {
+			decoded, err := base64.StdEncoding.DecodeString(g.DataBase64)
+			if err != nil {
+				return nil, fmt.Errorf("mailmerge: global attachment %q: invalid base64: %w", g.Filename, err)
+			}
+			content = decoded
+		}
+		ct := g.ContentType
+		if ct == "" {
+			ct = mime.TypeByExtension(filepath.Ext(g.Filename))
+			if ct == "" {
+				ct = "application/octet-stream"
+			}
+		}
+		out = append(out, smtp.Attachment{
+			Filename:    g.Filename,
+			ContentType: ct,
+			Content:     content,
+		})
+	}
+	return out, nil
+}

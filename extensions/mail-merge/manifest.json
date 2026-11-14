@@ -1,0 +1,16 @@
+{
+  "author": "Aerion",
+  "capabilities": [
+    "mail.merge",
+    "ui.composer-toolbar",
+    "ui.settings-tab"
+  ],
+  "description": "Create and save or send multiple individual and personalised messages from one draft (CSV, JSON, or contacts as the recipient source).",
+  "id": "mail-merge",
+  "minAerionVersion": "0.3.0",
+  "name": "Mail Merge",
+  "oauth": {
+    "first_party_uses_core_for_scopes": []
+  },
+  "version": "0.1.0"
+}

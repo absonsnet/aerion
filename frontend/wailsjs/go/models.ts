@@ -920,6 +920,20 @@ export namespace backend {
 	        this.createdAt = source["createdAt"];
 	    }
 	}
+	export class ContactsResult {
+	    rows: any[];
+	    columns: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new ContactsResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.rows = source["rows"];
+	        this.columns = source["columns"];
+	    }
+	}
 	export class Organizer {
 	    email: string;
 	    cn?: string;
@@ -2022,6 +2036,381 @@ export namespace imap {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	
 	    }
+	}
+
+}
+
+export namespace mailmerge {
+	
+	export class GlobalAttachment {
+	    filename: string;
+	    contentType: string;
+	    size: number;
+	    dataBase64: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new GlobalAttachment(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.filename = source["filename"];
+	        this.contentType = source["contentType"];
+	        this.size = source["size"];
+	        this.dataBase64 = source["dataBase64"];
+	    }
+	}
+	export class InvalidEmail {
+	    row: number;
+	    address: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new InvalidEmail(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.row = source["row"];
+	        this.address = source["address"];
+	    }
+	}
+	export class MissingAttachment {
+	    row: number;
+	    path: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new MissingAttachment(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.row = source["row"];
+	        this.path = source["path"];
+	    }
+	}
+	export class ParsedFile {
+	    columns: string[];
+	    rowCount: number;
+	    previewRows: any[];
+	
+	    static createFrom(source: any = {}) {
+	        return new ParsedFile(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.columns = source["columns"];
+	        this.rowCount = source["rowCount"];
+	        this.previewRows = source["previewRows"];
+	    }
+	}
+	export class RenderedMessage {
+	    rowIndex: number;
+	    to: string;
+	    cc: string;
+	    bcc: string;
+	    subject: string;
+	    bodyHtml: string;
+	    bodyText: string;
+	    attachments: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new RenderedMessage(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.rowIndex = source["rowIndex"];
+	        this.to = source["to"];
+	        this.cc = source["cc"];
+	        this.bcc = source["bcc"];
+	        this.subject = source["subject"];
+	        this.bodyHtml = source["bodyHtml"];
+	        this.bodyText = source["bodyText"];
+	        this.attachments = source["attachments"];
+	    }
+	}
+	export class RowResult {
+	    index: number;
+	    email: string;
+	    status: string;
+	    error?: string;
+	    // Go type: time
+	    timestamp: any;
+	
+	    static createFrom(source: any = {}) {
+	        return new RowResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.index = source["index"];
+	        this.email = source["email"];
+	        this.status = source["status"];
+	        this.error = source["error"];
+	        this.timestamp = this.convertValues(source["timestamp"], null);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class Run {
+	    id: string;
+	    // Go type: time
+	    createdAt: any;
+	    accountId: string;
+	    deliverMode: string;
+	    status: string;
+	    totalRows: number;
+	    sentCount: number;
+	    failedCount: number;
+	    skippedCount: number;
+	    heldCount: number;
+	    rows: RowResult[];
+	
+	    static createFrom(source: any = {}) {
+	        return new Run(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.createdAt = this.convertValues(source["createdAt"], null);
+	        this.accountId = source["accountId"];
+	        this.deliverMode = source["deliverMode"];
+	        this.status = source["status"];
+	        this.totalRows = source["totalRows"];
+	        this.sentCount = source["sentCount"];
+	        this.failedCount = source["failedCount"];
+	        this.skippedCount = source["skippedCount"];
+	        this.heldCount = source["heldCount"];
+	        this.rows = this.convertValues(source["rows"], RowResult);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class Template {
+	    accountId: string;
+	    from: string;
+	    to: string;
+	    cc: string;
+	    bcc: string;
+	    replyTo: string;
+	    subject: string;
+	    bodyHtml: string;
+	    bodyText: string;
+	    isPlainText: boolean;
+	    globalAttachments: GlobalAttachment[];
+	    attachmentField: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Template(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.accountId = source["accountId"];
+	        this.from = source["from"];
+	        this.to = source["to"];
+	        this.cc = source["cc"];
+	        this.bcc = source["bcc"];
+	        this.replyTo = source["replyTo"];
+	        this.subject = source["subject"];
+	        this.bodyHtml = source["bodyHtml"];
+	        this.bodyText = source["bodyText"];
+	        this.isPlainText = source["isPlainText"];
+	        this.globalAttachments = this.convertValues(source["globalAttachments"], GlobalAttachment);
+	        this.attachmentField = source["attachmentField"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class RunRequest {
+	    template: Template;
+	    rows: any[];
+	    sourceKind: string;
+	    deliverMode: string;
+	    pauseSeconds: number;
+	    randomPause: boolean;
+	    startRow: number;
+	    stopRow: number;
+	    capEnabled: boolean;
+	    capLimit: number;
+	    accountId: string;
+	    attachmentDir: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new RunRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.template = this.convertValues(source["template"], Template);
+	        this.rows = source["rows"];
+	        this.sourceKind = source["sourceKind"];
+	        this.deliverMode = source["deliverMode"];
+	        this.pauseSeconds = source["pauseSeconds"];
+	        this.randomPause = source["randomPause"];
+	        this.startRow = source["startRow"];
+	        this.stopRow = source["stopRow"];
+	        this.capEnabled = source["capEnabled"];
+	        this.capLimit = source["capLimit"];
+	        this.accountId = source["accountId"];
+	        this.attachmentDir = source["attachmentDir"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class RunSummary {
+	    id: string;
+	    // Go type: time
+	    createdAt: any;
+	    accountId: string;
+	    deliverMode: string;
+	    status: string;
+	    totalRows: number;
+	    sentCount: number;
+	    failedCount: number;
+	    skippedCount: number;
+	    heldCount: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new RunSummary(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.createdAt = this.convertValues(source["createdAt"], null);
+	        this.accountId = source["accountId"];
+	        this.deliverMode = source["deliverMode"];
+	        this.status = source["status"];
+	        this.totalRows = source["totalRows"];
+	        this.sentCount = source["sentCount"];
+	        this.failedCount = source["failedCount"];
+	        this.skippedCount = source["skippedCount"];
+	        this.heldCount = source["heldCount"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	export class ValidationResult {
+	    unresolvedVariables: string[];
+	    invalidEmails: InvalidEmail[];
+	    duplicateEmails: number;
+	    emptyToRows: number[];
+	    missingAttachmentFiles: MissingAttachment[];
+	
+	    static createFrom(source: any = {}) {
+	        return new ValidationResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.unresolvedVariables = source["unresolvedVariables"];
+	        this.invalidEmails = this.convertValues(source["invalidEmails"], InvalidEmail);
+	        this.duplicateEmails = source["duplicateEmails"];
+	        this.emptyToRows = source["emptyToRows"];
+	        this.missingAttachmentFiles = this.convertValues(source["missingAttachmentFiles"], MissingAttachment);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 
 }

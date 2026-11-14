@@ -9,6 +9,7 @@ import {message} from '../models';
 import {pgp} from '../models';
 import {smime} from '../models';
 import {v1} from '../models';
+import {mailmerge} from '../models';
 import {draft} from '../models';
 import {contact} from '../models';
 
@@ -93,6 +94,38 @@ export function LookupHKP(arg1:string):Promise<string>;
 export function LookupPGPKey(arg1:string):Promise<string>;
 
 export function LookupWKD(arg1:string):Promise<string>;
+
+export function MailMerge_CancelRemaining(arg1:string):Promise<void>;
+
+export function MailMerge_CancelRun(arg1:string):Promise<void>;
+
+export function MailMerge_GetContacts():Promise<backend.ContactsResult>;
+
+export function MailMerge_GetRun(arg1:string):Promise<mailmerge.Run>;
+
+export function MailMerge_GetSettings(arg1:string):Promise<backend.Settings>;
+
+export function MailMerge_ListRuns():Promise<Array<mailmerge.RunSummary>>;
+
+export function MailMerge_ParseFile(arg1:string,arg2:string):Promise<mailmerge.ParsedFile>;
+
+export function MailMerge_PickAttachmentDir():Promise<string>;
+
+export function MailMerge_PickFile(arg1:string):Promise<string>;
+
+export function MailMerge_Preview(arg1:mailmerge.Template,arg2:Array<Record<string, string>>,arg3:Array<number>):Promise<Array<mailmerge.RenderedMessage>>;
+
+export function MailMerge_ResumeRun(arg1:string):Promise<string>;
+
+export function MailMerge_SaveSettings(arg1:string,arg2:backend.Settings):Promise<void>;
+
+export function MailMerge_SendAllRemaining(arg1:string):Promise<void>;
+
+export function MailMerge_SendNextBatch(arg1:string):Promise<void>;
+
+export function MailMerge_StartRun(arg1:mailmerge.RunRequest):Promise<string>;
+
+export function MailMerge_Validate(arg1:mailmerge.Template,arg2:Array<Record<string, string>>):Promise<mailmerge.ValidationResult>;
 
 export function NotifyStartupComplete():Promise<void>;
 

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	extaiwritingbe "github.com/hkdb/aerion/extensions/ai-writing/backend"
+	extmailmergebe "github.com/hkdb/aerion/extensions/mail-merge/backend"
 	"github.com/hkdb/aerion/internal/account"
 	"github.com/hkdb/aerion/internal/certificate"
 	"github.com/hkdb/aerion/internal/contact"
@@ -72,18 +73,23 @@ type ComposerApp struct {
 	certStore     *certificate.Store
 	settingsStore *settings.Store
 
-	// Extension hosting (AI Writing only). The detached composer is a
+	// Extension hosting (AI Writing + Mail Merge). The detached composer is a
 	// separate OS process with its own Wails bindings, so it hosts the
-	// extension itself instead of reaching the main window's App
-	// bindings, which don't exist in this process. The bridge reads the
+	// extensions itself instead of reaching the main window's App
+	// bindings, which don't exist in this process. The bridges read the
 	// same settings, per-extension SQLite and secrets as the main window
 	// (shared database, credential store and paths).
 	uiRegistry   *extui.Registry
 	aiWritingExt *extaiwritingbe.Extension
+	mailMergeExt *extmailmergebe.Extension
 
 	// Embedded AI Writing bridge: method promotion makes the AIWriting_*
 	// methods Wails-bindable on ComposerApp, mirroring App.
 	*extaiwritingbe.AIWritingBridge
+
+	// Embedded Mail Merge bridge: method promotion makes the MailMerge_*
+	// methods Wails-bindable on ComposerApp, mirroring App.
+	*extmailmergebe.MailMergeBridge
 
 	// IMAP pool for sending/draft operations
 	imapPool *imap.Pool
@@ -199,6 +205,11 @@ func (c *ComposerApp) Startup(ctx context.Context) {
 	// without this the extension silently never appears.
 	c.initAIWritingExtension()
 
+	// Host the Mail Merge extension in this process too, for the same
+	// reason. Must run after initAIWritingExtension: it reuses the
+	// uiRegistry that function creates.
+	c.initMailMergeExtension()
+
 	// Initialize certificate trust store (TOFU)
 	c.certStore = certificate.NewStore(db.DB)
 
@@ -292,6 +303,30 @@ func (c *ComposerApp) initAIWritingExtension() {
 	})
 	if _, err := c.aiWritingExt.Register(core); err != nil {
 		log.Warn().Err(err).Msg("Failed to register AI Writing extension")
+	}
+}
+
+// initMailMergeExtension wires the Mail Merge extension's Bridge into
+// ComposerApp, mirroring App.initMailMergeExtension. The detached composer
+// shares the database, credential store and paths with the main window, so
+// the bridge reads the same settings, per-extension SQLite and run log.
+// Register wires the composer-toolbar button (and settings tab) into this
+// process's own UI registry, which ListComposerToolbarItems reads. The
+// returned Unregister is intentionally discarded: this process is
+// short-lived and exits with the window.
+func (c *ComposerApp) initMailMergeExtension() {
+	log := logging.WithComponent("composer")
+	c.mailMergeExt = extmailmergebe.NewExtension()
+	core := newComposerCore(c.credStore, c.uiRegistry, c.mailMergeExt)
+	c.MailMergeBridge = extmailmergebe.NewMailMergeBridge(extmailmergebe.MailMergeBridgeDeps{
+		SettingsStore: c.settingsStore,
+		Paths:         c.paths,
+		Core:          core,
+		Service:       newMailMergeService(&c.composeOps, &composerMailMergeDraftSaver{c: c}, c.contactStore),
+		Ctx:           c.ctx,
+	})
+	if _, err := c.mailMergeExt.Register(core); err != nil {
+		log.Warn().Err(err).Msg("Failed to register Mail Merge extension")
 	}
 }
 

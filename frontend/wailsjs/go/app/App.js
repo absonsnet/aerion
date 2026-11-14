@@ -910,6 +910,70 @@ export function LookupWKD(arg1) {
   return window['go']['app']['App']['LookupWKD'](arg1);
 }
 
+export function MailMerge_CancelRemaining(arg1) {
+  return window['go']['app']['App']['MailMerge_CancelRemaining'](arg1);
+}
+
+export function MailMerge_CancelRun(arg1) {
+  return window['go']['app']['App']['MailMerge_CancelRun'](arg1);
+}
+
+export function MailMerge_GetContacts() {
+  return window['go']['app']['App']['MailMerge_GetContacts']();
+}
+
+export function MailMerge_GetRun(arg1) {
+  return window['go']['app']['App']['MailMerge_GetRun'](arg1);
+}
+
+export function MailMerge_GetSettings(arg1) {
+  return window['go']['app']['App']['MailMerge_GetSettings'](arg1);
+}
+
+export function MailMerge_ListRuns() {
+  return window['go']['app']['App']['MailMerge_ListRuns']();
+}
+
+export function MailMerge_ParseFile(arg1, arg2) {
+  return window['go']['app']['App']['MailMerge_ParseFile'](arg1, arg2);
+}
+
+export function MailMerge_PickAttachmentDir() {
+  return window['go']['app']['App']['MailMerge_PickAttachmentDir']();
+}
+
+export function MailMerge_PickFile(arg1) {
+  return window['go']['app']['App']['MailMerge_PickFile'](arg1);
+}
+
+export function MailMerge_Preview(arg1, arg2, arg3) {
+  return window['go']['app']['App']['MailMerge_Preview'](arg1, arg2, arg3);
+}
+
+export function MailMerge_ResumeRun(arg1) {
+  return window['go']['app']['App']['MailMerge_ResumeRun'](arg1);
+}
+
+export function MailMerge_SaveSettings(arg1, arg2) {
+  return window['go']['app']['App']['MailMerge_SaveSettings'](arg1, arg2);
+}
+
+export function MailMerge_SendAllRemaining(arg1) {
+  return window['go']['app']['App']['MailMerge_SendAllRemaining'](arg1);
+}
+
+export function MailMerge_SendNextBatch(arg1) {
+  return window['go']['app']['App']['MailMerge_SendNextBatch'](arg1);
+}
+
+export function MailMerge_StartRun(arg1) {
+  return window['go']['app']['App']['MailMerge_StartRun'](arg1);
+}
+
+export function MailMerge_Validate(arg1, arg2) {
+  return window['go']['app']['App']['MailMerge_Validate'](arg1, arg2);
+}
+
 export function MarkAllFolderMessagesAsRead(arg1) {
   return window['go']['app']['App']['MarkAllFolderMessagesAsRead'](arg1);
 }
