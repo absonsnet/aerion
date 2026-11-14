@@ -75,16 +75,68 @@
   let lastLoadedFolderId = $state<string | null>(null) // Track folder changes
   let loadGeneration = $state(0) // Invalidates stale async results when folder changes mid-load (#200)
 
+  // Check if viewing unified inbox (declared here — the sync deriveds
+  // below depend on it)
+  const isUnifiedView = $derived(accountId === 'unified' && folderId === 'inbox')
+
   // Derived: check if this folder is currently syncing (from account store's progress tracking)
-  const syncing = $derived(
-    !!(accountId && folderId && accountStore.syncProgress[accountId]?.[folderId] !== undefined)
+  // In the Unified Inbox, any inbox folder syncing counts — plus folders
+  // this unified refresh started that have not settled yet, which covers
+  // the gap before the backend's first sync:progress event lands.
+  function getInboxFolders(): { accountId: string; folderId: string }[] {
+    const inboxes: { accountId: string; folderId: string }[] = []
+    const walk = (accountId: string, trees: { folder?: { id: string; type: string }; children?: typeof trees }[]) => {
+      for (const tree of trees) {
+        if (tree.folder?.type === 'inbox') {
+          inboxes.push({ accountId, folderId: tree.folder.id })
+        }
+        if (tree.children) walk(accountId, tree.children)
+      }
+    }
+    for (const acc of accountStore.accounts) {
+      walk(acc.account.id, acc.folders as never)
+    }
+    return inboxes
+  }
+
+  const inboxFolders = $derived(getInboxFolders())
+
+  // Keys ("accountId:folderId") of inbox syncs started by a unified
+  // refresh that have not settled yet. Plain $state array, reassigned on
+  // change so the derived syncing flag below stays reactive.
+  let unifiedSyncKeys = $state<string[]>([])
+
+  const unifiedSyncing = $derived(
+    isUnifiedView &&
+      (unifiedSyncKeys.length > 0 ||
+        inboxFolders.some(
+          (f) => accountStore.syncProgress[f.accountId]?.[f.folderId] !== undefined
+        ))
   )
 
-  // Derived: get sync progress for this folder (if syncing)
+  const syncing = $derived(
+    isUnifiedView
+      ? unifiedSyncing
+      : !!(accountId && folderId && accountStore.syncProgress[accountId]?.[folderId] !== undefined)
+  )
+
+  // Derived: get sync progress for this folder (if syncing). In the unified
+  // view, the first inbox folder currently reporting progress.
   const syncProgress = $derived(
-    accountId && folderId
-      ? accountStore.syncProgress[accountId]?.[folderId]
-      : null
+    isUnifiedView
+      ? (inboxFolders
+          .map((f) => accountStore.syncProgress[f.accountId]?.[f.folderId])
+          .find((p) => p !== undefined) ?? null)
+      : accountId && folderId
+        ? accountStore.syncProgress[accountId]?.[folderId]
+        : null
+  )
+
+  // Whether there is anything the refresh control can sync: a selected
+  // folder, or at least one inbox in the Unified Inbox. List loading (DB
+  // load) deliberately does NOT disable refresh.
+  const hasSyncTarget = $derived(
+    isUnifiedView ? inboxFolders.length > 0 : !!(accountId && folderId)
   )
 
   // Multi-select state
@@ -425,9 +477,6 @@
     lastClickedIndex = null
   }
 
-  // Check if viewing unified inbox
-  const isUnifiedView = $derived(accountId === 'unified' && folderId === 'inbox')
-
   async function loadConversations(customLimit?: number) {
     // For unified view, we don't need accountId/folderId
     if (!isUnifiedView && (!accountId || !folderId)) return
@@ -523,10 +572,50 @@
   }
 
   export async function syncFolder() {
-    // Can't sync unified inbox directly - individual folders must be synced
-    if (isUnifiedView || !accountId || !folderId) return
-
     error = null
+
+    // Unified Inbox: sync EVERY account's inbox folder. SyncFolder is
+    // per account+folder and concurrent-safe, so fire them all at once;
+    // the account store's per-folder progress keeps the spinner correct
+    // (unifiedSyncKeys covers the gap before the first progress event).
+    if (isUnifiedView) {
+      const targets = getInboxFolders()
+      if (targets.length === 0) return
+
+      const keys = targets.map((f) => `${f.accountId}:${f.folderId}`)
+      unifiedSyncKeys = [...unifiedSyncKeys, ...keys]
+      try {
+        const scrollTop = listContainerRef?.scrollTop ?? 0
+        const totalLoaded = Math.max(conversations.length, PAGE_SIZE)
+        const results = await Promise.allSettled(
+          targets.map((f) => SyncFolder(f.accountId, f.folderId))
+        )
+        offset = 0
+        await loadConversations(totalLoaded)
+        if (listContainerRef) {
+          requestAnimationFrame(() => {
+            listContainerRef!.scrollTop = scrollTop
+          })
+        }
+        // A failed inbox sync must NOT set the list-level error: the
+        // template hides the whole list while `error` is set, so one
+        // unreachable server would wipe the loaded messages from view.
+        // Per-account failures are already surfaced in the sidebar via
+        // folder:syncError ("Sync error. Try again...").
+        const failed = results.filter((r) => r.status === 'rejected')
+        if (failed.length > 0) {
+          console.error(`Failed to sync ${failed.length} of ${targets.length} inboxes`)
+        }
+      } catch (err) {
+        console.error('Failed to sync inboxes:', err)
+        error = $_('viewer.failedToLoadMessages')
+      } finally {
+        unifiedSyncKeys = unifiedSyncKeys.filter((k) => !keys.includes(k))
+      }
+      return
+    }
+
+    if (!accountId || !folderId) return
 
     try {
       // SyncFolder returns after headers sync, but body fetch continues in background
@@ -552,7 +641,29 @@
 
   // Cancel folder sync
   export async function cancelFolderSync() {
-    if (isUnifiedView || !accountId || !folderId) return
+    // Unified Inbox: cancel every inbox sync started by this refresh
+    // (still in-flight keys) plus any inbox currently reporting progress
+    // (its body-fetch phase, started by this refresh, outlives the
+    // SyncFolder call that began it).
+    if (isUnifiedView) {
+      const targets = getInboxFolders().filter(
+        (f) =>
+          unifiedSyncKeys.includes(`${f.accountId}:${f.folderId}`) ||
+          accountStore.syncProgress[f.accountId]?.[f.folderId] !== undefined
+      )
+      const keys = targets.map((f) => `${f.accountId}:${f.folderId}`)
+      unifiedSyncKeys = unifiedSyncKeys.filter((k) => !keys.includes(k))
+      try {
+        await Promise.allSettled(
+          targets.map((f) => CancelFolderSync(f.accountId, f.folderId))
+        )
+      } catch (err) {
+        console.error('Failed to cancel inbox syncs:', err)
+      }
+      return
+    }
+
+    if (!accountId || !folderId) return
 
     try {
       await CancelFolderSync(accountId, folderId)
@@ -1761,48 +1872,70 @@
           />
         </button>
       {:else}
-        <!-- Dropdown menu for sync options -->
-        <DropdownMenu.Root>
-          <DropdownMenu.Trigger
+        <!-- Split refresh control: the main icon runs Sync Folder directly
+             (enabled whenever there is something to sync — list loading
+             does not disable it); the chevron opens the menu with Sync
+             Folder / Force Re-sync. While a sync runs, the spinner above
+             replaces both and cancels on click. -->
+        <div class="flex items-center">
+          <button
             class="p-2 rounded-md hover:bg-muted transition-colors disabled:opacity-50"
-            disabled={loading || isUnifiedView}
+            disabled={!hasSyncTarget}
+            title={isUnifiedView ? $_('messageList.syncAllInboxes') : $_('messageList.syncFolder')}
+            aria-label={isUnifiedView ? $_('messageList.syncAllInboxes') : $_('messageList.syncFolder')}
+            onclick={syncFolder}
           >
             <Icon
               icon="mdi:refresh"
               class="w-5 h-5 text-muted-foreground"
             />
-          </DropdownMenu.Trigger>
-          <DropdownMenu.Portal>
-            <DropdownMenu.Content
-              side="bottom"
-              align="end"
-              sideOffset={4}
-              class={cn(
-                'z-50 min-w-[180px] rounded-md border bg-popover p-1 text-popover-foreground shadow-md',
-                'data-[state=open]:animate-in data-[state=closed]:animate-out',
-                'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
-                'data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95',
-                'data-[side=bottom]:slide-in-from-top-2'
-              )}
+          </button>
+          <DropdownMenu.Root>
+            <DropdownMenu.Trigger
+              class="p-1 rounded-md hover:bg-muted transition-colors disabled:opacity-50"
+              disabled={!hasSyncTarget}
+              title={$_('messageList.moreSyncOptions')}
+              aria-label={$_('messageList.moreSyncOptions')}
             >
-              <DropdownMenu.Item
-                onSelect={syncFolder}
-                class="relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none focus:bg-accent focus:text-accent-foreground"
+              <Icon
+                icon="mdi:chevron-down"
+                class="w-4 h-4 text-muted-foreground"
+              />
+            </DropdownMenu.Trigger>
+            <DropdownMenu.Portal>
+              <DropdownMenu.Content
+                side="bottom"
+                align="end"
+                sideOffset={4}
+                class={cn(
+                  'z-50 min-w-[180px] rounded-md border bg-popover p-1 text-popover-foreground shadow-md',
+                  'data-[state=open]:animate-in data-[state=closed]:animate-out',
+                  'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
+                  'data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95',
+                  'data-[side=bottom]:slide-in-from-top-2'
+                )}
               >
-                <Icon icon="mdi:refresh" class="w-4 h-4 mr-2" />
-                {$_('messageList.syncFolder')}
-              </DropdownMenu.Item>
-              <DropdownMenu.Separator class="-mx-1 my-1 h-px bg-border" />
-              <DropdownMenu.Item
-                onSelect={forceSyncFolder}
-                class="relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none focus:bg-accent focus:text-accent-foreground"
-              >
-                <Icon icon="mdi:refresh-auto" class="w-4 h-4 mr-2" />
-                {$_('messageList.forceResync')}
-              </DropdownMenu.Item>
-            </DropdownMenu.Content>
-          </DropdownMenu.Portal>
-        </DropdownMenu.Root>
+                <DropdownMenu.Item
+                  onSelect={syncFolder}
+                  class="relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none focus:bg-accent focus:text-accent-foreground"
+                >
+                  <Icon icon="mdi:refresh" class="w-4 h-4 mr-2" />
+                  {$_('messageList.syncFolder')}
+                </DropdownMenu.Item>
+                <DropdownMenu.Separator class="-mx-1 my-1 h-px bg-border" />
+                <DropdownMenu.Item
+                  onSelect={forceSyncFolder}
+                  disabled={isUnifiedView}
+                  title={isUnifiedView ? $_('messageList.forceResyncUnifiedDisabled') : undefined}
+                  class="relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none focus:bg-accent focus:text-accent-foreground data-[disabled]:opacity-50"
+                >
+                  <Icon icon="mdi:refresh-auto" class="w-4 h-4 mr-2" />
+                  {$_('messageList.forceResync')}
+                </DropdownMenu.Item>
+              </DropdownMenu.Content>
+            </DropdownMenu.Portal>
+          </DropdownMenu.Root>
+        </div>
       {/if}
       <button
         class="p-2 rounded-md hover:bg-muted transition-colors {showSearch ? 'bg-muted' : ''}"
