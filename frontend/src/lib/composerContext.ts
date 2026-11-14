@@ -12,6 +12,31 @@
  * TipTap editor's HTML; in plain-text mode they convert to/from the plain
  * text content, so callers always deal in HTML.
  */
+
+/** One recipient chip, structurally compatible with smtp.Address. */
+export interface MergeRecipient {
+  name: string
+  address: string
+}
+
+/** The draft's envelope recipients. */
+export interface MergeRecipients {
+  to: MergeRecipient[]
+  cc: MergeRecipient[]
+  bcc: MergeRecipient[]
+  /** First Reply-To recipient, formatted as "Name <addr>" ("" when none). */
+  replyTo: string
+}
+
+/** One composer attachment, structurally compatible with
+ *  app.ComposerAttachment (`data` is base64 file content). */
+export interface MergeAttachment {
+  filename: string
+  contentType: string
+  size: number
+  data: string
+}
+
 export interface ComposerContext {
   /** User-composed part of the body as HTML, excluding quoted/forwarded content. */
   getUserComposedHTML(): string
@@ -28,6 +53,17 @@ export interface ComposerContext {
   setSubject(subject: string): void
   /** True while the composer is in plain-text mode. */
   isPlainText(): boolean
+  /**
+   * The draft's live envelope recipients (To/Cc/Bcc chips + Reply-To).
+   * Added for Mail Merge: the merge dialog reads the template's To/Cc/
+   * Bcc from the live draft instead of assuming them.
+   */
+  getRecipients(): MergeRecipients
+  /**
+   * The draft's global attachments (the composer's normal Attach button:
+   * the same file for every recipient). Added for Mail Merge.
+   */
+  getAttachments(): MergeAttachment[]
 }
 
 export const COMPOSER_CONTEXT_KEY = 'composer-context'
