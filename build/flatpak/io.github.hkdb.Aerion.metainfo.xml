@@ -375,6 +375,14 @@
   </provides>
 
   <releases>
+    <release version="0.4.3" date="2026-11-14">
+      <description>
+        <ul>
+          <li>AI Writing Assistant now works in the detached composer window</li>
+          <li>Dialog composer is wider (1024px) and the toolbar is more compact, so the AI Writing button and the Plain text toggle fit on one line</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.4.2" date="2026-11-13">
       <description>
         <ul>

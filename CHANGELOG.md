@@ -1,5 +1,12 @@
 # CHANGELOG
 
+**v0.4.3 - 14-11-2026**
+---
+
+- AI Writing Assistant now works in the detached composer window — it was missing there because that window runs its own app with only ComposerApp bound, so the extension now lives in that window too
+- Dialog composer is wider (1024px) and the toolbar is more compact — smaller icons and tighter spacing — so the AI Writing button and the Plain text toggle fit on one line
+- v0.4.3 changes by ABSONS Technologies (@absonsnet)
+
 **v0.4.2 - 13-11-2026**
 ---
 
