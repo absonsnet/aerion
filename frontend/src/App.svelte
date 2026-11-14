@@ -1735,7 +1735,7 @@
 <!-- Composer Modal -->
 {#if showComposer && composerAccountId}
   <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-    <div class="{getLayoutMode() === 'narrow' ? 'w-full h-full bg-background overflow-hidden' : 'w-full max-w-3xl h-[80vh] bg-background rounded-lg shadow-xl overflow-hidden'}">
+    <div class="{getLayoutMode() === 'narrow' ? 'w-full h-full bg-background overflow-hidden' : 'w-full max-w-5xl h-[80vh] bg-background rounded-lg shadow-xl overflow-hidden'}">
       <Composer
         accountId={composerAccountId}
         initialMessage={composerInitialMessage}

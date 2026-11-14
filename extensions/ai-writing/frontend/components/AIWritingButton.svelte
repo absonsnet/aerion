@@ -268,12 +268,12 @@
     onfocusin={refreshTriggerState}
   >
     <DropdownMenu.Trigger
-      class="p-1.5 rounded hover:bg-muted transition-colors flex items-center gap-1.5 text-xs disabled:opacity-50 disabled:pointer-events-none"
+      class="p-1 rounded hover:bg-muted transition-colors flex items-center gap-1 text-xs disabled:opacity-50 disabled:pointer-events-none"
       disabled={triggerDisabled}
     >
-      <Icon icon="mdi:pencil-outline" class="w-5 h-5" />
+      <Icon icon="mdi:pencil-outline" class="w-4 h-4" />
       <span class="hidden lg:inline">{$_('aiwriting.button.label')}</span>
-      <Icon icon="mdi:chevron-down" class="w-4 h-4" />
+      <Icon icon="mdi:chevron-down" class="w-3.5 h-3.5" />
     </DropdownMenu.Trigger>
   </span>
   <DropdownMenu.Content side="bottom" align="start" sideOffset={4}>

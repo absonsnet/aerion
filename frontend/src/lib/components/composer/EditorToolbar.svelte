@@ -243,7 +243,7 @@
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <div
   bind:this={toolbarRef}
-  class="flex items-center gap-1 px-4 py-2 border-b border-border relative"
+  class="flex items-center gap-0.5 px-2 py-2 border-b border-border relative"
   role="toolbar"
   aria-label={$_('aria.textFormatting')}
   tabindex="-1"
@@ -257,14 +257,14 @@
   <div class="relative">
     <button
       onclick={toggleBold}
-      class="p-1.5 rounded hover:bg-muted transition-colors"
+      class="p-1 rounded hover:bg-muted transition-colors"
       class:bg-muted={activeStates.bold}
       class:opacity-50={isPlainTextMode}
       disabled={isPlainTextMode}
       tabindex="-1"
       title={$_('editor.bold')}
     >
-      <Icon icon="mdi:format-bold" class="w-5 h-5" />
+      <Icon icon="mdi:format-bold" class="w-4 h-4" />
     </button>
     {#if hintMode && !isPlainTextMode}
       <span class="absolute -top-1 -left-1 bg-primary text-primary-foreground text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded z-20">1</span>
@@ -273,14 +273,14 @@
   <div class="relative">
     <button
       onclick={toggleItalic}
-      class="p-1.5 rounded hover:bg-muted transition-colors"
+      class="p-1 rounded hover:bg-muted transition-colors"
       class:bg-muted={activeStates.italic}
       class:opacity-50={isPlainTextMode}
       disabled={isPlainTextMode}
       tabindex="-1"
       title={$_('editor.italic')}
     >
-      <Icon icon="mdi:format-italic" class="w-5 h-5" />
+      <Icon icon="mdi:format-italic" class="w-4 h-4" />
     </button>
     {#if hintMode && !isPlainTextMode}
       <span class="absolute -top-1 -left-1 bg-primary text-primary-foreground text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded z-20">2</span>
@@ -289,14 +289,14 @@
   <div class="relative">
     <button
       onclick={toggleUnderline}
-      class="p-1.5 rounded hover:bg-muted transition-colors"
+      class="p-1 rounded hover:bg-muted transition-colors"
       class:bg-muted={activeStates.underline}
       class:opacity-50={isPlainTextMode}
       disabled={isPlainTextMode}
       tabindex="-1"
       title={$_('editor.underline')}
     >
-      <Icon icon="mdi:format-underline" class="w-5 h-5" />
+      <Icon icon="mdi:format-underline" class="w-4 h-4" />
     </button>
     {#if hintMode && !isPlainTextMode}
       <span class="absolute -top-1 -left-1 bg-primary text-primary-foreground text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded z-20">3</span>
@@ -305,14 +305,14 @@
   <div class="relative">
     <button
       onclick={toggleStrike}
-      class="p-1.5 rounded hover:bg-muted transition-colors"
+      class="p-1 rounded hover:bg-muted transition-colors"
       class:bg-muted={activeStates.strike}
       class:opacity-50={isPlainTextMode}
       disabled={isPlainTextMode}
       tabindex="-1"
       title={$_('editor.strikethrough')}
     >
-      <Icon icon="mdi:format-strikethrough" class="w-5 h-5" />
+      <Icon icon="mdi:format-strikethrough" class="w-4 h-4" />
     </button>
     {#if hintMode && !isPlainTextMode}
       <span class="absolute -top-1 -left-1 bg-primary text-primary-foreground text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded z-20">4</span>
@@ -325,14 +325,14 @@
   <div class="relative color-picker-container" role="presentation" onclick={(e) => e.stopPropagation()}>
     <button
       onclick={toggleColorPicker}
-      class="p-1.5 rounded hover:bg-muted transition-colors flex items-center gap-0.5"
+      class="p-1 rounded hover:bg-muted transition-colors flex items-center gap-0.5"
       class:bg-muted={showColorPicker}
       class:opacity-50={isPlainTextMode}
       disabled={isPlainTextMode}
       tabindex="-1"
       title={$_('editor.textColor')}
     >
-      <Icon icon="mdi:format-color-text" class="w-5 h-5" />
+      <Icon icon="mdi:format-color-text" class="w-4 h-4" />
       <div
         class="w-4 h-1 rounded-sm"
         style="background-color: {currentColor || '#000000'}"
@@ -377,7 +377,7 @@
   <div class="relative font-size-picker-container" role="presentation" onclick={(e) => e.stopPropagation()}>
     <button
       onclick={toggleFontSizePicker}
-      class="p-1.5 rounded hover:bg-muted transition-colors flex items-center gap-0.5 text-xs min-w-[40px] justify-center"
+      class="p-1 rounded hover:bg-muted transition-colors flex items-center gap-0.5 text-xs min-w-[40px] justify-center"
       class:bg-muted={showFontSizePicker}
       class:opacity-50={isPlainTextMode}
       disabled={isPlainTextMode}
@@ -411,14 +411,14 @@
   <div class="relative">
     <button
       onclick={() => setAlign('left')}
-      class="p-1.5 rounded hover:bg-muted transition-colors"
+      class="p-1 rounded hover:bg-muted transition-colors"
       class:bg-muted={currentAlign === 'left'}
       class:opacity-50={isPlainTextMode}
       disabled={isPlainTextMode}
       tabindex="-1"
       title={$_('editor.alignLeft')}
     >
-      <Icon icon="mdi:format-align-left" class="w-5 h-5" />
+      <Icon icon="mdi:format-align-left" class="w-4 h-4" />
     </button>
     {#if hintMode && !isPlainTextMode}
       <span class="absolute -top-1 -left-1 bg-primary text-primary-foreground text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded z-20">7</span>
@@ -427,14 +427,14 @@
   <div class="relative">
     <button
       onclick={() => setAlign('center')}
-      class="p-1.5 rounded hover:bg-muted transition-colors"
+      class="p-1 rounded hover:bg-muted transition-colors"
       class:bg-muted={currentAlign === 'center'}
       class:opacity-50={isPlainTextMode}
       disabled={isPlainTextMode}
       tabindex="-1"
       title={$_('editor.alignCenter')}
     >
-      <Icon icon="mdi:format-align-center" class="w-5 h-5" />
+      <Icon icon="mdi:format-align-center" class="w-4 h-4" />
     </button>
     {#if hintMode && !isPlainTextMode}
       <span class="absolute -top-1 -left-1 bg-primary text-primary-foreground text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded z-20">8</span>
@@ -443,14 +443,14 @@
   <div class="relative">
     <button
       onclick={() => setAlign('right')}
-      class="p-1.5 rounded hover:bg-muted transition-colors"
+      class="p-1 rounded hover:bg-muted transition-colors"
       class:bg-muted={currentAlign === 'right'}
       class:opacity-50={isPlainTextMode}
       disabled={isPlainTextMode}
       tabindex="-1"
       title={$_('editor.alignRight')}
     >
-      <Icon icon="mdi:format-align-right" class="w-5 h-5" />
+      <Icon icon="mdi:format-align-right" class="w-4 h-4" />
     </button>
     {#if hintMode && !isPlainTextMode}
       <span class="absolute -top-1 -left-1 bg-primary text-primary-foreground text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded z-20">9</span>
@@ -462,14 +462,14 @@
   <div class="relative">
     <button
       onclick={toggleBulletList}
-      class="p-1.5 rounded hover:bg-muted transition-colors"
+      class="p-1 rounded hover:bg-muted transition-colors"
       class:bg-muted={activeStates.bulletList}
       class:opacity-50={isPlainTextMode}
       disabled={isPlainTextMode}
       tabindex="-1"
       title={$_('editor.bulletList')}
     >
-      <Icon icon="mdi:format-list-bulleted" class="w-5 h-5" />
+      <Icon icon="mdi:format-list-bulleted" class="w-4 h-4" />
     </button>
     {#if hintMode && !isPlainTextMode}
       <span class="absolute -top-1 -left-1 bg-primary text-primary-foreground text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded z-20">a</span>
@@ -478,14 +478,14 @@
   <div class="relative">
     <button
       onclick={toggleOrderedList}
-      class="p-1.5 rounded hover:bg-muted transition-colors"
+      class="p-1 rounded hover:bg-muted transition-colors"
       class:bg-muted={activeStates.orderedList}
       class:opacity-50={isPlainTextMode}
       disabled={isPlainTextMode}
       tabindex="-1"
       title={$_('editor.numberedList')}
     >
-      <Icon icon="mdi:format-list-numbered" class="w-5 h-5" />
+      <Icon icon="mdi:format-list-numbered" class="w-4 h-4" />
     </button>
     {#if hintMode && !isPlainTextMode}
       <span class="absolute -top-1 -left-1 bg-primary text-primary-foreground text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded z-20">b</span>
@@ -495,14 +495,14 @@
   <div class="relative">
     <button
       onclick={toggleBlockquote}
-      class="p-1.5 rounded hover:bg-muted transition-colors"
+      class="p-1 rounded hover:bg-muted transition-colors"
       class:bg-muted={activeStates.blockquote}
       class:opacity-50={isPlainTextMode}
       disabled={isPlainTextMode}
       tabindex="-1"
       title={$_('editor.quote')}
     >
-      <Icon icon="mdi:format-quote-close" class="w-5 h-5" />
+      <Icon icon="mdi:format-quote-close" class="w-4 h-4" />
     </button>
     {#if hintMode && !isPlainTextMode}
       <span class="absolute -top-1 -left-1 bg-primary text-primary-foreground text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded z-20">c</span>
@@ -511,14 +511,14 @@
   <div class="relative">
     <button
       onclick={insertLink}
-      class="p-1.5 rounded hover:bg-muted transition-colors"
+      class="p-1 rounded hover:bg-muted transition-colors"
       class:bg-muted={activeStates.link}
       title={$_('editor.insertLink')}
       disabled={isPlainTextMode}
       class:opacity-50={isPlainTextMode}
       tabindex="-1"
     >
-      <Icon icon="mdi:link" class="w-5 h-5" />
+      <Icon icon="mdi:link" class="w-4 h-4" />
     </button>
     {#if hintMode && !isPlainTextMode}
       <span class="absolute -top-1 -left-1 bg-primary text-primary-foreground text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded z-20">d</span>
@@ -527,13 +527,13 @@
   <div class="relative">
     <button
       onclick={onInsertImage}
-      class="p-1.5 rounded hover:bg-muted transition-colors"
+      class="p-1 rounded hover:bg-muted transition-colors"
       title={$_('editor.insertImage')}
       disabled={isPlainTextMode}
       class:opacity-50={isPlainTextMode}
       tabindex="-1"
     >
-      <Icon icon="mdi:image" class="w-5 h-5" />
+      <Icon icon="mdi:image" class="w-4 h-4" />
     </button>
     {#if hintMode && !isPlainTextMode}
       <span class="absolute -top-1 -left-1 bg-primary text-primary-foreground text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded z-20">e</span>
@@ -549,15 +549,15 @@
   {/if}
 
   <!-- Plain text toggle -->
-  <div class="relative ml-2">
+  <div class="relative ml-1">
     <button
       onclick={onTogglePlainText}
-      class="p-1.5 rounded hover:bg-muted transition-colors flex items-center gap-1.5 text-xs"
+      class="p-1 rounded hover:bg-muted transition-colors flex items-center gap-1 text-xs"
       class:bg-muted={isPlainTextMode}
       tabindex="-1"
       title={isPlainTextMode ? $_('editor.switchToRichText') : $_('editor.switchToPlainText')}
     >
-      <Icon icon={isPlainTextMode ? 'mdi:format-text' : 'mdi:text'} class="w-5 h-5" />
+      <Icon icon={isPlainTextMode ? 'mdi:format-text' : 'mdi:text'} class="w-4 h-4" />
       <span class="hidden sm:inline">{isPlainTextMode ? $_('editor.richText') : $_('editor.plainText')}</span>
     </button>
     {#if hintMode}
