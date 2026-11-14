@@ -1,5 +1,13 @@
 # CHANGELOG
 
+**v0.5.2 - 14-11-2026**
+---
+
+- Email reactions: react to any message with an emoji (thumbs up, heart, laughing, party, surprised, crying, folded hands) from a button in the message header; the reaction is sent to the original sender and shown as a pill under the message, compatible with Gmail's reaction format
+- Incoming reaction emails from Gmail are recognised and shown as reactions under the original message instead of appearing as separate emails
+- Mail Merge dialog no longer repeats the composer's From, To, Cc, Bcc, Reply-To and Subject fields — it opens straight at Recipients and reads those values from the draft
+- The composer's To field now accepts `{{...}}` template addresses such as `{{Email}}` for mail merge; normal Send is blocked while a template variable is in the recipients
+
 **v0.5.1 - 14-11-2026**
 ---
 

@@ -375,6 +375,15 @@
   </provides>
 
   <releases>
+    <release version="0.5.2" date="2026-11-14">
+      <description>
+        <ul>
+          <li>Email reactions: react to any message with an emoji from a button in the message header; reactions are sent to the original sender and shown as pills under the message</li>
+          <li>Incoming reaction emails from Gmail are recognised and shown as reactions instead of appearing as separate emails</li>
+          <li>Mail Merge dialog no longer repeats the composer's From, To, Cc, Bcc, Reply-To and Subject fields</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.5.1" date="2026-11-14">
       <description>
         <ul>
