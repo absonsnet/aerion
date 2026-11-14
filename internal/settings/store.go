@@ -52,9 +52,10 @@ const (
 // they explicitly opt in. Phase 1 reserves keys only for confirmed first-
 // party extensions (Calendar, Contacts, AI Writing).
 const (
-	KeyExtensionCalendarEnabled  = "extension_calendar_enabled"
-	KeyExtensionContactsEnabled  = "extension_contacts_enabled"
-	KeyExtensionAIWritingEnabled = "extension_ai_writing_enabled"
+	KeyExtensionCalendarEnabled   = "extension_calendar_enabled"
+	KeyExtensionContactsEnabled   = "extension_contacts_enabled"
+	KeyExtensionAIWritingEnabled  = "extension_ai_writing_enabled"
+	KeyExtensionMailMergeEnabled  = "extension_mail-merge_enabled"
 )
 
 // AllExtensionKeys is the list of all known first-party extension names. Add
@@ -64,6 +65,7 @@ var AllExtensionKeys = []string{
 	"calendar",
 	"contacts",
 	"ai-writing",
+	"mail-merge",
 }
 
 // Density values for message list

@@ -11,6 +11,20 @@
 
 // @ts-ignore - Wails generated imports
 import { smtp, account, contact, app, smime, pgp, backend } from '../../wailsjs/go/models'
+import type {
+  MailMergeContactsResult,
+  MailMergeParsedFile,
+  MailMergeParsedFileFull,
+  MailMergeRenderedMessage,
+  MailMergeRun,
+  MailMergeRunRequest,
+  MailMergeRunSummary,
+  MailMergeSettings,
+  MailMergeSigningInfo,
+  MailMergeTemplate,
+  MailMergeValidationResult,
+  Row,
+} from '$extensions/mail-merge/frontend/lib/mailmerge'
 
 /**
  * A composer-toolbar registration (extensionId + label/icon/component).
@@ -150,6 +164,67 @@ export interface ComposerApi {
 
   /** AI Writing: enabled state + API-key presence. */
   aiWritingGetStatus: () => Promise<backend.Status>
+
+  // --- Mail Merge (extensions/mail-merge/backend/bridge.go) ---
+  // Mirrors the aiWriting* methods above: same signatures on App and
+  // ComposerApp, so the merge dialog works in both composer windows.
+  // NOTE: GetSettings/SaveSettings use the local MailMergeSettings type,
+  // not the generated backend.Settings — the generator kept only the
+  // ai-writing Settings shape for that name (see mailmerge.ts header).
+
+  /** Mail Merge: parse a CSV/JSON/XLSX source file (columns + row count + first 3 rows). */
+  mailMergeParseFile: (path: string, kind: string) => Promise<MailMergeParsedFile>
+
+  /** Mail Merge: parse a source file with ALL rows (the XLSX path — the frontend has no XLSX parser). sheet: "" = first sheet. */
+  mailMergeParseFileFull: (path: string, kind: string, sheet: string) => Promise<MailMergeParsedFileFull>
+
+  /** Mail Merge: all unified contacts as merge rows + columns. */
+  mailMergeGetContacts: () => Promise<MailMergeContactsResult>
+
+  /** Mail Merge: render the template for the given row indices (empty = first 3). */
+  mailMergePreview: (template: MailMergeTemplate, rows: Row[], indices: number[]) => Promise<MailMergeRenderedMessage[]>
+
+  /** Mail Merge: validate template + rows (unresolved variables block the run). */
+  mailMergeValidate: (template: MailMergeTemplate, rows: Row[]) => Promise<MailMergeValidationResult>
+
+  /** Mail Merge: start a run asynchronously; returns the run ID. */
+  mailMergeStartRun: (req: MailMergeRunRequest) => Promise<string>
+
+  /** Mail Merge: one run with its per-row log. */
+  mailMergeGetRun: (runId: string) => Promise<MailMergeRun>
+
+  /** Mail Merge: run summaries, newest first. */
+  mailMergeListRuns: () => Promise<MailMergeRunSummary[]>
+
+  /** Mail Merge: cancel a running run (stops after the current message). */
+  mailMergeCancelRun: (runId: string) => Promise<void>
+
+  /** Mail Merge: re-run the failed rows only; returns the new run ID. */
+  mailMergeResumeRun: (runId: string) => Promise<string>
+
+  /** Mail Merge: send the next CapLimit held rows of a run. */
+  mailMergeSendNextBatch: (runId: string) => Promise<void>
+
+  /** Mail Merge: send all held rows of a run, ignoring the cap. */
+  mailMergeSendAllRemaining: (runId: string) => Promise<void>
+
+  /** Mail Merge: discard all held rows of a run. */
+  mailMergeCancelRemaining: (runId: string) => Promise<void>
+
+  /** Mail Merge: one account's settings over the defaults. */
+  mailMergeGetSettings: (accountId: string) => Promise<MailMergeSettings>
+
+  /** Mail Merge: save one account's settings. */
+  mailMergeSaveSettings: (accountId: string, settings: MailMergeSettings) => Promise<void>
+
+  /** Mail Merge: the account's signing setup (S/MIME vs PGP, default) for the dialog's signing control. */
+  mailMergeGetSigningInfo: (accountId: string, fromEmail: string) => Promise<MailMergeSigningInfo>
+
+  /** Mail Merge: pick a CSV/JSON/XLSX source file; "" when cancelled. */
+  mailMergePickFile: (kind: string) => Promise<string>
+
+  /** Mail Merge: pick the folder per-row attachment filenames resolve against. */
+  mailMergePickAttachmentDir: () => Promise<string>
 }
 
 /**
@@ -351,6 +426,98 @@ export function createMainWindowApi(): ComposerApi {
       const { AIWriting_GetStatus } = await import('../../wailsjs/go/app/App.js')
       return AIWriting_GetStatus()
     },
+
+    mailMergeParseFile: async (path: string, kind: string) => {
+      const { MailMerge_ParseFile } = await import('../../wailsjs/go/app/App.js')
+      return MailMerge_ParseFile(path, kind)
+    },
+
+    mailMergeParseFileFull: async (path: string, kind: string, sheet: string) => {
+      const { MailMerge_ParseFileFull } = await import('../../wailsjs/go/app/App.js')
+      return MailMerge_ParseFileFull(path, kind, sheet)
+    },
+
+    mailMergeGetContacts: async () => {
+      const { MailMerge_GetContacts } = await import('../../wailsjs/go/app/App.js')
+      return MailMerge_GetContacts()
+    },
+
+    mailMergePreview: async (template: MailMergeTemplate, rows: Row[], indices: number[]) => {
+      const { MailMerge_Preview } = await import('../../wailsjs/go/app/App.js')
+      return MailMerge_Preview(template as never, rows, indices) || []
+    },
+
+    mailMergeValidate: async (template: MailMergeTemplate, rows: Row[]) => {
+      const { MailMerge_Validate } = await import('../../wailsjs/go/app/App.js')
+      return MailMerge_Validate(template as never, rows)
+    },
+
+    mailMergeStartRun: async (req: MailMergeRunRequest) => {
+      const { MailMerge_StartRun } = await import('../../wailsjs/go/app/App.js')
+      return MailMerge_StartRun(req as never)
+    },
+
+    mailMergeGetRun: async (runId: string) => {
+      const { MailMerge_GetRun } = await import('../../wailsjs/go/app/App.js')
+      return MailMerge_GetRun(runId)
+    },
+
+    mailMergeListRuns: async () => {
+      const { MailMerge_ListRuns } = await import('../../wailsjs/go/app/App.js')
+      return MailMerge_ListRuns() || []
+    },
+
+    mailMergeCancelRun: async (runId: string) => {
+      const { MailMerge_CancelRun } = await import('../../wailsjs/go/app/App.js')
+      return MailMerge_CancelRun(runId)
+    },
+
+    mailMergeResumeRun: async (runId: string) => {
+      const { MailMerge_ResumeRun } = await import('../../wailsjs/go/app/App.js')
+      return MailMerge_ResumeRun(runId)
+    },
+
+    mailMergeSendNextBatch: async (runId: string) => {
+      const { MailMerge_SendNextBatch } = await import('../../wailsjs/go/app/App.js')
+      return MailMerge_SendNextBatch(runId)
+    },
+
+    mailMergeSendAllRemaining: async (runId: string) => {
+      const { MailMerge_SendAllRemaining } = await import('../../wailsjs/go/app/App.js')
+      return MailMerge_SendAllRemaining(runId)
+    },
+
+    mailMergeCancelRemaining: async (runId: string) => {
+      const { MailMerge_CancelRemaining } = await import('../../wailsjs/go/app/App.js')
+      return MailMerge_CancelRemaining(runId)
+    },
+
+    mailMergeGetSettings: async (accountId: string) => {
+      const { MailMerge_GetSettings } = await import('../../wailsjs/go/app/App.js')
+      // The generated backend.Settings type is the ai-writing shape;
+      // the runtime value is the mail-merge shape (see mailmerge.ts).
+      return (await MailMerge_GetSettings(accountId)) as unknown as MailMergeSettings
+    },
+
+    mailMergeSaveSettings: async (accountId: string, settings: MailMergeSettings) => {
+      const { MailMerge_SaveSettings } = await import('../../wailsjs/go/app/App.js')
+      return MailMerge_SaveSettings(accountId, settings as never)
+    },
+
+    mailMergeGetSigningInfo: async (accountId: string, fromEmail: string) => {
+      const { MailMerge_GetSigningInfo } = await import('../../wailsjs/go/app/App.js')
+      return MailMerge_GetSigningInfo(accountId, fromEmail)
+    },
+
+    mailMergePickFile: async (kind: string) => {
+      const { MailMerge_PickFile } = await import('../../wailsjs/go/app/App.js')
+      return MailMerge_PickFile(kind)
+    },
+
+    mailMergePickAttachmentDir: async () => {
+      const { MailMerge_PickAttachmentDir } = await import('../../wailsjs/go/app/App.js')
+      return MailMerge_PickAttachmentDir()
+    },
   }
 }
 
@@ -539,6 +706,98 @@ export function createComposerWindowApi(_accountId: string): ComposerApi {
     aiWritingGetStatus: async () => {
       const { AIWriting_GetStatus } = await import('../../wailsjs/go/app/ComposerApp.js')
       return AIWriting_GetStatus()
+    },
+
+    mailMergeParseFile: async (path: string, kind: string) => {
+      const { MailMerge_ParseFile } = await import('../../wailsjs/go/app/ComposerApp.js')
+      return MailMerge_ParseFile(path, kind)
+    },
+
+    mailMergeParseFileFull: async (path: string, kind: string, sheet: string) => {
+      const { MailMerge_ParseFileFull } = await import('../../wailsjs/go/app/ComposerApp.js')
+      return MailMerge_ParseFileFull(path, kind, sheet)
+    },
+
+    mailMergeGetContacts: async () => {
+      const { MailMerge_GetContacts } = await import('../../wailsjs/go/app/ComposerApp.js')
+      return MailMerge_GetContacts()
+    },
+
+    mailMergePreview: async (template: MailMergeTemplate, rows: Row[], indices: number[]) => {
+      const { MailMerge_Preview } = await import('../../wailsjs/go/app/ComposerApp.js')
+      return MailMerge_Preview(template as never, rows, indices) || []
+    },
+
+    mailMergeValidate: async (template: MailMergeTemplate, rows: Row[]) => {
+      const { MailMerge_Validate } = await import('../../wailsjs/go/app/ComposerApp.js')
+      return MailMerge_Validate(template as never, rows)
+    },
+
+    mailMergeStartRun: async (req: MailMergeRunRequest) => {
+      const { MailMerge_StartRun } = await import('../../wailsjs/go/app/ComposerApp.js')
+      return MailMerge_StartRun(req as never)
+    },
+
+    mailMergeGetRun: async (runId: string) => {
+      const { MailMerge_GetRun } = await import('../../wailsjs/go/app/ComposerApp.js')
+      return MailMerge_GetRun(runId)
+    },
+
+    mailMergeListRuns: async () => {
+      const { MailMerge_ListRuns } = await import('../../wailsjs/go/app/ComposerApp.js')
+      return MailMerge_ListRuns() || []
+    },
+
+    mailMergeCancelRun: async (runId: string) => {
+      const { MailMerge_CancelRun } = await import('../../wailsjs/go/app/ComposerApp.js')
+      return MailMerge_CancelRun(runId)
+    },
+
+    mailMergeResumeRun: async (runId: string) => {
+      const { MailMerge_ResumeRun } = await import('../../wailsjs/go/app/ComposerApp.js')
+      return MailMerge_ResumeRun(runId)
+    },
+
+    mailMergeSendNextBatch: async (runId: string) => {
+      const { MailMerge_SendNextBatch } = await import('../../wailsjs/go/app/ComposerApp.js')
+      return MailMerge_SendNextBatch(runId)
+    },
+
+    mailMergeSendAllRemaining: async (runId: string) => {
+      const { MailMerge_SendAllRemaining } = await import('../../wailsjs/go/app/ComposerApp.js')
+      return MailMerge_SendAllRemaining(runId)
+    },
+
+    mailMergeCancelRemaining: async (runId: string) => {
+      const { MailMerge_CancelRemaining } = await import('../../wailsjs/go/app/ComposerApp.js')
+      return MailMerge_CancelRemaining(runId)
+    },
+
+    mailMergeGetSettings: async (accountId: string) => {
+      const { MailMerge_GetSettings } = await import('../../wailsjs/go/app/ComposerApp.js')
+      // The generated backend.Settings type is the ai-writing shape;
+      // the runtime value is the mail-merge shape (see mailmerge.ts).
+      return (await MailMerge_GetSettings(accountId)) as unknown as MailMergeSettings
+    },
+
+    mailMergeSaveSettings: async (accountId: string, settings: MailMergeSettings) => {
+      const { MailMerge_SaveSettings } = await import('../../wailsjs/go/app/ComposerApp.js')
+      return MailMerge_SaveSettings(accountId, settings as never)
+    },
+
+    mailMergeGetSigningInfo: async (accountId: string, fromEmail: string) => {
+      const { MailMerge_GetSigningInfo } = await import('../../wailsjs/go/app/ComposerApp.js')
+      return MailMerge_GetSigningInfo(accountId, fromEmail)
+    },
+
+    mailMergePickFile: async (kind: string) => {
+      const { MailMerge_PickFile } = await import('../../wailsjs/go/app/ComposerApp.js')
+      return MailMerge_PickFile(kind)
+    },
+
+    mailMergePickAttachmentDir: async () => {
+      const { MailMerge_PickAttachmentDir } = await import('../../wailsjs/go/app/ComposerApp.js')
+      return MailMerge_PickAttachmentDir()
     },
   }
 }

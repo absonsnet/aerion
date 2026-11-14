@@ -1,0 +1,547 @@
+package backend
+
+import (
+	"errors"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+
+	hostmm "github.com/hkdb/aerion/internal/mailmerge"
+	"github.com/xuri/excelize/v2"
+)
+
+// waitForRunStatus polls GetRun until the run reaches one of the
+// wanted statuses (or the deadline hits).
+func waitForRunStatus(t *testing.T, b *MailMergeBridge, runID string, want ...string) hostmm.Run {
+	t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		run, err := b.MailMerge_GetRun(runID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, w := range want {
+			if run.Status == w {
+				return run
+			}
+		}
+		time.Sleep(25 * time.Millisecond)
+	}
+	t.Fatalf("run %s did not reach %v in time", runID, want)
+	return hostmm.Run{}
+}
+
+// startLaterRun starts a "Send later" run and waits for it to finish
+// queueing (status "queued" or "done" when nothing queued).
+func startLaterRun(t *testing.T, env *bridgeTestEnv, rows []map[string]string) string {
+	t.Helper()
+	runID, err := env.bridge.MailMerge_StartRun(hostmm.RunRequest{
+		Template: testBridgeTemplate(), Rows: rows,
+		DeliverMode: "later", AccountID: "acc1",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitForRunStatus(t, env.bridge, runID, hostmm.RunQueued, hostmm.RunDone)
+	return runID
+}
+
+// waitForQueueEmpty polls ListQueue until no item is still queued
+// (or the deadline hits).
+func waitForQueueDrained(t *testing.T, b *MailMergeBridge) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		stats, err := b.MailMerge_GetQueueStats()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if stats.Queued == 0 {
+			return
+		}
+		time.Sleep(25 * time.Millisecond)
+	}
+	t.Fatal("queue did not drain in time")
+}
+
+func TestQueueLaterRunEnqueueSendUnsent(t *testing.T) {
+	env := newBridgeTestEnv(t)
+	runID := startLaterRun(t, env, testBridgeRows())
+
+	run, err := env.bridge.MailMerge_GetRun(runID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if run.Status != hostmm.RunQueued || run.QueuedCount != 3 || run.SentCount != 0 {
+		t.Fatalf("run after queueing %+v", run)
+	}
+	// Nothing was sent by the run itself.
+	if len(env.sender.sent) != 0 {
+		t.Fatalf("later run must not send: %v", env.sender.sent)
+	}
+	items, err := env.bridge.MailMerge_ListQueue()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 3 {
+		t.Fatalf("queue items %d", len(items))
+	}
+	for i, item := range items {
+		if item.RunID != runID || item.Status != QueueStatusQueued {
+			t.Fatalf("item %d %+v", i, item)
+		}
+		if item.Recipient != testBridgeRows()[i]["Email"] {
+			t.Fatalf("item %d recipient %q", i, item.Recipient)
+		}
+		// The stored bytes are the final rendered message (loaded
+		// via the send path — the list view omits raw bytes).
+		full, err := env.bridge.store.GetQueueItemForSend(item.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if full == nil || !strings.Contains(string(full.RawMessage), "Hello "+testBridgeRows()[i]["FirstName"]) {
+			t.Fatalf("item %d raw %q", i, string(full.RawMessage))
+		}
+	}
+	stats, err := env.bridge.MailMerge_GetQueueStats()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stats.Queued != 3 || stats.Total != 3 || len(stats.Runs) != 1 || stats.Runs[0].Queued != 3 {
+		t.Fatalf("stats %+v", stats)
+	}
+	// Send Unsent (all runs) sends all three via the one reused
+	// connection, saves each to Sent, and flips the run to done.
+	res, err := env.bridge.MailMerge_SendUnsent()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Sent != 3 || res.Remaining != 0 || res.Queued != 0 {
+		t.Fatalf("dispatch %+v", res)
+	}
+	if len(env.sender.sent) != 3 || env.factory.created != 1 {
+		t.Fatalf("sent %v connections %d", env.sender.sent, env.factory.created)
+	}
+	if env.sent.saved != 3 {
+		t.Fatalf("saved to Sent %d", env.sent.saved)
+	}
+	run, err = env.bridge.MailMerge_GetRun(runID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if run.Status != hostmm.RunDone || run.SentCount != 3 || run.QueuedCount != 0 {
+		t.Fatalf("run after dispatch %+v", run)
+	}
+	items, err = env.bridge.MailMerge_ListQueue()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, item := range items {
+		if item.Status != QueueStatusSent || item.SentAt == nil {
+			t.Fatalf("item after dispatch %+v", item)
+		}
+	}
+}
+
+func TestQueuePerHourCap(t *testing.T) {
+	env := newBridgeTestEnv(t)
+	fakeNow := time.Now().UTC().Truncate(time.Second)
+	env.bridge.nowFunc = func() time.Time { return fakeNow }
+	if err := env.bridge.MailMerge_SaveQueueConfig(QueueConfig{PerHour: 2}); err != nil {
+		t.Fatal(err)
+	}
+	runID := startLaterRun(t, env, testBridgeRows())
+
+	// First dispatch: 2 of 3 send; the third stays queued and its
+	// next attempt is pushed to when the budget frees (oldest + 1h).
+	res, err := env.bridge.MailMerge_SendUnsent()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Sent != 2 || res.Remaining != 1 || res.Queued != 1 {
+		t.Fatalf("first dispatch %+v", res)
+	}
+	items, err := env.bridge.MailMerge_ListQueue()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var remaining *QueuedItem
+	sent := 0
+	for i := range items {
+		if items[i].Status == QueueStatusQueued {
+			remaining = &items[i]
+		} else {
+			sent++
+		}
+	}
+	if sent != 2 || remaining == nil {
+		t.Fatalf("items %+v", items)
+	}
+	if !remaining.NextAttemptAt.Equal(fakeNow.Add(time.Hour)) {
+		t.Fatalf("pushed next attempt %v want %v", remaining.NextAttemptAt, fakeNow.Add(time.Hour))
+	}
+	// Still inside the hour: no more sends.
+	res, err = env.bridge.MailMerge_SendUnsent()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Sent != 0 || res.Remaining != 1 {
+		t.Fatalf("second dispatch in same hour %+v", res)
+	}
+	// 61 minutes later the budget is free and the item is due again.
+	fakeNow = fakeNow.Add(61 * time.Minute)
+	res, err = env.bridge.MailMerge_SendUnsent()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Sent != 1 || res.Remaining != 0 {
+		t.Fatalf("dispatch after hour %+v", res)
+	}
+	run, err := env.bridge.MailMerge_GetRun(runID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if run.Status != hostmm.RunDone || run.SentCount != 3 {
+		t.Fatalf("run %+v", run)
+	}
+}
+
+func TestQueuePauseResumeCancel(t *testing.T) {
+	env := newBridgeTestEnv(t)
+	fakeNow := time.Now().UTC().Truncate(time.Second)
+	env.bridge.nowFunc = func() time.Time { return fakeNow }
+
+	runID := startLaterRun(t, env, testBridgeRows()[:2])
+
+	// Per-run pause: the background tick (manual=false) sends nothing.
+	if err := env.bridge.MailMerge_PauseQueuedRun(runID); err != nil {
+		t.Fatal(err)
+	}
+	res, err := env.bridge.dispatchDue(fakeNow, "", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Sent != 0 {
+		t.Fatalf("paused run tick sent %+v", res)
+	}
+	// Resume: the tick sends both.
+	if err := env.bridge.MailMerge_ResumeQueuedRun(runID); err != nil {
+		t.Fatal(err)
+	}
+	res, err = env.bridge.dispatchDue(fakeNow, "", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Sent != 2 {
+		t.Fatalf("resumed tick %+v", res)
+	}
+
+	// Global pause: the tick sends nothing, but an explicit Send
+	// Unsent still sends (the user asked for these messages now).
+	runID2 := startLaterRun(t, env, testBridgeRows()[:2])
+	if err := env.bridge.MailMerge_PauseQueue(); err != nil {
+		t.Fatal(err)
+	}
+	res, err = env.bridge.dispatchDue(fakeNow, "", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Sent != 0 {
+		t.Fatalf("globally paused tick sent %+v", res)
+	}
+	res, err = env.bridge.MailMerge_SendUnsent()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Sent != 2 {
+		t.Fatalf("manual send-unsent while paused %+v", res)
+	}
+	run2, err := env.bridge.MailMerge_GetRun(runID2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if run2.SentCount != 2 {
+		t.Fatalf("paused run sent manually %+v", run2)
+	}
+	if err := env.bridge.MailMerge_ResumeQueue(); err != nil {
+		t.Fatal(err)
+	}
+
+	// Cancel a run: its queued items are cancelled, never sent, and
+	// the run log records them skipped.
+	runID3 := startLaterRun(t, env, testBridgeRows()[:2])
+	if err := env.bridge.MailMerge_CancelQueuedRun(runID3); err != nil {
+		t.Fatal(err)
+	}
+	items, err := env.bridge.MailMerge_ListQueue()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, item := range items {
+		if item.RunID == runID3 && item.Status != QueueStatusCancelled {
+			t.Fatalf("item %+v", item)
+		}
+	}
+	run, err := env.bridge.MailMerge_GetRun(runID3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if run.SkippedCount != 2 || run.QueuedCount != 0 {
+		t.Fatalf("cancelled run %+v", run)
+	}
+	// Cancelling one item only cancels that item.
+	runID4 := startLaterRun(t, env, testBridgeRows()[:2])
+	items, err = env.bridge.MailMerge_ListQueue()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var first string
+	for _, item := range items {
+		if item.RunID == runID4 {
+			first = item.ID
+			break
+		}
+	}
+	if err := env.bridge.MailMerge_CancelQueuedItem(first); err != nil {
+		t.Fatal(err)
+	}
+	stats, err := env.bridge.MailMerge_GetQueueStats()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stats.Cancelled < 3 { // 2 from runID3 + 1 just now
+		t.Fatalf("stats %+v", stats)
+	}
+	// Unknown ids error.
+	if err := env.bridge.MailMerge_CancelQueuedItem("no-such-item"); err == nil {
+		t.Fatal("expected not-found error")
+	}
+	if err := env.bridge.MailMerge_PauseQueuedRun("no-such-run"); err == nil {
+		t.Fatal("expected not-found error")
+	}
+}
+
+func TestQueueRetryFailedAndMaxAttempts(t *testing.T) {
+	env := newBridgeTestEnv(t)
+	fakeNow := time.Now().UTC().Truncate(time.Second)
+	env.bridge.nowFunc = func() time.Time { return fakeNow }
+	env.sender.fail["jane@example.com"] = errors.New("452 too many emails")
+
+	rows := testBridgeRows()[:2] // john (ok), jane (fails)
+	runID := startLaterRun(t, env, rows)
+
+	// Attempt 1: john sends, jane fails but stays queued (backoff 1m).
+	res, err := env.bridge.MailMerge_SendUnsent()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Sent != 1 || res.Failed != 0 {
+		t.Fatalf("attempt 1 %+v", res)
+	}
+	jane := findQueueItem(t, env.bridge, runID, "jane@example.com")
+	if jane.Status != QueueStatusQueued || jane.Attempts != 1 {
+		t.Fatalf("jane after attempt 1 %+v", jane)
+	}
+	if !jane.NextAttemptAt.Equal(fakeNow.Add(time.Minute)) {
+		t.Fatalf("jane next attempt %v want %v", jane.NextAttemptAt, fakeNow.Add(time.Minute))
+	}
+	// Before the backoff elapses, nothing is due.
+	res, err = env.bridge.MailMerge_SendUnsent()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Sent != 0 {
+		t.Fatalf("dispatch inside backoff %+v", res)
+	}
+	// Attempt 2 (past backoff): still failing, backoff 2m.
+	fakeNow = fakeNow.Add(2 * time.Minute)
+	res, err = env.bridge.MailMerge_SendUnsent()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Sent != 0 || res.Failed != 0 {
+		t.Fatalf("attempt 2 %+v", res)
+	}
+	jane = findQueueItem(t, env.bridge, runID, "jane@example.com")
+	if jane.Attempts != 2 || !jane.NextAttemptAt.Equal(fakeNow.Add(2*time.Minute)) {
+		t.Fatalf("jane after attempt 2 %+v", jane)
+	}
+	// Attempt 3: attempts exhausted → failed, run row failed.
+	fakeNow = fakeNow.Add(3 * time.Minute)
+	res, err = env.bridge.MailMerge_SendUnsent()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Failed != 1 {
+		t.Fatalf("attempt 3 %+v", res)
+	}
+	jane = findQueueItem(t, env.bridge, runID, "jane@example.com")
+	if jane.Status != QueueStatusFailed || jane.Attempts != 3 {
+		t.Fatalf("jane after attempt 3 %+v", jane)
+	}
+	run, err := env.bridge.MailMerge_GetRun(runID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if run.FailedCount != 1 {
+		t.Fatalf("run %+v", run)
+	}
+	// No further automatic retries: it stays failed.
+	fakeNow = fakeNow.Add(time.Hour)
+	res, err = env.bridge.MailMerge_SendUnsent()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Sent != 0 {
+		t.Fatalf("failed item must not auto-retry: %+v", res)
+	}
+	// Retry-failed re-queues it; fixing the SMTP failure lets it send.
+	if err := env.bridge.MailMerge_RetryFailedRun(runID); err != nil {
+		t.Fatal(err)
+	}
+	jane = findQueueItem(t, env.bridge, runID, "jane@example.com")
+	if jane.Status != QueueStatusQueued || jane.Attempts != 0 {
+		t.Fatalf("jane after retry %+v", jane)
+	}
+	delete(env.sender.fail, "jane@example.com")
+	res, err = env.bridge.MailMerge_SendUnsent()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Sent != 1 {
+		t.Fatalf("retry dispatch %+v", res)
+	}
+}
+
+func TestQueueRunnerDispatches(t *testing.T) {
+	env := newBridgeTestEnv(t)
+	// A fresh bridge starts no runner: the detached composer relies
+	// on this (it never calls StartQueueRunner).
+	if env.bridge.runnerRunning {
+		t.Fatal("bridge must not start a queue runner by itself")
+	}
+	env.bridge.queueTickIntervalOverride = 10 * time.Millisecond
+	startLaterRun(t, env, testBridgeRows()[:2])
+	env.bridge.StartQueueRunner()
+	env.bridge.StartQueueRunner() // second call is a no-op
+	waitForQueueDrained(t, env.bridge)
+	if len(env.sender.sent) != 2 {
+		t.Fatalf("runner sent %v", env.sender.sent)
+	}
+	env.bridge.StopQueueRunner()
+	if env.bridge.runnerRunning {
+		t.Fatal("runner still running after StopQueueRunner")
+	}
+}
+
+func TestQueueBackoff(t *testing.T) {
+	if queueBackoff(1) != time.Minute || queueBackoff(2) != 2*time.Minute || queueBackoff(3) != 4*time.Minute {
+		t.Fatalf("backoff 1/2/3: %v %v %v", queueBackoff(1), queueBackoff(2), queueBackoff(3))
+	}
+	if queueBackoff(10) != time.Hour {
+		t.Fatalf("backoff caps at 1h: %v", queueBackoff(10))
+	}
+}
+
+func TestQueueConfigDefaults(t *testing.T) {
+	env := newBridgeTestEnv(t)
+	cfg, err := env.bridge.MailMerge_GetQueueConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.PerHour != 100 || cfg.Paused {
+		t.Fatalf("defaults %+v", cfg)
+	}
+	if err := env.bridge.MailMerge_SaveQueueConfig(QueueConfig{PerHour: 5, Paused: true}); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err = env.bridge.MailMerge_GetQueueConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.PerHour != 5 || !cfg.Paused {
+		t.Fatalf("saved %+v", cfg)
+	}
+	if err := env.bridge.MailMerge_SaveQueueConfig(QueueConfig{PerHour: 0}); err == nil {
+		t.Fatal("expected per-hour validation error")
+	}
+}
+
+func TestBridgeParseFileXLSX(t *testing.T) {
+	env := newBridgeTestEnv(t)
+	xlsxPath := filepath.Join(t.TempDir(), "list.xlsx")
+	f := excelize.NewFile()
+	for r, rec := range [][]string{
+		{"FirstName", "Email"},
+		{"John", "john@example.com"},
+		{"Jane", "jane@example.com"},
+	} {
+		for c, v := range rec {
+			cell, err := excelize.CoordinatesToCellName(c+1, r+1)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := f.SetCellValue("Sheet1", cell, v); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	if _, err := f.NewSheet("Second"); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.SetCellValue("Second", "A1", "Email"); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.SetCellValue("Second", "A2", "second@example.com"); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.SaveAs(xlsxPath); err != nil {
+		t.Fatal(err)
+	}
+	parsed, err := env.bridge.MailMerge_ParseFile(xlsxPath, "xlsx")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if parsed.RowCount != 2 || len(parsed.PreviewRows) != 2 || len(parsed.Sheets) != 2 || parsed.Sheets[0] != "Sheet1" {
+		t.Fatalf("preview %+v", parsed)
+	}
+	full, err := env.bridge.MailMerge_ParseFileFull(xlsxPath, "xlsx", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if full.RowCount != 2 || len(full.Rows) != 2 || full.Rows[0]["FirstName"] != "John" {
+		t.Fatalf("full %+v", full)
+	}
+	second, err := env.bridge.MailMerge_ParseFileFull(xlsxPath, "xlsx", "Second")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if second.RowCount != 1 || second.Rows[0]["Email"] != "second@example.com" {
+		t.Fatalf("second sheet %+v", second)
+	}
+	if _, err := env.bridge.MailMerge_ParseFileFull(xlsxPath, "xlsx", "Nope"); err == nil {
+		t.Fatal("expected error for unknown sheet")
+	}
+	if _, err := env.bridge.MailMerge_ParseFile(xlsxPath, "ods"); err == nil {
+		t.Fatal("expected error for unsupported ODS kind")
+	}
+	if _, err := env.bridge.MailMerge_ParseFileFull("/nonexistent.xlsx", "xlsx", ""); err == nil {
+		t.Fatal("expected error for missing file")
+	}
+}
+
+func findQueueItem(t *testing.T, b *MailMergeBridge, runID, recipient string) QueuedItem {
+	t.Helper()
+	items, err := b.MailMerge_ListQueue()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, item := range items {
+		if item.RunID == runID && item.Recipient == recipient {
+			return item
+		}
+	}
+	t.Fatalf("no queue item for run %s recipient %s", runID, recipient)
+	return QueuedItem{}
+}

@@ -18,6 +18,7 @@
   import ExtensionRail from './lib/components/rail/ExtensionRail.svelte'
   import ContactsPane from '$extensions/contacts/frontend/components/ContactsPane.svelte'
   import CalendarPane from '$extensions/calendar/frontend/components/CalendarPane.svelte'
+  import MailMergeQueuePane from '$extensions/mail-merge/frontend/components/MailMergeQueuePane.svelte'
   import { refreshExtensionRegistry, getRailTabs } from '$lib/stores/extensionRegistry.svelte'
   import { KEY } from '$lib/keyboard/shortcuts'
   import * as AlertDialog from '$lib/components/ui/alert-dialog'
@@ -1592,6 +1593,10 @@
 
     {#if getActiveExtension() === 'calendar'}
       <CalendarPane />
+    {/if}
+
+    {#if getActiveExtension() === 'mail-merge'}
+      <MailMergeQueuePane />
     {/if}
 
     <!-- Mail layout is ALWAYS mounted; only its visibility is toggled when an

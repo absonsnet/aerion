@@ -32,6 +32,7 @@
   import RecipientInput from './RecipientInput.svelte'
   import EditorToolbar from './EditorToolbar.svelte'
   import AIWritingButton from '$extensions/ai-writing/frontend/components/AIWritingButton.svelte'
+  import MailMergeButton from '$extensions/mail-merge/frontend/components/MailMergeButton.svelte'
   import ComposerAttachmentList from './ComposerAttachmentList.svelte'
   import {
     addParagraphStyles,
@@ -470,6 +471,34 @@
     return isPlainTextMode
   }
 
+  /**
+   * The draft's live envelope recipients (Mail Merge template source).
+   * Recipient chips are smtp.Address ({ name, address }); Reply-To is
+   * the first chip formatted as "Name <addr>" ("" when none).
+   */
+  function getRecipients(): { to: { name: string; address: string }[]; cc: { name: string; address: string }[]; bcc: { name: string; address: string }[]; replyTo: string } {
+    const first = replyToRecipients[0]
+    return {
+      to: toRecipients.map((r) => ({ name: r.name, address: r.address })),
+      cc: ccRecipients.map((r) => ({ name: r.name, address: r.address })),
+      bcc: bccRecipients.map((r) => ({ name: r.name, address: r.address })),
+      replyTo: first ? (first.name ? `${first.name} <${first.address}>` : first.address) : '',
+    }
+  }
+
+  /**
+   * The draft's global attachments (Mail Merge: same file for every
+   * recipient). ComposerAttachment already carries base64 `data`.
+   */
+  function getAttachments(): { filename: string; contentType: string; size: number; data: string }[] {
+    return attachments.map((a) => ({
+      filename: a.filename,
+      contentType: a.contentType,
+      size: a.size,
+      data: a.data,
+    }))
+  }
+
   setContext<ComposerContext>(COMPOSER_CONTEXT_KEY, {
     getUserComposedHTML,
     getQuotedHTML,
@@ -477,6 +506,8 @@
     getSubject,
     setSubject,
     isPlainText,
+    getRecipients,
+    getAttachments,
   })
 
   // --- Extension composer toolbar items (e.g. ai-writing) ---
@@ -2249,6 +2280,8 @@
       {#each composerToolbarItems as item (item.extensionId)}
         {#if item.extensionId === 'ai-writing'}
           <AIWritingButton />
+        {:else if item.extensionId === 'mail-merge'}
+          <MailMergeButton accountId={activeAccountId} />
         {/if}
       {/each}
     {/snippet}

@@ -306,6 +306,64 @@ func (ops *composeOps) shouldPGPEncryptMessage(accountID string, perMessageOverr
 	return ops.hasPGPKey(accountID)
 }
 
+// smtpClientConfig builds the SMTP client config for an account: host,
+// security, username (shared-mailbox parent / separate SMTP credentials
+// overrides), TLS, and password vs OAuth2 authentication. Extracted
+// verbatim from sendMessage so Mail Merge's reused-connection sender
+// (app/extension_mail_merge.go) authenticates exactly like a normal
+// send. acc.ID is the account id (== the sendMessage accountID).
+func (ops *composeOps) smtpClientConfig(ctx context.Context, acc *account.Account) (smtp.ClientConfig, error) {
+	accountID := acc.ID
+	smtpConfig := smtp.DefaultConfig()
+	smtpConfig.Host = acc.SMTPHost
+	smtpConfig.Port = acc.SMTPPort
+	smtpConfig.Security = smtp.SecurityType(acc.SMTPSecurity)
+	smtpConfig.AuthMechanism = string(acc.EffectiveSMTPAuthMechanism())
+	smtpConfig.Username = acc.Username
+	// Shared mailboxes authenticate SMTP with the parent account's username
+	if acc.SharedMailboxParentID != "" {
+		parent, parentErr := ops.accountStore.Get(acc.SharedMailboxParentID)
+		if parentErr == nil && parent != nil {
+			smtpConfig.Username = parent.Username
+		}
+	}
+	// Separate SMTP credentials override (Generic provider; gated by
+	// non-empty SMTPUsername at the model layer). Doesn't apply to OAuth
+	// accounts — those keep the bearer-token path below.
+	smtpUsesSeparateCreds := acc.SMTPUsername != "" && acc.AuthType != account.AuthOAuth2
+	if smtpUsesSeparateCreds {
+		smtpConfig.Username = acc.SMTPUsername
+	}
+	smtpConfig.TLSConfig = certificate.BuildTLSConfig(acc.SMTPHost, ops.certStore)
+
+	// Handle authentication based on auth type
+	switch acc.AuthType {
+	case account.AuthOAuth2:
+		tokens, tokenErr := ops.getValidOAuthToken(ctx, accountID)
+		if tokenErr != nil {
+			return smtp.ClientConfig{}, fmt.Errorf("failed to get OAuth token: %w", tokenErr)
+		}
+		smtpConfig.AuthType = smtp.AuthTypeOAuth2
+		smtpConfig.AccessToken = tokens.AccessToken
+	default:
+		smtpConfig.AuthType = smtp.AuthTypePassword
+		if smtpUsesSeparateCreds {
+			password, passErr := ops.credStore.GetSMTPPassword(accountID)
+			if passErr != nil {
+				return smtp.ClientConfig{}, fmt.Errorf("failed to get SMTP password: %w", passErr)
+			}
+			smtpConfig.Password = password
+			break
+		}
+		password, passErr := ops.credStore.GetPassword(accountID)
+		if passErr != nil {
+			return smtp.ClientConfig{}, fmt.Errorf("failed to get password: %w", passErr)
+		}
+		smtpConfig.Password = password
+	}
+	return smtpConfig, nil
+}
+
 // sendMessage performs the full send flow: build RFC822, sign, encrypt, SMTP send,
 // save to Sent folder, add recipients to contacts, and optionally delete a draft.
 // When d is non-nil, the draft is fully cleaned up (IMAP + message row + DB) after
@@ -386,53 +444,9 @@ func (ops *composeOps) sendMessage(ctx context.Context, accountID string, msg sm
 		log.Info().Str("accountID", accountID).Msg("Message encrypted with PGP")
 	}
 
-	// Create SMTP client config
-	smtpConfig := smtp.DefaultConfig()
-	smtpConfig.Host = acc.SMTPHost
-	smtpConfig.Port = acc.SMTPPort
-	smtpConfig.Security = smtp.SecurityType(acc.SMTPSecurity)
-	smtpConfig.AuthMechanism = string(acc.EffectiveSMTPAuthMechanism())
-	smtpConfig.Username = acc.Username
-	// Shared mailboxes authenticate SMTP with the parent account's username
-	if acc.SharedMailboxParentID != "" {
-		parent, parentErr := ops.accountStore.Get(acc.SharedMailboxParentID)
-		if parentErr == nil && parent != nil {
-			smtpConfig.Username = parent.Username
-		}
-	}
-	// Separate SMTP credentials override (Generic provider; gated by
-	// non-empty SMTPUsername at the model layer). Doesn't apply to OAuth
-	// accounts — those keep the bearer-token path below.
-	smtpUsesSeparateCreds := acc.SMTPUsername != "" && acc.AuthType != account.AuthOAuth2
-	if smtpUsesSeparateCreds {
-		smtpConfig.Username = acc.SMTPUsername
-	}
-	smtpConfig.TLSConfig = certificate.BuildTLSConfig(acc.SMTPHost, ops.certStore)
-
-	// Handle authentication based on auth type
-	switch acc.AuthType {
-	case account.AuthOAuth2:
-		tokens, tokenErr := ops.getValidOAuthToken(ctx, accountID)
-		if tokenErr != nil {
-			return nil, fmt.Errorf("failed to get OAuth token: %w", tokenErr)
-		}
-		smtpConfig.AuthType = smtp.AuthTypeOAuth2
-		smtpConfig.AccessToken = tokens.AccessToken
-	default:
-		smtpConfig.AuthType = smtp.AuthTypePassword
-		if smtpUsesSeparateCreds {
-			password, passErr := ops.credStore.GetSMTPPassword(accountID)
-			if passErr != nil {
-				return nil, fmt.Errorf("failed to get SMTP password: %w", passErr)
-			}
-			smtpConfig.Password = password
-			break
-		}
-		password, passErr := ops.credStore.GetPassword(accountID)
-		if passErr != nil {
-			return nil, fmt.Errorf("failed to get password: %w", passErr)
-		}
-		smtpConfig.Password = password
+	smtpConfig, err := ops.smtpClientConfig(ctx, acc)
+	if err != nil {
+		return nil, err
 	}
 
 	client := smtp.NewClient(smtpConfig)

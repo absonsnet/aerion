@@ -15,6 +15,7 @@ import (
 	extaiwritingbe "github.com/hkdb/aerion/extensions/ai-writing/backend"
 	extcalendarbe "github.com/hkdb/aerion/extensions/calendar/backend"
 	extcontactsbe "github.com/hkdb/aerion/extensions/contacts/backend"
+	extmailmergebe "github.com/hkdb/aerion/extensions/mail-merge/backend"
 	"github.com/hkdb/aerion/internal/account"
 	"github.com/hkdb/aerion/internal/appstate"
 	"github.com/hkdb/aerion/internal/carddav"
@@ -191,6 +192,7 @@ type App struct {
 	*extcontactsbe.ContactsBridge
 	*extcalendarbe.CalendarBridge
 	*extaiwritingbe.AIWritingBridge
+	*extmailmergebe.MailMergeBridge
 
 	ctx context.Context
 
@@ -247,6 +249,7 @@ type App struct {
 	contactsExt     *extcontactsbe.Extension  // Contacts lifecycle handle (manifest + Register only)
 	calendarExt     *extcalendarbe.Extension  // Calendar lifecycle handle (manifest + Register only)
 	aiWritingExt    *extaiwritingbe.Extension // AI Writing lifecycle handle (manifest + Register only)
+	mailMergeExt    *extmailmergebe.Extension // Mail Merge lifecycle handle (manifest + Register only)
 	knownExtensions []coreapi.Extension       // all first-party extensions, iterated by ListExtensions
 	extensionUnregs []coreapi.Unregister      // teardown funcs returned from each Extension.Register
 
@@ -681,7 +684,8 @@ func (a *App) Startup(ctx context.Context) {
 	a.contactsExt = extcontactsbe.NewExtension()
 	a.calendarExt = extcalendarbe.NewExtension()
 	a.aiWritingExt = extaiwritingbe.NewExtension()
-	a.knownExtensions = []coreapi.Extension{a.contactsExt, a.calendarExt, a.aiWritingExt}
+	a.mailMergeExt = extmailmergebe.NewExtension()
+	a.knownExtensions = []coreapi.Extension{a.contactsExt, a.calendarExt, a.aiWritingExt, a.mailMergeExt}
 
 	// Wire the Contacts extension's Bridge into App (embedded). Bridge
 	// methods become Wails-bindable via Go's method-promotion on the
@@ -690,6 +694,7 @@ func (a *App) Startup(ctx context.Context) {
 	a.initContactsExtension()
 	a.initCalendarExtension()
 	a.initAIWritingExtension()
+	a.initMailMergeExtension()
 
 	// Construct one Core per known extension. The Core's Auth surface is
 	// scoped to that extension's identity, so HTTPClient calls route via
@@ -704,6 +709,15 @@ func (a *App) Startup(ctx context.Context) {
 		}
 		a.extensionUnregs = append(a.extensionUnregs, unreg)
 	}
+
+	// Start the Mail Merge outbox queue runner. MAIN PROCESS ONLY:
+	// the detached composer hosts the same extension (shared SQLite)
+	// and must never start a second runner — see
+	// extensions/mail-merge/backend/queue.go. StartQueueRunner is
+	// idempotent and gates on the enabled flag each tick, so starting
+	// it here while the extension is disabled is harmless until the
+	// user enables it.
+	a.MailMergeBridge.StartQueueRunner()
 
 	// Wire up network connectivity check so CardDAV scheduler skips ticks when offline
 	if a.networkMonitor != nil {

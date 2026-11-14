@@ -15,6 +15,7 @@
   import ContactsSettingsDialog from '$extensions/contacts/frontend/components/ContactsSettingsDialog.svelte'
   import CalendarSettingsDialog from '$extensions/calendar/frontend/components/CalendarSettingsDialog.svelte'
   import AIWritingSettingsDialog from '$extensions/ai-writing/frontend/components/AIWritingSettingsDialog.svelte'
+  import MailMergeSettingsDialog from '$extensions/mail-merge/frontend/components/MailMergeSettingsDialog.svelte'
   // This dispatcher is mounted only in App.svelte (main window), so the
   // settings dialog gets the main-window API here. The detached composer
   // window's button passes its own (ComposerApp) API instead.
@@ -29,6 +30,7 @@
   let contactsOpen = $derived(openExtension === 'contacts')
   let calendarOpen = $derived(openExtension === 'calendar')
   let aiWritingOpen = $derived(openExtension === 'ai-writing')
+  let mailMergeOpen = $derived(openExtension === 'mail-merge')
 </script>
 
 <ContactsSettingsDialog
@@ -43,6 +45,12 @@
 
 <AIWritingSettingsDialog
   open={aiWritingOpen}
+  api={mainWindowApi}
+  onClose={closeExtensionSettings}
+/>
+
+<MailMergeSettingsDialog
+  open={mailMergeOpen}
   api={mainWindowApi}
   onClose={closeExtensionSettings}
 />
