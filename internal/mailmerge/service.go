@@ -54,6 +54,26 @@ type ContactLister interface {
 	ListContacts() ([]map[string]string, []string, error)
 }
 
+// MessageSigner signs one already-built RFC822 message for an account
+// (Phase 3, signing only — never encryption). It resolves S/MIME vs
+// PGP the way the normal composer does: S/MIME first when the account
+// has a valid (non-expired) certificate for the sender identity (else
+// the account default), else PGP when it has a valid key. SignMessage
+// returns the signed bytes and the kind actually used ("smime" or
+// "pgp"). A nil signer means the host has no signing setup at all —
+// signing is then unavailable, never silently skipped.
+type MessageSigner interface {
+	SignMessage(accountID, fromEmail string, rawMsg []byte) ([]byte, string, error)
+	// SigningKind reports which signer would be used for the account +
+	// sender identity ("smime", "pgp", or "" when the account has no
+	// usable signing identity), without signing anything.
+	SigningKind(accountID, fromEmail string) string
+	// DefaultSign reports whether the account's composer would sign a
+	// new message by default (the S/MIME or PGP sign policy for the
+	// resolved kind is "always").
+	DefaultSign(accountID, fromEmail string) bool
+}
+
 // ServiceDeps bundles the host-provided collaborators. A nil dep fails
 // only the operation that needs it (Execute validates the dep for the
 // requested deliver mode; ListContacts validates ContactLister).
@@ -62,6 +82,10 @@ type ServiceDeps struct {
 	SenderFactory SenderFactory
 	SentSaver     SentSaver
 	ContactLister ContactLister
+	// MessageSigner signs per-row messages when the run requests
+	// signing. Nil = signing unavailable (Validate/StartRun/Execute
+	// all fail a signing run before anything is sent).
+	MessageSigner MessageSigner
 }
 
 // Service is the host-side run orchestrator. It owns no UI and no
@@ -85,6 +109,98 @@ func (s *Service) ListContacts() ([]map[string]string, []string, error) {
 		return nil, nil, fmt.Errorf("mailmerge: no contact lister configured")
 	}
 	return s.deps.ContactLister.ListContacts()
+}
+
+// SigningInfo reports the account's signing setup for the merge
+// dialog: whether a usable S/MIME certificate or PGP key exists,
+// which kind would be used, and whether the composer's sign policy
+// would sign by default. This is the cheap check (no signature is
+// created); CheckSigningForRun is the proof that the private key is
+// actually usable.
+func (s *Service) SigningInfo(accountID, fromEmail string) SigningInfo {
+	if s.deps.MessageSigner == nil {
+		return SigningInfo{Available: false, Reason: "signing is not available in this build"}
+	}
+	kind := s.deps.MessageSigner.SigningKind(accountID, fromEmail)
+	if kind == "" {
+		return SigningInfo{Available: false, Reason: "no S/MIME certificate or PGP key is configured for this account"}
+	}
+	return SigningInfo{
+		Available:   true,
+		Kind:        kind,
+		DefaultSign: s.deps.MessageSigner.DefaultSign(accountID, fromEmail),
+	}
+}
+
+// CheckSigningForRun trial-signs a probe message for the run's From
+// address (the template From rendered against the first row) and
+// returns the kind that would be used ("smime" or "pgp"). It proves
+// the account's private key/certificate is actually usable BEFORE
+// any row is sent or saved — a missing or unusable key fails here,
+// not mid-run. An error means signing is unavailable for this run.
+func (s *Service) CheckSigningForRun(req RunRequest) (string, error) {
+	if s.deps.MessageSigner == nil {
+		return "", fmt.Errorf("no signing identity is configured for this account")
+	}
+	accountID := req.AccountID
+	if accountID == "" {
+		accountID = req.Template.AccountID
+	}
+	if accountID == "" {
+		return "", fmt.Errorf("account is required")
+	}
+	fromEmail := signingFromEmail(req.Template, req.Rows)
+	probe := smtp.ComposeMessage{
+		From:     smtp.Address{Address: fromEmail},
+		To:       []smtp.Address{{Address: fromEmail}},
+		Subject:  "mail-merge signing check",
+		TextBody: "mail-merge signing check",
+	}
+	raw, err := probe.ToRFC822()
+	if err != nil {
+		return "", fmt.Errorf("build signing probe: %w", err)
+	}
+	_, kind, err := s.deps.MessageSigner.SignMessage(accountID, fromEmail, raw)
+	if err != nil {
+		return "", fmt.Errorf("signing failed: %w", err)
+	}
+	return kind, nil
+}
+
+// signingFromEmail resolves the sender address a run will sign as:
+// the template From rendered against the first row (From may contain
+// variables), parsed to a bare address; the raw From string when
+// there are no rows or it does not parse. The signer itself falls
+// back to the account default when no identity matches, so an
+// approximate address here still yields the right kind check.
+func signingFromEmail(tmpl Template, rows []map[string]string) string {
+	from := strings.TrimSpace(tmpl.From)
+	if len(rows) > 0 {
+		if rendered, err := Render(tmpl.From, rows[0]); err == nil && strings.TrimSpace(rendered) != "" {
+			from = strings.TrimSpace(rendered)
+		}
+	}
+	if parsed, err := mail.ParseAddress(from); err == nil && parsed.Address != "" {
+		return parsed.Address
+	}
+	return from
+}
+
+// preflightSign runs the signing pre-flight for a run that requested
+// signing and stamps the resolved kind onto the request copy the
+// caller keeps using (buildMessage reads it to set the draft sign
+// flags). It returns the request to execute. When signing was not
+// requested the request is returned unchanged.
+func (s *Service) preflightSign(req RunRequest) (RunRequest, error) {
+	if !req.Template.Sign {
+		return req, nil
+	}
+	kind, err := s.CheckSigningForRun(req)
+	if err != nil {
+		return req, fmt.Errorf("mailmerge: signing unavailable: %w", err)
+	}
+	req.Template.SignKind = kind
+	return req, nil
 }
 
 // Outcome is the final tally of an Execute call.
@@ -148,6 +264,17 @@ func (s *Service) Execute(ctx context.Context, req RunRequest, onProgress func(R
 	default:
 		return out, fmt.Errorf("mailmerge: unknown deliver mode %q", req.DeliverMode)
 	}
+
+	// A signing run proves the key is usable BEFORE any row is sent
+	// or saved (CheckSigningForRun trial-signs a probe) and stamps
+	// the resolved kind onto this request copy for buildMessage's
+	// draft flags. A failure here fails the whole run with nothing
+	// delivered.
+	signedReq, err := s.preflightSign(req)
+	if err != nil {
+		return out, err
+	}
+	req = signedReq
 
 	// Global attachments are decoded once; the bytes are shared read-only
 	// across rows. A bad base64 payload fails the run before any row.
@@ -266,6 +393,15 @@ func (s *Service) RenderForQueue(ctx context.Context, req RunRequest, onQueued f
 	if req.AccountID == "" {
 		return out, fmt.Errorf("mailmerge: account is required")
 	}
+	// Same signing pre-flight as Execute: prove the key is usable and
+	// stamp the resolved kind before any row is rendered — the queued
+	// bytes are fixed at queue time, so the signature must already be
+	// in them, and a failed pre-flight queues nothing.
+	signedReq, err := s.preflightSign(req)
+	if err != nil {
+		return out, err
+	}
+	req = signedReq
 	globalAtts, err := decodeGlobalAttachments(req.Template.GlobalAttachments)
 	if err != nil {
 		return out, err
@@ -293,6 +429,18 @@ func (s *Service) RenderForQueue(ctx context.Context, req RunRequest, onQueued f
 		if err != nil {
 			emit(RowResult{Index: origIndex, Email: bm.email, Status: RowFailed, Error: fmt.Sprintf("build message: %v", err), Timestamp: now})
 			continue
+		}
+		// Sign at RENDER time: the queued bytes are fixed at queue
+		// time, so the signature must already be in them. A signing
+		// failure fails this row only — the row is never queued
+		// unsigned and the run continues.
+		if req.Template.Sign {
+			signed, _, signErr := s.deps.MessageSigner.SignMessage(req.AccountID, bm.fromAddr.Address, raw)
+			if signErr != nil {
+				emit(RowResult{Index: origIndex, Email: bm.email, Status: RowFailed, Error: fmt.Sprintf("sign: %v", signErr), Timestamp: now})
+				continue
+			}
+			raw = signed
 		}
 		if onQueued != nil {
 			onQueued(QueuedMessage{
@@ -473,6 +621,22 @@ func (s *Service) buildMessage(req RunRequest, row map[string]string, origIndex 
 		msg.TextBody = rendered.BodyText
 		msg.HTMLBody = rendered.BodyHTML
 	}
+	// Signing intent for the drafts path: the draft model already
+	// carries these flags (draft.SignMessage / draft.PGPSignMessage),
+	// so SaveDraft preserves them and sending the draft later signs
+	// it — the intent is never silently dropped. The kind is the one
+	// the run pre-flight resolved (S/MIME and PGP are mutually
+	// exclusive, exactly like the composer's toggles). The IMAP copy
+	// of the draft is signed by the host's draft sync, like a normal
+	// signed draft.
+	if req.Template.Sign {
+		switch req.Template.SignKind {
+		case "smime":
+			msg.SignMessage = true
+		case "pgp":
+			msg.PGPSignMessage = true
+		}
+	}
 	return &builtMessage{msg: msg, fromAddr: *fromAddr, toAddrs: toAddrs, email: email}, nil
 }
 
@@ -514,6 +678,18 @@ func (s *Service) processRow(ctx context.Context, req RunRequest, row map[string
 		raw, err := bm.msg.ToRFC822()
 		if err != nil {
 			return fail(fmt.Sprintf("build message: %v", err))
+		}
+		// Sign at SEND time, per row: the body differs per recipient,
+		// so each row's personalised bytes are signed individually
+		// (the same order as composeOps.sendMessage: build, then sign,
+		// then transmit). A signing failure fails this row only — the
+		// row is never sent unsigned and the run continues.
+		if req.Template.Sign {
+			signed, _, signErr := s.deps.MessageSigner.SignMessage(req.AccountID, bm.fromAddr.Address, raw)
+			if signErr != nil {
+				return fail(fmt.Sprintf("sign: %v", signErr))
+			}
+			raw = signed
 		}
 		if err := sender.SendMail(bm.fromAddr.Address, bm.msg.AllRecipients(), raw); err != nil {
 			return fail(fmt.Sprintf("send: %v", err))

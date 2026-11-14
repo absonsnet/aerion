@@ -80,6 +80,10 @@ type bridgeTestEnv struct {
 }
 
 func newBridgeTestEnv(t *testing.T) *bridgeTestEnv {
+	return newBridgeTestEnvWithSigner(t, nil)
+}
+
+func newBridgeTestEnvWithSigner(t *testing.T, signer hostmm.MessageSigner) *bridgeTestEnv {
 	t.Helper()
 	dir := t.TempDir()
 	saver := &fakeDraftSaver{}
@@ -91,6 +95,7 @@ func newBridgeTestEnv(t *testing.T) *bridgeTestEnv {
 		SenderFactory: factory,
 		SentSaver:     sent,
 		ContactLister: &fakeContactLister{},
+		MessageSigner: signer,
 	})
 	b := NewMailMergeBridge(MailMergeBridgeDeps{
 		SettingsStore: &fakeSettingsStore{enabled: true},
@@ -99,6 +104,24 @@ func newBridgeTestEnv(t *testing.T) *bridgeTestEnv {
 	})
 	return &bridgeTestEnv{bridge: b, saver: saver, sender: sender, factory: factory, sent: sent}
 }
+
+// fakeMessageSigner is a no-op signer for bridge tests: it returns the
+// raw bytes unchanged (the real signers are proven in
+// internal/mailmerge/signing_test.go). fail makes every sign fail.
+type fakeMessageSigner struct {
+	kind string
+	fail error
+}
+
+func (f *fakeMessageSigner) SignMessage(_, _ string, raw []byte) ([]byte, string, error) {
+	if f.fail != nil {
+		return nil, "", f.fail
+	}
+	return raw, f.kind, nil
+}
+
+func (f *fakeMessageSigner) SigningKind(_, _ string) string { return f.kind }
+func (f *fakeMessageSigner) DefaultSign(_, _ string) bool   { return f.kind == "smime" }
 
 func testBridgeTemplate() hostmm.Template {
 	return hostmm.Template{
@@ -253,6 +276,97 @@ func TestBridgeStartRunBlockedOnUnresolved(t *testing.T) {
 	}
 	if len(env.saver.saved) != 0 {
 		t.Fatal("no drafts must be saved on blocked run")
+	}
+}
+
+// Signing requested but the account has no usable identity must be
+// visible in Validate (SigningError) and must block StartRun — before
+// anything is saved or sent.
+func TestBridgeValidateAndStartRunBlockedOnSigning(t *testing.T) {
+	env := newBridgeTestEnv(t) // no MessageSigner: nothing configured
+	tmpl := testBridgeTemplate()
+	tmpl.Sign = true
+	v, err := env.bridge.MailMerge_Validate(tmpl, testBridgeRows())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v.SigningError == "" {
+		t.Fatalf("validate %+v: expected SigningError", v)
+	}
+	if _, err := env.bridge.MailMerge_StartRun(hostmm.RunRequest{
+		Template: tmpl, Rows: testBridgeRows(),
+		DeliverMode: "drafts", AccountID: "acc1",
+	}); err == nil {
+		t.Fatal("expected signing-unavailable error")
+	}
+	if len(env.saver.saved) != 0 {
+		t.Fatal("no drafts must be saved on blocked run")
+	}
+
+	// A signer that always fails is the same failure, surfaced the
+	// same way (the private key is unusable, not merely unconfigured).
+	env = newBridgeTestEnvWithSigner(t, &fakeMessageSigner{kind: "smime", fail: errors.New("key unavailable")})
+	v, err = env.bridge.MailMerge_Validate(tmpl, testBridgeRows())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v.SigningError == "" {
+		t.Fatalf("validate %+v: expected SigningError for failing signer", v)
+	}
+}
+
+// With a usable signer, Validate reports no signing error and a
+// signing drafts run completes with the intent preserved on the
+// drafts (SignMessage set for S/MIME).
+func TestBridgeStartRunSignedDrafts(t *testing.T) {
+	env := newBridgeTestEnvWithSigner(t, &fakeMessageSigner{kind: "smime"})
+	tmpl := testBridgeTemplate()
+	tmpl.Sign = true
+	v, err := env.bridge.MailMerge_Validate(tmpl, testBridgeRows())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v.SigningError != "" {
+		t.Fatalf("validate SigningError %q", v.SigningError)
+	}
+	runID, err := env.bridge.MailMerge_StartRun(hostmm.RunRequest{
+		Template: tmpl, Rows: testBridgeRows(),
+		DeliverMode: "drafts", AccountID: "acc1",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	run := waitForRun(t, env.bridge, runID)
+	if run.Status != hostmm.RunDone || run.SentCount != 3 {
+		t.Fatalf("run %+v", run)
+	}
+	if len(env.saver.saved) != 3 {
+		t.Fatalf("drafts saved %d", len(env.saver.saved))
+	}
+	for i, m := range env.saver.saved {
+		if !m.SignMessage || m.PGPSignMessage {
+			t.Fatalf("draft %d: SignMessage=%v PGPSignMessage=%v", i, m.SignMessage, m.PGPSignMessage)
+		}
+	}
+}
+
+func TestBridgeGetSigningInfo(t *testing.T) {
+	env := newBridgeTestEnv(t) // no signer
+	info, err := env.bridge.MailMerge_GetSigningInfo("acc1", "sender@example.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Available || info.Reason == "" {
+		t.Fatalf("info %+v: want unavailable with a reason", info)
+	}
+
+	env = newBridgeTestEnvWithSigner(t, &fakeMessageSigner{kind: "pgp"})
+	info, err = env.bridge.MailMerge_GetSigningInfo("acc1", "sender@example.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !info.Available || info.Kind != "pgp" {
+		t.Fatalf("info %+v: want available pgp", info)
 	}
 }
 

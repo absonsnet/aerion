@@ -51,7 +51,96 @@ func newMailMergeService(ops *composeOps, draftSaver hostmm.DraftSaver, contacts
 		SenderFactory: &mailMergeSenderFactory{ops: ops},
 		SentSaver:     &mailMergeSentSaver{ops: ops},
 		ContactLister: &mailMergeContactLister{store: contacts},
+		MessageSigner: &mailMergeMessageSigner{ops: ops},
 	})
+}
+
+// mailMergeMessageSigner adapts composeOps' S/MIME + PGP signers to
+// hostmm.MessageSigner (Phase 3, signing only — never encryption).
+// Kind resolution mirrors the normal composer
+// (Composer.svelte updateSecurityForIdentity): S/MIME first when the
+// account has a valid (non-expired) certificate for the sender
+// identity (else the account default), else PGP when it has a valid
+// key. An identity-specific certificate/key that is expired falls back
+// to the account default instead of being used expired — the composer
+// hides the sign option for expired identities, and the signers
+// themselves do not check expiry.
+type mailMergeMessageSigner struct{ ops *composeOps }
+
+// SignMessage signs one already-built RFC822 message with the resolved
+// kind and returns the signed bytes + kind used.
+func (s *mailMergeMessageSigner) SignMessage(accountID, fromEmail string, rawMsg []byte) ([]byte, string, error) {
+	switch s.SigningKind(accountID, fromEmail) {
+	case "smime":
+		signed, err := s.ops.smimeSigner.SignMessage(accountID, fromEmail, rawMsg)
+		if err != nil {
+			return nil, "", err
+		}
+		return signed, "smime", nil
+	case "pgp":
+		signed, err := s.ops.pgpSigner.SignMessage(accountID, fromEmail, rawMsg)
+		if err != nil {
+			return nil, "", err
+		}
+		return signed, "pgp", nil
+	default:
+		return nil, "", fmt.Errorf("mailmerge: no signing identity configured for this account")
+	}
+}
+
+// SigningKind reports which signer would be used for the account +
+// sender identity ("smime", "pgp", or "" when the account has no
+// usable signing identity), without signing anything.
+func (s *mailMergeMessageSigner) SigningKind(accountID, fromEmail string) string {
+	if s.hasValidSMIMECert(accountID, fromEmail) {
+		return "smime"
+	}
+	if s.hasValidPGPKey(accountID, fromEmail) {
+		return "pgp"
+	}
+	return ""
+}
+
+// DefaultSign reports whether the account's composer would sign a new
+// message by default: the sign policy for the resolved kind is
+// "always" (the same rule Composer.svelte applies on identity load).
+func (s *mailMergeMessageSigner) DefaultSign(accountID, fromEmail string) bool {
+	switch s.SigningKind(accountID, fromEmail) {
+	case "smime":
+		policy, err := s.ops.smimeStore.GetSignPolicy(accountID)
+		return err == nil && policy == "always"
+	case "pgp":
+		policy, err := s.ops.pgpStore.GetSignPolicy(accountID)
+		return err == nil && policy == "always"
+	default:
+		return false
+	}
+}
+
+// hasValidSMIMECert reports whether the account has a valid
+// (non-expired) S/MIME certificate for the sender identity, else the
+// account default.
+func (s *mailMergeMessageSigner) hasValidSMIMECert(accountID, fromEmail string) bool {
+	if fromEmail != "" {
+		if cert, _, err := s.ops.smimeStore.GetCertificateByEmail(accountID, fromEmail); err == nil && cert != nil && !cert.IsExpired {
+			return true
+		}
+	}
+	cert, _, err := s.ops.smimeStore.GetDefaultCertificate(accountID)
+	return err == nil && cert != nil && !cert.IsExpired
+}
+
+// hasValidPGPKey reports whether the account has a valid
+// (non-expired) PGP key for the sender identity, else the account
+// default.
+func (s *mailMergeMessageSigner) hasValidPGPKey(accountID, fromEmail string) bool {
+	if fromEmail != "" {
+		if key, _, err := s.ops.pgpStore.GetKeyByEmail(accountID, fromEmail); err == nil && key != nil && !key.IsExpired {
+			return true
+		}
+	}
+	key, _, err := s.ops.pgpStore.GetDefaultKey(accountID)
+	return err == nil && key != nil && !key.IsExpired
 }
 
 // appMailMergeDraftSaver adapts App.SaveDraft to hostmm.DraftSaver: one

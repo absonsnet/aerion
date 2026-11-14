@@ -20,6 +20,7 @@ import type {
   MailMergeRunRequest,
   MailMergeRunSummary,
   MailMergeSettings,
+  MailMergeSigningInfo,
   MailMergeTemplate,
   MailMergeValidationResult,
   Row,
@@ -215,6 +216,9 @@ export interface ComposerApi {
 
   /** Mail Merge: save one account's settings. */
   mailMergeSaveSettings: (accountId: string, settings: MailMergeSettings) => Promise<void>
+
+  /** Mail Merge: the account's signing setup (S/MIME vs PGP, default) for the dialog's signing control. */
+  mailMergeGetSigningInfo: (accountId: string, fromEmail: string) => Promise<MailMergeSigningInfo>
 
   /** Mail Merge: pick a CSV/JSON/XLSX source file; "" when cancelled. */
   mailMergePickFile: (kind: string) => Promise<string>
@@ -500,6 +504,11 @@ export function createMainWindowApi(): ComposerApi {
       return MailMerge_SaveSettings(accountId, settings as never)
     },
 
+    mailMergeGetSigningInfo: async (accountId: string, fromEmail: string) => {
+      const { MailMerge_GetSigningInfo } = await import('../../wailsjs/go/app/App.js')
+      return MailMerge_GetSigningInfo(accountId, fromEmail)
+    },
+
     mailMergePickFile: async (kind: string) => {
       const { MailMerge_PickFile } = await import('../../wailsjs/go/app/App.js')
       return MailMerge_PickFile(kind)
@@ -774,6 +783,11 @@ export function createComposerWindowApi(_accountId: string): ComposerApi {
     mailMergeSaveSettings: async (accountId: string, settings: MailMergeSettings) => {
       const { MailMerge_SaveSettings } = await import('../../wailsjs/go/app/ComposerApp.js')
       return MailMerge_SaveSettings(accountId, settings as never)
+    },
+
+    mailMergeGetSigningInfo: async (accountId: string, fromEmail: string) => {
+      const { MailMerge_GetSigningInfo } = await import('../../wailsjs/go/app/ComposerApp.js')
+      return MailMerge_GetSigningInfo(accountId, fromEmail)
     },
 
     mailMergePickFile: async (kind: string) => {

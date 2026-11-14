@@ -202,6 +202,10 @@ export function MailMerge_GetSettings(arg1) {
   return window['go']['app']['ComposerApp']['MailMerge_GetSettings'](arg1);
 }
 
+export function MailMerge_GetSigningInfo(arg1, arg2) {
+  return window['go']['app']['ComposerApp']['MailMerge_GetSigningInfo'](arg1, arg2);
+}
+
 export function MailMerge_ListQueue() {
   return window['go']['app']['ComposerApp']['MailMerge_ListQueue']();
 }

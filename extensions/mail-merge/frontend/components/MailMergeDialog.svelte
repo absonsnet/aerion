@@ -24,9 +24,13 @@
   // the background runner sends up to N per hour (see the Mail Merge
   // rail tab), or Send Unsent sends them now. The safety cap applies
   // at SEND time only, never to draft generation or queueing. Preview
-  // & validate blocks Start while any variable is unresolved; invalid
-  // emails, duplicates and empty-To rows are listed as will-be-skipped,
-  // never run-blocking.
+  // & validate blocks Start while any variable is unresolved or
+  // signing is requested but unavailable; invalid emails, duplicates
+  // and empty-To rows are listed as will-be-skipped, never
+  // run-blocking. Phase 3 signing: each message is signed
+  // individually with the account's S/MIME certificate or PGP key
+  // (S/MIME first, like the composer); drafts keep the signing choice
+  // and are signed when sent.
 
   import Icon from '@iconify/svelte'
   import * as Dialog from '$lib/components/ui/dialog'
@@ -49,6 +53,7 @@
     type MailMergeRenderedMessage,
     type MailMergeRunRequest,
     type MailMergeSettings,
+    type MailMergeSigningInfo,
     type MailMergeValidationResult,
     type Row,
   } from '$extensions/mail-merge/frontend/lib/mailmerge'
@@ -101,6 +106,18 @@
   let capLimit = $state(100)
   let attachmentDir = $state('')
 
+  // --- Signing (Phase 3) ---
+  // signingInfo is the account's S/MIME/PGP setup, resolved once per
+  // open for the From identity. The checkbox defaults to the saved
+  // per-account choice, else to the composer's signing default (a sign
+  // policy of "always"). If the user edits From to another identity
+  // afterwards, the run-time pre-flight still resolves signing for
+  // that identity — a mismatch can only block the run with a clear
+  // error, never send unsigned.
+  let signMessages = $state(false)
+  let signingInfo = $state<MailMergeSigningInfo | null>(null)
+  let signingLoaded = $state(false)
+
   // --- Preview / validation / run ---
   let validation = $state<MailMergeValidationResult | null>(null)
   let previews = $state<MailMergeRenderedMessage[]>([])
@@ -130,6 +147,7 @@
       fromAddress.trim() !== '' &&
       validation !== null &&
       unresolved.length === 0 &&
+      !validation.signingError &&
       !startBusy &&
       !runId,
   )
@@ -148,6 +166,24 @@
       isPlainText,
       globalAttachments,
       attachmentField: attachmentField.trim(),
+      // Sign only when the account actually has a usable identity;
+      // signKind is what the backend resolved (the run pre-flight
+      // re-resolves it authoritatively, so this is informational).
+      sign: signMessages && signingInfo?.available === true,
+      signKind: signMessages && signingInfo?.available ? signingInfo.kind : '',
+    }
+  }
+
+  // Persist an explicit signing choice per account. A save failure
+  // must not block the dialog — the run still validates signing
+  // before it starts.
+  async function handleSignChange(checked: boolean): Promise<void> {
+    signMessages = checked
+    try {
+      const s = (await api.mailMergeGetSettings(accountId)) as MailMergeSettings
+      await api.mailMergeSaveSettings(accountId, { ...s, signMessages: checked, signMessagesSet: true })
+    } catch (err) {
+      console.error('mailMergeSaveSettings (signing) failed:', err)
     }
   }
 
@@ -182,8 +218,10 @@
       console.error('mailMerge getIdentities failed:', err)
     }
     // Per-account defaults for pause / deliver / cap.
+    let savedSettings: MailMergeSettings | null = null
     try {
       const s = (await api.mailMergeGetSettings(accountId)) as MailMergeSettings
+      savedSettings = s
       pauseSeconds = typeof s.defaultPauseSeconds === 'number' ? s.defaultPauseSeconds : 2
       randomPause = s.defaultRandomPause ?? false
       capEnabled = s.capEnabled ?? true
@@ -191,6 +229,23 @@
       deliverMode = s.defaultDeliverMode === 'send' ? 'send' : 'drafts'
     } catch (err) {
       console.error('mailMergeGetSettings failed:', err)
+    }
+    // Signing setup for the From identity (see the signing state
+    // comment above). The checkbox defaults to the saved per-account
+    // choice, else to the composer's signing default.
+    signingLoaded = false
+    signingInfo = null
+    signMessages = false
+    try {
+      signingInfo = (await api.mailMergeGetSigningInfo(accountId, fromAddress)) as MailMergeSigningInfo
+      if (signingInfo?.available) {
+        signMessages = savedSettings?.signMessagesSet ? savedSettings.signMessages : signingInfo.defaultSign
+      }
+    } catch (err) {
+      console.error('mailMergeGetSigningInfo failed:', err)
+      signingInfo = null
+    } finally {
+      signingLoaded = true
     }
   }
 
@@ -589,6 +644,39 @@
         {/if}
       </section>
 
+      <!-- Signing (Phase 3) -->
+      <section class="space-y-2">
+        <h3 class="text-sm font-medium">Signing</h3>
+        {#if !signingLoaded}
+          <p class="text-sm text-muted-foreground">Checking signing setup…</p>
+        {:else if signingInfo?.available}
+          <label class="flex items-start gap-2 text-sm">
+            <input type="checkbox" checked={signMessages} onchange={(e) => void handleSignChange(e.currentTarget.checked)} class="mt-0.5" />
+            <span>
+              <span class="font-medium">Sign messages</span>
+              <span class="text-muted-foreground">
+                ({signingInfo.kind === 'smime' ? 'S/MIME' : 'PGP'} — each message is signed individually with this account's {signingInfo.kind === 'smime' ? 'certificate' : 'key'})
+              </span>
+            </span>
+          </label>
+          <p class="text-xs text-muted-foreground">
+            {#if signMessages}
+              Drafts keep the signing choice and are signed when sent; queued messages are signed when queued.
+            {:else}
+              Messages will be sent unsigned. The composer's signing setting for this account is {signingInfo.defaultSign ? 'on' : 'off'}.
+            {/if}
+          </p>
+        {:else}
+          <label class="flex items-start gap-2 text-sm opacity-60">
+            <input type="checkbox" disabled class="mt-0.5" />
+            <span><span class="font-medium">Sign messages</span></span>
+          </label>
+          <p class="text-xs text-muted-foreground">
+            {signingInfo?.reason ?? 'No signing identity is configured for this account'}. Set one up in Settings → Accounts → Security (S/MIME certificate or PGP key).
+          </p>
+        {/if}
+      </section>
+
       <!-- Preview & validation -->
       <section class="space-y-2">
         <div class="flex items-center gap-2">
@@ -607,6 +695,11 @@
             </p>
           {:else}
             <p class="text-sm text-green-700 dark:text-green-400">All variables resolve.</p>
+          {/if}
+          {#if validation.signingError}
+            <p class="text-sm text-destructive" role="alert">
+              Blocked — {validation.signingError}. Set up signing in Settings → Accounts → Security, or turn signing off.
+            </p>
           {/if}
           {#if validation.invalidEmails.length > 0}
             <p class="text-sm text-amber-700 dark:text-amber-400">
@@ -628,6 +721,13 @@
           {/if}
         {/if}
         {#if previews.length > 0}
+          <p class="text-xs text-muted-foreground">
+            {#if signMessages && signingInfo?.available}
+              These messages will be signed with {signingInfo.kind === 'smime' ? 'S/MIME' : 'PGP'}.
+            {:else}
+              These messages will not be signed.
+            {/if}
+          </p>
           <div class="space-y-3">
             {#each previews as msg (msg.rowIndex)}
               <div class="rounded-md border border-border p-3 space-y-1 text-sm">
@@ -677,9 +777,11 @@
             ? 'Run Preview & validate first'
             : unresolved.length > 0
               ? 'Unresolved variables block the run'
-              : rowCount === 0
-                ? 'Pick a recipient source first'
-                : ''}
+              : validation.signingError
+                ? 'Signing is unavailable — see above'
+                : rowCount === 0
+                  ? 'Pick a recipient source first'
+                  : ''}
         >
           {#if startBusy}
             <Icon icon="mdi:loading" class="w-4 h-4 mr-1 animate-spin" />

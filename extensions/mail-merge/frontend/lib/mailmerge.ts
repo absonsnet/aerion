@@ -37,6 +37,13 @@ export interface MailMergeSettings {
   defaultPauseSeconds: number
   defaultRandomPause: boolean
   defaultDeliverMode: string // "drafts" | "send"
+  // SignMessages signs every generated message with the account's
+  // configured identity (S/MIME preferred, else PGP).
+  // SignMessagesSet records that the user chose this explicitly in the
+  // merge dialog; when false the dialog defaults to the account's
+  // composer signing setting instead.
+  signMessages: boolean
+  signMessagesSet: boolean
 }
 
 export const DEFAULT_MAIL_MERGE_SETTINGS: MailMergeSettings = {
@@ -45,6 +52,8 @@ export const DEFAULT_MAIL_MERGE_SETTINGS: MailMergeSettings = {
   defaultPauseSeconds: 2,
   defaultRandomPause: false,
   defaultDeliverMode: 'drafts',
+  signMessages: false,
+  signMessagesSet: false,
 }
 
 export interface MailMergeGlobalAttachment {
@@ -67,6 +76,10 @@ export interface MailMergeTemplate {
   isPlainText: boolean
   globalAttachments: MailMergeGlobalAttachment[]
   attachmentField: string
+  // Sign requests per-recipient signing (Phase 3). signKind is the
+  // kind resolved by the backend before the run ("smime" | "pgp").
+  sign: boolean
+  signKind?: string
 }
 
 export interface MailMergeRunRequest {
@@ -100,6 +113,20 @@ export interface MailMergeValidationResult {
   duplicateEmails: number
   emptyToRows: number[]
   missingAttachmentFiles: MailMergeMissingAttachment[]
+  // Set when signing was requested but the account has no usable
+  // signing identity. Blocks the run like an unresolved variable.
+  signingError?: string
+}
+
+// MailMergeSigningInfo is the account's signing setup, from
+// MailMerge_GetSigningInfo: whether a usable S/MIME certificate or
+// PGP key exists, which kind would be used, and whether the
+// composer's sign policy would sign by default.
+export interface MailMergeSigningInfo {
+  available: boolean
+  kind: string // "smime" | "pgp" | ""
+  defaultSign: boolean
+  reason?: string
 }
 
 export interface MailMergeRenderedMessage {
@@ -238,6 +265,7 @@ export function normalizeValidationResult(raw: MailMergeValidationResult): MailM
     invalidEmails: raw.invalidEmails ?? [],
     emptyToRows: raw.emptyToRows ?? [],
     missingAttachmentFiles: raw.missingAttachmentFiles ?? [],
+    signingError: raw.signingError ?? '',
   }
 }
 

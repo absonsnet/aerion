@@ -325,9 +325,29 @@ func (b *MailMergeBridge) MailMerge_Preview(tmpl hostmm.Template, rows []map[str
 	return out, nil
 }
 
+// MailMerge_GetSigningInfo reports the account's signing setup for the
+// merge dialog: whether a usable S/MIME certificate or PGP key exists
+// for the sender identity, which kind would be used, and whether the
+// composer's sign policy would sign by default. fromEmail is the
+// template's From address (identity-specific lookup, else the account
+// default); "" resolves against the account default.
+func (b *MailMergeBridge) MailMerge_GetSigningInfo(accountID, fromEmail string) (hostmm.SigningInfo, error) {
+	if !b.gateEnabled() {
+		return hostmm.SigningInfo{}, nil
+	}
+	if err := b.ensureInit(); err != nil {
+		return hostmm.SigningInfo{}, err
+	}
+	return b.deps.Service.SigningInfo(accountID, fromEmail), nil
+}
+
 // MailMerge_Validate checks a template + rows before a run. Any
 // unresolved variable BLOCKS the run; invalid-email, empty-To and
 // missing-attachment rows are skipped and logged, not run-blocking.
+// When the template requests signing, the account's signing setup is
+// trial-signed here too: a missing or unusable key/certificate sets
+// SigningError, which blocks the run the same way — the failure must
+// be visible before the run starts, not discovered mid-run.
 func (b *MailMergeBridge) MailMerge_Validate(tmpl hostmm.Template, rows []map[string]string) (hostmm.ValidationResult, error) {
 	if !b.gateEnabled() {
 		return hostmm.ValidationResult{}, nil
@@ -335,11 +355,19 @@ func (b *MailMergeBridge) MailMerge_Validate(tmpl hostmm.Template, rows []map[st
 	if err := b.ensureInit(); err != nil {
 		return hostmm.ValidationResult{}, err
 	}
-	return hostmm.Validate(tmpl, rows, b.getAttachmentDir()), nil
+	out := hostmm.Validate(tmpl, rows, b.getAttachmentDir())
+	if tmpl.Sign {
+		if _, err := b.deps.Service.CheckSigningForRun(hostmm.RunRequest{Template: tmpl, Rows: rows, AccountID: tmpl.AccountID}); err != nil {
+			out.SigningError = err.Error()
+		}
+	}
+	return out, nil
 }
 
 // MailMerge_StartRun starts a run asynchronously (goroutine) and returns
-// its run ID immediately. Any unresolved variable blocks the start.
+// its run ID immediately. Any unresolved variable blocks the start, as
+// does a signing request the account cannot satisfy (no usable
+// certificate/key — checked here, before the run is created).
 // Rows whose To resolves empty after rendering are skipped + logged; a
 // To that still contains {{ after rendering is never sent. Duplicates
 // (same To address twice) are suppressed with a count shown.
@@ -359,6 +387,18 @@ func (b *MailMergeBridge) MailMerge_StartRun(req hostmm.RunRequest) (string, err
 	selected, _ := hostmm.SliceRows(req.Rows, req.StartRow, req.StopRow)
 	if v := hostmm.Validate(req.Template, selected, req.AttachmentDir); len(v.UnresolvedVariables) > 0 {
 		return "", fmt.Errorf("mail-merge: unresolved variable(s): %s", strings.Join(v.UnresolvedVariables, ", "))
+	}
+	// A signing run proves the key is usable before the run is even
+	// created (the service pre-flights again at execution, so a key
+	// that vanishes between here and launch still fails before any
+	// row is delivered). The resolved kind is stamped onto the stored
+	// request so resume/batch runs reuse it.
+	if req.Template.Sign {
+		kind, err := b.deps.Service.CheckSigningForRun(req)
+		if err != nil {
+			return "", fmt.Errorf("mail-merge: signing unavailable: %w", err)
+		}
+		req.Template.SignKind = kind
 	}
 	if req.DeliverMode != "drafts" && req.DeliverMode != "send" && req.DeliverMode != "later" {
 		return "", fmt.Errorf("mail-merge: unknown deliver mode %q", req.DeliverMode)

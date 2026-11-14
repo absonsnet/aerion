@@ -2408,6 +2408,8 @@ export namespace mailmerge {
 	    bodyHtml: string;
 	    bodyText: string;
 	    isPlainText: boolean;
+	    sign: boolean;
+	    signKind?: string;
 	    globalAttachments: GlobalAttachment[];
 	    attachmentField: string;
 	
@@ -2427,6 +2429,8 @@ export namespace mailmerge {
 	        this.bodyHtml = source["bodyHtml"];
 	        this.bodyText = source["bodyText"];
 	        this.isPlainText = source["isPlainText"];
+	        this.sign = source["sign"];
+	        this.signKind = source["signKind"];
 	        this.globalAttachments = this.convertValues(source["globalAttachments"], GlobalAttachment);
 	        this.attachmentField = source["attachmentField"];
 	    }
@@ -2552,6 +2556,24 @@ export namespace mailmerge {
 		    return a;
 		}
 	}
+	export class SigningInfo {
+	    available: boolean;
+	    kind: string;
+	    defaultSign: boolean;
+	    reason?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new SigningInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.available = source["available"];
+	        this.kind = source["kind"];
+	        this.defaultSign = source["defaultSign"];
+	        this.reason = source["reason"];
+	    }
+	}
 	
 	export class ValidationResult {
 	    unresolvedVariables: string[];
@@ -2559,6 +2581,7 @@ export namespace mailmerge {
 	    duplicateEmails: number;
 	    emptyToRows: number[];
 	    missingAttachmentFiles: MissingAttachment[];
+	    signingError?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new ValidationResult(source);
@@ -2571,6 +2594,7 @@ export namespace mailmerge {
 	        this.duplicateEmails = source["duplicateEmails"];
 	        this.emptyToRows = source["emptyToRows"];
 	        this.missingAttachmentFiles = this.convertValues(source["missingAttachmentFiles"], MissingAttachment);
+	        this.signingError = source["signingError"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

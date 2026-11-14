@@ -17,6 +17,15 @@ type Template struct {
 	BodyText  string `json:"bodyText"`
 	// IsPlainText renders only the text body (no HTML part).
 	IsPlainText bool `json:"isPlainText"`
+	// Sign requests per-recipient signing of every generated message
+	// with the account's configured identity (S/MIME preferred, else
+	// PGP — the same precedence as the normal composer). Each row's
+	// personalised message is signed individually; the template is
+	// never signed once. SignKind is the kind resolved by the host
+	// before the run ("smime" | "pgp"); empty when Sign is false.
+	// Signing is Phase 3 scope — encryption is never added here.
+	Sign     bool   `json:"sign"`
+	SignKind string `json:"signKind,omitempty"`
 	// GlobalAttachments are the composer's normal attachments: the same
 	// file for every recipient, sent as base64 by the frontend.
 	GlobalAttachments []GlobalAttachment `json:"globalAttachments"`
@@ -146,6 +155,17 @@ func (r *Run) RecomputeCounts() {
 			r.QueuedCount++
 		}
 	}
+}
+
+// SigningInfo describes an account's signing setup for the merge
+// dialog and for pre-flight validation. Kind is "smime" or "pgp"
+// when Available; Reason explains why signing is unavailable ("" when
+// available) so the dialog can point at the account's Security tab.
+type SigningInfo struct {
+	Available   bool   `json:"available"`
+	Kind        string `json:"kind"` // "smime" | "pgp" | ""
+	DefaultSign bool   `json:"defaultSign"` // the composer's sign policy is "always" for the resolved kind
+	Reason      string `json:"reason,omitempty"`
 }
 
 // RenderedMessage is one row's rendered template, for preview.

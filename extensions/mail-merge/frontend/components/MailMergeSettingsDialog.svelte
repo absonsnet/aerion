@@ -47,6 +47,12 @@
   let defaultPauseSeconds = $state(DEFAULT_MAIL_MERGE_SETTINGS.defaultPauseSeconds)
   let defaultRandomPause = $state(DEFAULT_MAIL_MERGE_SETTINGS.defaultRandomPause)
   let defaultDeliverMode = $state(DEFAULT_MAIL_MERGE_SETTINGS.defaultDeliverMode)
+  // Signing preference (Phase 3): this dialog has no signing control —
+  // the choice is made in the merge dialog — but the fields are kept
+  // in state and round-tripped on save so saving settings here never
+  // silently resets the per-account signing choice.
+  let signMessages = $state(DEFAULT_MAIL_MERGE_SETTINGS.signMessages)
+  let signMessagesSet = $state(DEFAULT_MAIL_MERGE_SETTINGS.signMessagesSet)
 
   $effect(() => {
     if (open) {
@@ -87,6 +93,8 @@
         : DEFAULT_MAIL_MERGE_SETTINGS.defaultPauseSeconds
       defaultRandomPause = s.defaultRandomPause ?? false
       defaultDeliverMode = s.defaultDeliverMode === 'send' ? 'send' : 'drafts'
+      signMessages = s.signMessages ?? false
+      signMessagesSet = s.signMessagesSet ?? false
     } catch (err) {
       loadError = `Could not load settings: ${(err as Error)?.message ?? String(err)}`
     }
@@ -124,6 +132,8 @@
         defaultPauseSeconds,
         defaultRandomPause,
         defaultDeliverMode,
+        signMessages,
+        signMessagesSet,
       })
       status = { kind: 'success', message: 'Mail Merge settings saved.' }
     } catch (err) {

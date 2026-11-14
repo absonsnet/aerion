@@ -29,6 +29,13 @@ type ValidationResult struct {
 	DuplicateEmails        int                 `json:"duplicateEmails"`
 	EmptyToRows            []int               `json:"emptyToRows"`
 	MissingAttachmentFiles []MissingAttachment `json:"missingAttachmentFiles"`
+	// SigningError is set when signing was requested but the account
+	// has no usable signing identity (no certificate/key configured,
+	// or the private key is unavailable). Like an unresolved variable
+	// it BLOCKS the run — the failure must surface before anything is
+	// sent, not mid-run. Empty when signing was not requested or the
+	// pre-flight trial sign succeeded.
+	SigningError string `json:"signingError,omitempty"`
 }
 
 // Validate checks a template + rows before a run. attachmentDir is the

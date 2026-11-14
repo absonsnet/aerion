@@ -113,6 +113,8 @@ export function MailMerge_GetRun(arg1:string):Promise<mailmerge.Run>;
 
 export function MailMerge_GetSettings(arg1:string):Promise<backend.Settings>;
 
+export function MailMerge_GetSigningInfo(arg1:string,arg2:string):Promise<mailmerge.SigningInfo>;
+
 export function MailMerge_ListQueue():Promise<Array<backend.QueuedItem>>;
 
 export function MailMerge_ListRuns():Promise<Array<mailmerge.RunSummary>>;

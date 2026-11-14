@@ -19,6 +19,13 @@ type Settings struct {
 	DefaultRandomPause bool `json:"defaultRandomPause"`
 	// DefaultDeliverMode is "drafts" (default, safe) or "send".
 	DefaultDeliverMode string `json:"defaultDeliverMode"`
+	// SignMessages signs every generated message with the account's
+	// configured identity (S/MIME preferred, else PGP). SignMessagesSet
+	// records that the user chose this explicitly in the merge dialog;
+	// when false, the dialog defaults to the account's composer
+	// signing setting (a sign policy of "always") instead.
+	SignMessages    bool `json:"signMessages"`
+	SignMessagesSet bool `json:"signMessagesSet"`
 }
 
 // DefaultSettings returns the defaults: cap ON at 100 for Send Now,
