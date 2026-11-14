@@ -1357,4 +1357,42 @@ var migrations = []Migration{
 			ALTER TABLE accounts ADD COLUMN imap_require_id INTEGER NOT NULL DEFAULT 0;
 		`,
 	},
+	{
+		Version: 45,
+		SQL: `
+			-- Email reactions (Phase 1: data + receiving). A reaction is a
+			-- separate email pointing back at the original via In-Reply-To.
+			-- Both Gmail's text/vnd.google.email-reaction+json format and
+			-- RFC 9078 (Content-Disposition: reaction) are detected on receive.
+			--
+			-- reactions.message_id links to the reacted-to message once it is
+			-- known; it stays NULL for out-of-order reactions, which are keyed
+			-- by target_message_id (the original's Message-ID) and linked when
+			-- the original later syncs. source_message_id is the reaction
+			-- email's own Message-ID, for dedup. One current reaction per
+			-- reactor per message is enforced in the store (delete-then-insert
+			-- keyed on target_message_id + reactor_email); the UNIQUE on
+			-- source_message_id only guards re-recording the same email.
+			CREATE TABLE IF NOT EXISTS reactions (
+				id TEXT PRIMARY KEY,
+				message_id TEXT REFERENCES messages(id) ON DELETE CASCADE,
+				target_message_id TEXT NOT NULL,
+				reactor_email TEXT NOT NULL,
+				reactor_name TEXT,
+				emoji TEXT NOT NULL,
+				created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				source_message_id TEXT NOT NULL UNIQUE
+			);
+
+			CREATE INDEX IF NOT EXISTS idx_reactions_message ON reactions(message_id);
+			CREATE INDEX IF NOT EXISTS idx_reactions_target ON reactions(target_message_id);
+
+			-- is_hidden keeps consumed reaction emails out of the message list.
+			-- They arrive as normal rows at header sync (bodies arrive later),
+			-- so hiding is a flag, not a delete: deleting the row would make
+			-- the next sync re-fetch the UID as new. Hidden rows are excluded
+			-- from list/count/search/without-body queries in message.Store.
+			ALTER TABLE messages ADD COLUMN is_hidden INTEGER NOT NULL DEFAULT 0;
+		`,
+	},
 }

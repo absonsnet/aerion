@@ -14,6 +14,7 @@ import (
 	"github.com/hkdb/aerion/internal/logging"
 	"github.com/hkdb/aerion/internal/message"
 	"github.com/hkdb/aerion/internal/pgp"
+	"github.com/hkdb/aerion/internal/reaction"
 	"github.com/hkdb/aerion/internal/smime"
 	"github.com/rs/zerolog"
 )
@@ -59,6 +60,10 @@ type ParsedBody struct {
 	PGPRawBody     []byte                 // Raw PGP body for on-view processing
 	PGPEncrypted   bool                   // Whether the message is PGP encrypted
 	UnsafeContent  bool                   // True if message has non-compliant encoding
+	// Reaction is set when the message is an email reaction (Gmail's
+	// text/vnd.google.email-reaction+json part or an RFC 9078
+	// Content-Disposition: reaction part). Nil for regular messages.
+	Reaction *DetectedReaction
 }
 
 // Retry limits for error recovery
@@ -91,6 +96,7 @@ type Engine struct {
 	folderStore          *folder.Store
 	messageStore         *message.Store
 	attachmentStore      *message.AttachmentStore
+	reactionStore        *reaction.Store
 	attachExtractor      *email.AttachmentExtractor
 	sanitizer            *email.Sanitizer
 	log                  zerolog.Logger
@@ -158,6 +164,13 @@ func (e *Engine) SetSMIMEVerifier(verifier *smime.Verifier) {
 // SetPGPVerifier sets the PGP verifier for signature verification during body parsing
 func (e *Engine) SetPGPVerifier(verifier *pgp.Verifier) {
 	e.pgpVerifier = verifier
+}
+
+// SetReactionStore wires the reaction store into the engine. Until it is
+// set, detected reactions are left as regular emails (no recording, no
+// hiding) so sync works without the reactions feature.
+func (e *Engine) SetReactionStore(store *reaction.Store) {
+	e.reactionStore = store
 }
 
 // ParseRawBody parses raw message bytes into body text/HTML.

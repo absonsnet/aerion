@@ -28,6 +28,10 @@ type ProcessedBody struct {
 	SMIMEEncrypted bool                   // Whether the message is encrypted
 	PGPRawBody     []byte                 // Raw PGP body for on-view processing
 	PGPEncrypted   bool                   // Whether the message is PGP encrypted
+	// IsReaction is set when the message is a reaction email whose reaction
+	// was linked to its original (recorded + hidden). Such messages get no
+	// body update: their body was consumed as a reaction.
+	IsReaction bool
 
 	// Size signals used by shouldChargeFailure to distinguish "true empty
 	// body" from "server-side truncation". ReportedSize comes from the
@@ -92,12 +96,14 @@ func (e *Engine) FetchMessageBody(ctx context.Context, accountID, messageID stri
 	}
 
 	// Update message in store
-	if err := e.messageStore.UpdateBody(messageID, result.BodyHTML, result.BodyText, result.Snippet, result.HasAttachments); err != nil {
-		return nil, fmt.Errorf("failed to update message body: %w", err)
+	if !result.IsReaction {
+		if err := e.messageStore.UpdateBody(messageID, result.BodyHTML, result.BodyText, result.Snippet, result.HasAttachments); err != nil {
+			return nil, fmt.Errorf("failed to update message body: %w", err)
+		}
 	}
 
 	// Store attachments if present
-	if result.HasAttachments && e.attachmentStore != nil {
+	if result.HasAttachments && e.attachmentStore != nil && !result.IsReaction {
 		for _, att := range result.Attachments {
 			if err := e.attachmentStore.Create(att); err != nil {
 				e.log.Debug().Err(err).Str("filename", att.Filename).Msg("Failed to save attachment metadata")
@@ -253,6 +259,21 @@ func (e *Engine) fetchMessageBodiesBatch(ctx context.Context, client *imapclient
 		// Parse body content with timeout, extracting attachments in the same pass
 		parsed := e.parseMessageBodyFull(rawBytes, messageID, 30*time.Second)
 
+		// A detected reaction is consumed here, not stored as a body: when
+		// its original is known the reaction is recorded and the email is
+		// hidden (IsReaction: no body update downstream); when the original
+		// hasn't synced yet the reaction is recorded pending and the email
+		// keeps flowing as a regular message below.
+		if parsed.Reaction != nil && e.handleReaction(messageID, parsed.Reaction) {
+			results[uid] = &ProcessedBody{
+				MessageID:     messageID,
+				IsReaction:    true,
+				ReportedSize:  reportedSize,
+				ReceivedBytes: int64(len(rawBytes)),
+			}
+			continue
+		}
+
 		// Sanitize HTML
 		bodyHTML := parsed.BodyHTML
 		if bodyHTML != "" {
@@ -341,6 +362,10 @@ func shouldChargeFailure(receivedBytes, reportedSize int64) bool {
 // excludes the message from future body-fetch queries via the body_failed=0
 // guard in GetMessagesWithoutBody/AndSize/Count (see migration v39).
 //
+// consumedIDs are messages whose bodies were consumed without a body update
+// — linked reaction emails, hidden by handleReaction. They count as
+// resolved so they are never flagged body_failed.
+//
 // sizes carries the per-message (received, reported) byte counts captured
 // during FETCH so shouldChargeFailure can defer marking when the response
 // was likely server-side truncation. IDs absent from sizes — typically
@@ -358,7 +383,7 @@ type fetchedSize struct {
 	reported int64
 }
 
-func (e *Engine) markUnresolvedAsFailed(requestedIDs []string, updates []message.BodyUpdate, sizes map[string]fetchedSize) {
+func (e *Engine) markUnresolvedAsFailed(requestedIDs []string, updates []message.BodyUpdate, sizes map[string]fetchedSize, consumedIDs []string) {
 	if len(requestedIDs) == 0 {
 		return
 	}
@@ -367,6 +392,9 @@ func (e *Engine) markUnresolvedAsFailed(requestedIDs []string, updates []message
 		if u.BodyHTML != "" || u.BodyText != "" || u.SMIMEEncrypted || u.PGPEncrypted {
 			resolved[u.MessageID] = true
 		}
+	}
+	for _, id := range consumedIDs {
+		resolved[id] = true
 	}
 	var failedIDs []string
 	var deferredCount int
@@ -521,11 +549,14 @@ func (e *Engine) FetchBodiesInBackground(ctx context.Context, accountID, folderI
 	// not returned at all) and persist their failure via MarkBodyFailed.
 	// sizes maps messageID → (received bytes, IMAP-reported size) so
 	// markUnresolvedAsFailed can defer flagging when the FETCH looks truncated.
+	// consumedIDs are messages whose bodies were consumed without a body
+	// update (linked reaction emails); they count as resolved.
 	type processingResult struct {
 		requestedIDs []string
 		bodyUpdates  []message.BodyUpdate
 		attachments  []*message.Attachment
 		sizes        map[string]fetchedSize
+		consumedIDs  []string
 		fetchedCount int
 	}
 
@@ -571,7 +602,7 @@ func (e *Engine) FetchBodiesInBackground(ctx context.Context, accountID, folderI
 			// parsed body is non-empty OR it's encrypted (encrypted bodies are
 			// intentionally empty until decrypted at view time). Everything
 			// else — including IDs the server didn't return — gets flagged.
-			e.markUnresolvedAsFailed(result.requestedIDs, result.bodyUpdates, result.sizes)
+			e.markUnresolvedAsFailed(result.requestedIDs, result.bodyUpdates, result.sizes, result.consumedIDs)
 
 			// Apply database updates - MUST complete before querying next batch
 			if len(result.bodyUpdates) > 0 {
@@ -763,7 +794,7 @@ func (e *Engine) FetchBodiesInBackground(ctx context.Context, accountID, folderI
 			// No size signals here — server returned nothing, so every ID
 			// falls through to the "no signal" branch of shouldChargeFailure
 			// and gets charged. Pass nil to keep the call sites uniform.
-			e.markUnresolvedAsFailed(batchIDs, nil, nil)
+			e.markUnresolvedAsFailed(batchIDs, nil, nil, nil)
 			failed += len(uidToMessageID)
 			continue
 		}
@@ -778,9 +809,19 @@ func (e *Engine) FetchBodiesInBackground(ctx context.Context, accountID, folderI
 			startTime := time.Now()
 			var bodyUpdates []message.BodyUpdate
 			var allAttachments []*message.Attachment
+			var consumedIDs []string
 			sizes := make(map[string]fetchedSize, len(currentBodies))
 
 			for _, pb := range currentBodies {
+				// Linked reaction emails were consumed during fetch (recorded
+				// + hidden): no body update, but they count as resolved so
+				// markUnresolvedAsFailed never flags them body_failed.
+				if pb.IsReaction {
+					consumedIDs = append(consumedIDs, pb.MessageID)
+					sizes[pb.MessageID] = fetchedSize{received: pb.ReceivedBytes, reported: pb.ReportedSize}
+					continue
+				}
+
 				// Build body update
 				bu := message.BodyUpdate{
 					MessageID:      pb.MessageID,
@@ -815,6 +856,7 @@ func (e *Engine) FetchBodiesInBackground(ctx context.Context, accountID, folderI
 				bodyUpdates:  bodyUpdates,
 				attachments:  allAttachments,
 				sizes:        sizes,
+				consumedIDs:  consumedIDs,
 				fetchedCount: len(currentBodies),
 			}
 		}()
@@ -829,7 +871,7 @@ func (e *Engine) FetchBodiesInBackground(ctx context.Context, accountID, folderI
 
 		// Persist parse failures for the final batch via the same path as
 		// every other batch — see markUnresolvedAsFailed.
-		e.markUnresolvedAsFailed(result.requestedIDs, result.bodyUpdates, result.sizes)
+		e.markUnresolvedAsFailed(result.requestedIDs, result.bodyUpdates, result.sizes, result.consumedIDs)
 
 		if len(result.bodyUpdates) > 0 {
 			if err := e.messageStore.UpdateBodiesBatch(result.bodyUpdates); err != nil {

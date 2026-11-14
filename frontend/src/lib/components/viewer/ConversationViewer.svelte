@@ -4,11 +4,11 @@
   // @ts-ignore - wailsjs bindings
   import { GetConversation, GetReadReceiptResponsePolicy, SendReadReceipt, IgnoreReadReceipt, GetMarkAsReadDelay, GetMessageSource, ProcessSMIMEMessage, ProcessPGPMessage, FetchMessageBody } from '../../../../wailsjs/go/app/App'
   // @ts-ignore - wailsjs bindings
-  import { MarkAsRead, MarkAsUnread, Star, Unstar, Archive, Trash, MarkAsSpam, MarkAsNotSpam, DeletePermanently, Undo } from '../../../../wailsjs/go/app/App'
+  import { MarkAsRead, MarkAsUnread, Star, Unstar, Archive, Trash, MarkAsSpam, MarkAsNotSpam, DeletePermanently, Undo, GetMessageReactions, SendReaction, RemoveOwnReaction } from '../../../../wailsjs/go/app/App'
   // @ts-ignore - wailsjs path
   import { EventsOn } from '../../../../wailsjs/runtime/runtime'
   // @ts-ignore - wailsjs path
-  import { message as messageModels } from '../../../../wailsjs/go/models'
+  import { message as messageModels, app as appModels } from '../../../../wailsjs/go/models'
   import AttachmentList from './AttachmentList.svelte'
   import EmailBody from './EmailBody.svelte'
   import { toasts } from '$lib/stores/toast'
@@ -140,6 +140,20 @@
 
   // Delete confirmation state
   let showDeleteConfirm = $state(false)
+
+  // Email reactions: quick emoji set only, no full picker.
+  const QUICK_REACTIONS = ['👍', '❤️', '😂', '🎉', '😮', '😢', '🙏'] as const
+  interface ReactionGroup {
+    emoji: string
+    count: number
+    names: string[]
+    isOwn: boolean
+  }
+  let reactionsByMessage = $state<Record<string, appModels.MessageReaction[]>>({})
+  let reactionPickerOpen = $state(false)
+  let reactionPickerMessageId = $state<string | null>(null)
+  let sendingReaction = $state(false)
+  let removingReactionIds = $state<Set<string>>(new Set())
 
   // Auto-mark-as-read state
   let markAsReadDelay = $state(1000) // Default 1 second, loaded from settings
@@ -376,6 +390,9 @@
     }
     messagesWithImagesLoaded.clear()
     darkMailOverrides = {}
+    reactionPickerOpen = false
+    reactionPickerMessageId = null
+    reactionsByMessage = {}
     // Reset focused message on thread change so opening a thread starts fresh.
     // Same-thread refreshes (handled via scheduleRefresh) preserve focus.
     focusedMessageId = null
@@ -450,6 +467,7 @@
         scheduleMarkAsRead(tid, conversation.messages)
         processSMIMEMessages(conversation.messages)
         processPGPMessages(conversation.messages)
+        loadReactionsForExpanded()
       }
 
       await tick()
@@ -507,6 +525,9 @@
 
         // Process PGP messages on-view
         processPGPMessages(conversation.messages)
+
+        // Load reactions for the expanded messages
+        loadReactionsForExpanded()
 
         // Fetch bodies for messages that don't have them yet (on-demand)
         fetchUnfetchedBodies(conversation.messages)
@@ -664,6 +685,7 @@
       newSet.delete(messageId)
     } else {
       newSet.add(messageId)
+      loadReactions(messageId)
 
       // Check for auto-send read receipt on expand
       if (readReceiptPolicy === 'always' && conversation?.messages) {
@@ -679,6 +701,7 @@
   function expandAll() {
     if (conversation?.messages) {
       expandedMessages = new Set(conversation.messages.map(m => m.id))
+      loadReactionsForExpanded()
     }
   }
 
@@ -793,6 +816,86 @@
     const messageId = getTargetMessageId()
     if (messageId && onReply) {
       onReply('forward', messageId, messagesWithImagesLoaded.has(messageId))
+    }
+  }
+
+  // --- Email reactions ---
+  // Group one message's reactions into one pill per distinct emoji.
+  function groupReactions(reactions: appModels.MessageReaction[]): ReactionGroup[] {
+    const groups = new Map<string, ReactionGroup>()
+    for (const r of reactions) {
+      const name = r.reactorName || r.reactorEmail
+      const existing = groups.get(r.emoji)
+      if (existing) {
+        existing.count += 1
+        existing.names.push(name)
+        existing.isOwn = existing.isOwn || r.isOwn
+      } else {
+        groups.set(r.emoji, { emoji: r.emoji, count: 1, names: [name], isOwn: r.isOwn })
+      }
+    }
+    return [...groups.values()]
+  }
+
+  async function loadReactions(messageId: string) {
+    try {
+      const reactions = await GetMessageReactions(messageId)
+      reactionsByMessage = { ...reactionsByMessage, [messageId]: reactions ?? [] }
+    } catch (err) {
+      console.error('Failed to load reactions:', err)
+    }
+  }
+
+  function loadReactionsForExpanded() {
+    for (const id of expandedMessages) loadReactions(id)
+  }
+
+  function openReactionPicker() {
+    const messageId = getTargetMessageId()
+    if (!messageId) return
+    reactionPickerMessageId = messageId
+    reactionPickerOpen = true
+  }
+
+  function closeReactionPicker() {
+    reactionPickerOpen = false
+    reactionPickerMessageId = null
+  }
+
+  async function handleSendReaction(emoji: string) {
+    const messageId = reactionPickerMessageId
+    if (!messageId || sendingReaction) return
+    sendingReaction = true
+    try {
+      await SendReaction(messageId, emoji)
+      toasts.success($_('viewer.reactionSent'))
+      closeReactionPicker()
+      await loadReactions(messageId)
+    } catch (err) {
+      console.error('Send reaction failed:', err)
+      // Keep the popover open so the user can try another emoji.
+      toasts.error(`${$_('viewer.failedToSendReaction')}: ${err instanceof Error ? err.message : String(err)}`)
+    } finally {
+      sendingReaction = false
+    }
+  }
+
+  // Removing your own reaction only deletes the local row — the reaction
+  // email was already sent and cannot be retracted from the recipient.
+  async function handleRemoveOwnReaction(messageId: string) {
+    if (removingReactionIds.has(messageId)) return
+    removingReactionIds = new Set([...removingReactionIds, messageId])
+    try {
+      await RemoveOwnReaction(messageId)
+      toasts.success($_('viewer.reactionRemoved'))
+      await loadReactions(messageId)
+    } catch (err) {
+      console.error('Remove reaction failed:', err)
+      toasts.error($_('viewer.failedToRemoveReaction'))
+    } finally {
+      const next = new Set(removingReactionIds)
+      next.delete(messageId)
+      removingReactionIds = next
     }
   }
 
@@ -1356,6 +1459,38 @@
           <Icon icon="mdi:share" class="w-5 h-5 text-muted-foreground" />
         </button>
 
+        <!-- React (quick emoji popover, reacts to the focused/last message) -->
+        <div class="relative">
+          <button
+            class="p-2 rounded-md hover:bg-muted transition-colors"
+            class:bg-muted={reactionPickerOpen}
+            title={$_('viewer.react')}
+            aria-label={$_('viewer.react')}
+            onclick={() => { reactionPickerOpen ? closeReactionPicker() : openReactionPicker() }}
+          >
+            <Icon icon="mdi:emoticon-outline" class="w-5 h-5 text-muted-foreground" />
+          </button>
+          {#if reactionPickerOpen}
+            <!-- Transparent backdrop: click anywhere else closes the picker -->
+            <button
+              class="fixed inset-0 z-40 cursor-default"
+              aria-label={$_('viewer.react')}
+              onclick={closeReactionPicker}
+            ></button>
+            <div class="absolute left-0 top-full mt-1 z-50 flex items-center gap-1 rounded-md border border-border bg-popover p-2 shadow-lg">
+              {#each QUICK_REACTIONS as emoji}
+                <button
+                  class="p-1.5 text-xl rounded-md hover:bg-muted transition-colors disabled:opacity-50"
+                  disabled={sendingReaction}
+                  onclick={() => handleSendReaction(emoji)}
+                >
+                  {emoji}
+                </button>
+              {/each}
+            </div>
+          {/if}
+        </div>
+
         <div class="w-px h-5 bg-border mx-1"></div>
 
         <button
@@ -1799,6 +1934,37 @@
                           />
                         {/if}
                       </div>
+
+                      <!-- Reactions: one pill per distinct emoji -->
+                      {#if (reactionsByMessage[msg.id] ?? []).length > 0}
+                        {@const reactionGroups = groupReactions(reactionsByMessage[msg.id] ?? [])}
+                        <div class="flex flex-wrap items-center gap-2 mb-4">
+                          {#each reactionGroups as group (group.emoji)}
+                            {#if group.isOwn}
+                              <button
+                                class="flex items-center gap-1 rounded-full border border-primary bg-primary/10 px-2.5 py-1 text-sm hover:bg-primary/20 transition-colors disabled:opacity-50"
+                                title={$_('viewer.removeOwnReaction') + ' — ' + group.names.join(', ')}
+                                disabled={removingReactionIds.has(msg.id)}
+                                onclick={() => handleRemoveOwnReaction(msg.id)}
+                              >
+                                <span>{group.emoji}</span>
+                                <span>{group.count}</span>
+                              </button>
+                            {:else}
+                              <span
+                                class="flex items-center gap-1 rounded-full border border-border bg-muted/50 px-2.5 py-1 text-sm"
+                                title={group.names.join(', ')}
+                              >
+                                <span>{group.emoji}</span>
+                                <span>{group.count}</span>
+                              </span>
+                            {/if}
+                          {/each}
+                        </div>
+                        {#if reactionGroups.some((g) => g.isOwn)}
+                          <p class="text-xs text-muted-foreground mb-4">{$_('viewer.reactionRemoveNote')}</p>
+                        {/if}
+                      {/if}
 
                       <!-- Attachments -->
                       {#if msg.hasAttachments || (pgpResults[msg.id]?.attachments?.length ?? 0) > 0 || (smimeResults[msg.id]?.attachments?.length ?? 0) > 0}

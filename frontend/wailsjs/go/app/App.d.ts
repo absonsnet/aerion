@@ -325,6 +325,8 @@ export function GetMessageListDensity():Promise<string>;
 
 export function GetMessageListSortOrder():Promise<string>;
 
+export function GetMessageReactions(arg1:string):Promise<Array<app.MessageReaction>>;
+
 export function GetMessageSource(arg1:string):Promise<string>;
 
 export function GetMessages(arg1:string,arg2:string,arg3:number,arg4:number):Promise<Array<message.MessageHeader>>;
@@ -607,6 +609,8 @@ export function RemoveAccount(arg1:string):Promise<void>;
 
 export function RemoveImageAllowlist(arg1:number):Promise<void>;
 
+export function RemoveOwnReaction(arg1:string):Promise<void>;
+
 export function RemovePGPKeyServer(arg1:number):Promise<void>;
 
 export function RemoveSpellcheckCustomWord(arg1:string):Promise<void>;
@@ -636,6 +640,8 @@ export function SearchConversations(arg1:string,arg2:string,arg3:string,arg4:num
 export function SearchUnifiedInbox(arg1:string,arg2:number,arg3:number,arg4:string):Promise<Array<message.ConversationSearchResult>>;
 
 export function SendMessage(arg1:string,arg2:smtp.ComposeMessage):Promise<void>;
+
+export function SendReaction(arg1:string,arg2:string):Promise<void>;
 
 export function SendReadReceipt(arg1:string,arg2:string):Promise<void>;
 

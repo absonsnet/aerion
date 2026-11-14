@@ -152,6 +152,19 @@ func (e *Engine) parseMessageBodyInternal(raw []byte, messageID string) *ParsedB
 		e.parseSinglePartBody(entity, result, messageID)
 	}
 
+	// Email reactions: a Gmail reaction part or an RFC 9078 reaction part
+	// makes the whole message a reaction, not a regular email. Detection
+	// runs after the normal walk so any fallback text in the message is
+	// kept as the body (used when the reaction can't be linked to its
+	// original and falls back to a regular email); when no fallback text
+	// exists the emoji itself becomes the body text.
+	if reaction := detectReaction(raw); reaction != nil {
+		result.Reaction = reaction
+		if result.BodyText == "" {
+			result.BodyText = reaction.Emoji
+		}
+	}
+
 	e.log.Debug().
 		Int("bodyTextLen", len(result.BodyText)).
 		Int("bodyHTMLLen", len(result.BodyHTML)).

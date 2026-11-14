@@ -16,16 +16,16 @@ import (
 	"github.com/hkdb/aerion/internal/contact"
 	"github.com/hkdb/aerion/internal/credentials"
 	"github.com/hkdb/aerion/internal/draft"
-	"github.com/hkdb/aerion/internal/folder"
 	"github.com/hkdb/aerion/internal/email"
+	"github.com/hkdb/aerion/internal/folder"
 	"github.com/hkdb/aerion/internal/imap"
 	"github.com/hkdb/aerion/internal/logging"
 	"github.com/hkdb/aerion/internal/message"
-	"github.com/rs/zerolog"
 	"github.com/hkdb/aerion/internal/oauth2"
 	"github.com/hkdb/aerion/internal/pgp"
 	"github.com/hkdb/aerion/internal/smime"
 	"github.com/hkdb/aerion/internal/smtp"
+	"github.com/rs/zerolog"
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
@@ -53,6 +53,13 @@ type composeOps struct {
 	pgpSigner      *pgp.Signer
 	pgpEncryptor   *pgp.Encryptor
 	draftOps       *draftOps // for draft cleanup on send
+
+	// rawSendOverride, when non-nil, replaces the SMTP dial/send in
+	// sendRawMessage. sentSaveOverride, when non-nil, replaces the IMAP
+	// APPEND in saveToSentFolder. Both are nil in production; tests set
+	// them to capture outbound bytes instead of reaching a server.
+	rawSendOverride  func(ctx context.Context, from string, recipients []string, raw []byte) error
+	sentSaveOverride func(ctx context.Context, accountID string, raw []byte) error
 }
 
 // getValidOAuthToken returns a valid OAuth token, refreshing if needed.
@@ -201,6 +208,9 @@ func (ops *composeOps) getSpecialFolder(accountID string, folderType folder.Type
 
 // saveToSentFolder appends the sent message to the Sent folder via IMAP.
 func (ops *composeOps) saveToSentFolder(ctx context.Context, accountID string, acc *account.Account, rawMsg []byte) error {
+	if ops.sentSaveOverride != nil {
+		return ops.sentSaveOverride(ctx, accountID, rawMsg)
+	}
 	log := logging.WithComponent("composeOps")
 
 	// Resolve the Sent folder using the same logic as App.GetSpecialFolder
@@ -364,6 +374,52 @@ func (ops *composeOps) smtpClientConfig(ctx context.Context, acc *account.Accoun
 	return smtpConfig, nil
 }
 
+// sendRawMessage sends already-built RFC 822 bytes through the account's
+// SMTP server, reusing the same client config (auth, TLS, credentials)
+// as a normal send. Callers that build their own MIME (e.g. reactions,
+// whose multipart structure ComposeMessage cannot express) use this
+// instead of sendMessage. The receive-only check lives here so every
+// raw sender gets it.
+func (ops *composeOps) sendRawMessage(ctx context.Context, accountID, from string, recipients []string, raw []byte) error {
+	if ops.rawSendOverride != nil {
+		return ops.rawSendOverride(ctx, from, recipients, raw)
+	}
+	if len(recipients) == 0 {
+		return fmt.Errorf("no recipients specified")
+	}
+
+	acc, err := ops.accountStore.Get(accountID)
+	if err != nil {
+		return fmt.Errorf("failed to get account: %w", err)
+	}
+	if acc == nil {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.NoOutgoingServer {
+		return fmt.Errorf("account %q is configured as receive-only (no outgoing server)", acc.Email)
+	}
+
+	smtpConfig, err := ops.smtpClientConfig(ctx, acc)
+	if err != nil {
+		return err
+	}
+
+	client := smtp.NewClient(smtpConfig)
+	if err := client.Connect(); err != nil {
+		return fmt.Errorf("failed to connect to SMTP server: %w", err)
+	}
+	defer client.Close()
+
+	if err := client.Login(); err != nil {
+		return fmt.Errorf("failed to login to SMTP server: %w", err)
+	}
+
+	if err := client.SendMail(from, recipients, raw); err != nil {
+		return fmt.Errorf("failed to send message: %w", err)
+	}
+	return nil
+}
+
 // sendMessage performs the full send flow: build RFC822, sign, encrypt, SMTP send,
 // save to Sent folder, add recipients to contacts, and optionally delete a draft.
 // When d is non-nil, the draft is fully cleaned up (IMAP + message row + DB) after
@@ -444,29 +500,13 @@ func (ops *composeOps) sendMessage(ctx context.Context, accountID string, msg sm
 		log.Info().Str("accountID", accountID).Msg("Message encrypted with PGP")
 	}
 
-	smtpConfig, err := ops.smtpClientConfig(ctx, acc)
-	if err != nil {
-		return nil, err
-	}
-
-	client := smtp.NewClient(smtpConfig)
-
-	if err := client.Connect(); err != nil {
-		return nil, fmt.Errorf("failed to connect to SMTP server: %w", err)
-	}
-	defer client.Close()
-
-	if err := client.Login(); err != nil {
-		return nil, fmt.Errorf("failed to login to SMTP server: %w", err)
-	}
-
 	recipients := msg.AllRecipients()
 	if len(recipients) == 0 {
 		return nil, fmt.Errorf("no recipients specified")
 	}
 
-	if err := client.SendMail(msg.From.Address, recipients, rawMsg); err != nil {
-		return nil, fmt.Errorf("failed to send message: %w", err)
+	if err := ops.sendRawMessage(ctx, accountID, msg.From.Address, recipients, rawMsg); err != nil {
+		return nil, err
 	}
 
 	// Save to Sent folder (using IMAP APPEND) if provider doesn't auto-save
@@ -806,14 +846,7 @@ func (a *App) PrepareReply(messageID, mode string) (*smtp.ComposeMessage, error)
 
 	// Build References header per RFC 5322:
 	// References = parent's References + parent's Message-ID
-	var refs []string
-	if msg.References != "" {
-		// References are stored as a JSON array in the DB
-		_ = json.Unmarshal([]byte(msg.References), &refs)
-	}
-	if msg.MessageID != "" {
-		refs = append(refs, ensureAngleBrackets(msg.MessageID))
-	}
+	refs := threadReferences(msg)
 
 	// Fetch inline attachments so cid: references in quoted HTML render correctly
 	var attachments []smtp.Attachment
@@ -1106,6 +1139,20 @@ func escapeHTML(s string) string {
 	return s
 }
 
+// threadReferences builds the References header for a reply to msg per
+// RFC 5322: the parent's References plus the parent's Message-ID.
+func threadReferences(msg *message.Message) []string {
+	var refs []string
+	if msg.References != "" {
+		// References are stored as a JSON array in the DB
+		_ = json.Unmarshal([]byte(msg.References), &refs)
+	}
+	if msg.MessageID != "" {
+		refs = append(refs, ensureAngleBrackets(msg.MessageID))
+	}
+	return refs
+}
+
 // ensureAngleBrackets wraps a Message-ID in angle brackets if not already present
 func ensureAngleBrackets(msgID string) string {
 	if msgID == "" {
@@ -1134,7 +1181,7 @@ func quoteText(s string) string {
 func providerAutoSavesSentMail(host string) bool {
 	host = strings.ToLower(host)
 	autoSaveProviders := []string{
-		"imap.gmail.com",       // Gmail
+		"imap.gmail.com",        // Gmail
 		"outlook.office365.com", // Microsoft 365
 		"imap-mail.outlook.com", // Outlook.com
 	}
@@ -1291,4 +1338,3 @@ func detectContentType(filename string) string {
 		return "application/octet-stream"
 	}
 }
-

@@ -610,6 +610,10 @@ export function GetMessageListSortOrder() {
   return window['go']['app']['App']['GetMessageListSortOrder']();
 }
 
+export function GetMessageReactions(arg1) {
+  return window['go']['app']['App']['GetMessageReactions'](arg1);
+}
+
 export function GetMessageSource(arg1) {
   return window['go']['app']['App']['GetMessageSource'](arg1);
 }
@@ -1174,6 +1178,10 @@ export function RemoveImageAllowlist(arg1) {
   return window['go']['app']['App']['RemoveImageAllowlist'](arg1);
 }
 
+export function RemoveOwnReaction(arg1) {
+  return window['go']['app']['App']['RemoveOwnReaction'](arg1);
+}
+
 export function RemovePGPKeyServer(arg1) {
   return window['go']['app']['App']['RemovePGPKeyServer'](arg1);
 }
@@ -1232,6 +1240,10 @@ export function SearchUnifiedInbox(arg1, arg2, arg3, arg4) {
 
 export function SendMessage(arg1, arg2) {
   return window['go']['app']['App']['SendMessage'](arg1, arg2);
+}
+
+export function SendReaction(arg1, arg2) {
+  return window['go']['app']['App']['SendReaction'](arg1, arg2);
 }
 
 export function SendReadReceipt(arg1, arg2) {
