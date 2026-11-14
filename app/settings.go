@@ -125,6 +125,26 @@ func (a *App) SetShowViewerCircles(enabled bool) error {
 	return a.settingsStore.SetShowViewerCircles(enabled)
 }
 
+// GetShowMessagePreviewPane returns whether the conversation viewer pane is shown beside the message list
+func (a *App) GetShowMessagePreviewPane() (bool, error) {
+	return a.settingsStore.GetShowMessagePreviewPane()
+}
+
+// SetShowMessagePreviewPane shows or hides the conversation viewer pane
+func (a *App) SetShowMessagePreviewPane(enabled bool) error {
+	return a.settingsStore.SetShowMessagePreviewPane(enabled)
+}
+
+// GetMessageOpenMode returns how a message opens when the preview pane is off ("tab", "dialog" or "popup")
+func (a *App) GetMessageOpenMode() (string, error) {
+	return a.settingsStore.GetMessageOpenMode()
+}
+
+// SetMessageOpenMode sets how a message opens when the preview pane is off
+func (a *App) SetMessageOpenMode(mode string) error {
+	return a.settingsStore.SetMessageOpenMode(mode)
+}
+
 // GetMessageListSortOrder returns the message list sort order setting
 func (a *App) GetMessageListSortOrder() (string, error) {
 	return a.settingsStore.GetMessageListSortOrder()

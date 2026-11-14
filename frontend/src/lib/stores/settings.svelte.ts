@@ -2,7 +2,7 @@
 // Provides reactive state for application settings
 
 // @ts-ignore - wailsjs path
-import { GetMessageListDensity, GetMessageListSortOrder, GetThemeMode, GetShowTitleBar, GetRunBackground, GetStartHidden, GetAutostart, GetLanguage, GetComposerMode, GetMailtoMode, GetComposerFormat, GetNativeTitleBar, GetAlwaysLoadImages, GetDarkMailContent, GetDarkComposerBody, GetAccentBarUnread, GetAccentUnreadStyle, GetShowMessageListCircles, GetShowMessageListProfilePics, GetAlwaysShowMessageCheckbox, GetShowViewerCircles, GetSpellcheckEnabled, GetSpellcheckLanguages, GetSpellcheckCustomWords, GetWindowControlsSide } from '../../../wailsjs/go/app/App'
+import { GetMessageListDensity, GetMessageListSortOrder, GetThemeMode, GetShowTitleBar, GetRunBackground, GetStartHidden, GetAutostart, GetLanguage, GetComposerMode, GetMailtoMode, GetComposerFormat, GetNativeTitleBar, GetAlwaysLoadImages, GetDarkMailContent, GetDarkComposerBody, GetAccentBarUnread, GetAccentUnreadStyle, GetShowMessageListCircles, GetShowMessageListProfilePics, GetAlwaysShowMessageCheckbox, GetShowViewerCircles, GetShowMessagePreviewPane, GetMessageOpenMode, GetSpellcheckEnabled, GetSpellcheckLanguages, GetSpellcheckCustomWords, GetWindowControlsSide } from '../../../wailsjs/go/app/App'
 import { setLocale as setI18nLocale, locale as i18nLocale } from '$lib/i18n'
 import { get } from 'svelte/store'
 import { loadDateFnsLocale, getDateFnsLocale } from '$lib/i18n/dateFnsLocale'
@@ -24,6 +24,7 @@ export type ThemeMode =
   | 'vs-code-light' | 'vs-code-dark'
 
 export type WindowControlsSide = 'auto' | 'left' | 'right'
+export type MessageOpenMode = 'tab' | 'dialog' | 'popup'
 
 // Module-level reactive state
 let messageListDensity = $state<MessageListDensity>('standard')
@@ -51,6 +52,8 @@ let showMessageListCircles = $state<boolean>(true)
 let showMessageListProfilePics = $state<boolean>(false)
 let alwaysShowMessageCheckbox = $state<boolean>(false)
 let showViewerCircles = $state<boolean>(true)
+let showMessagePreviewPane = $state<boolean>(true)
+let messageOpenMode = $state<MessageOpenMode>('tab')
 
 // Getter functions to access the state
 export function getMessageListDensity(): MessageListDensity {
@@ -151,6 +154,14 @@ export function getAlwaysShowMessageCheckbox(): boolean {
 
 export function getShowViewerCircles(): boolean {
   return showViewerCircles
+}
+
+export function getShowMessagePreviewPane(): boolean {
+  return showMessagePreviewPane
+}
+
+export function getMessageOpenMode(): MessageOpenMode {
+  return messageOpenMode
 }
 
 export function getCurrentDateFnsLocale(): Locale | undefined {
@@ -262,10 +273,18 @@ export function setShowViewerCircles(v: boolean) {
   showViewerCircles = v
 }
 
+export function setShowMessagePreviewPane(v: boolean) {
+  showMessagePreviewPane = v
+}
+
+export function setMessageOpenMode(mode: MessageOpenMode) {
+  messageOpenMode = mode
+}
+
 // Load settings from backend (call on app startup)
 export async function loadSettings(): Promise<ThemeMode> {
   try {
-    const [density, sortOrder, theme, titleBar, runBg, startHid, autoSt, lang, compMode, mailMode, compFormat, nativeTB, alwaysImages, darkMail, darkComposer, accentBar, accentStyle, listCircles, listProfilePics, alwaysCheckbox, viewerCircles, scEnabled, scLangs, scWords, wcSide] = await Promise.all([
+    const [density, sortOrder, theme, titleBar, runBg, startHid, autoSt, lang, compMode, mailMode, compFormat, nativeTB, alwaysImages, darkMail, darkComposer, accentBar, accentStyle, listCircles, listProfilePics, alwaysCheckbox, viewerCircles, scEnabled, scLangs, scWords, wcSide, previewPane, openMode] = await Promise.all([
       GetMessageListDensity(),
       GetMessageListSortOrder(),
       GetThemeMode(),
@@ -291,6 +310,8 @@ export async function loadSettings(): Promise<ThemeMode> {
       GetSpellcheckLanguages(),
       GetSpellcheckCustomWords(),
       GetWindowControlsSide(),
+      GetShowMessagePreviewPane(),
+      GetMessageOpenMode(),
     ])
     messageListDensity = (density as MessageListDensity) || 'standard'
     messageListSortOrder = (sortOrder as MessageListSortOrder) || 'newest'
@@ -312,6 +333,8 @@ export async function loadSettings(): Promise<ThemeMode> {
     showMessageListProfilePics = listProfilePics ?? false
     alwaysShowMessageCheckbox = alwaysCheckbox ?? false
     showViewerCircles = viewerCircles ?? true
+    showMessagePreviewPane = previewPane ?? true
+    messageOpenMode = (openMode as MessageOpenMode) || 'tab'
     spellcheckEnabled = scEnabled ?? true
     spellcheckLanguages = scLangs ?? []
     spellcheckCustomWords = scWords ?? []

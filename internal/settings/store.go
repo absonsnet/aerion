@@ -41,6 +41,8 @@ const (
 	KeyShowMessageListProfilePics = "show_message_list_profile_pics" // render contact photos in the message-list avatar slot (default off)
 	KeyAlwaysShowMessageCheckbox  = "always_show_message_checkbox"   // reserve a fixed checkbox column instead of the hover/swipe slide-reveal (default off)
 	KeyShowViewerCircles          = "show_viewer_circles"
+	KeyShowMessagePreviewPane     = "show_message_preview_pane" // show the conversation viewer pane beside the message list (default on)
+	KeyMessageOpenMode            = "message_open_mode"         // how a message opens when the preview pane is off: "tab" | "dialog" | "popup" (default "tab")
 	KeyLastSeenVersion            = "last_seen_version"       // for "What's new in this version" launch dialog
 	KeyOAuthWarningDisabled       = "oauth_warning_disabled"  // user toggled "Don't show again" on the missing-OAuth-creds launch warning
 	KeySpellcheckEnabled          = "spellcheck_enabled"      // composer spellcheck master toggle (defaults on)
@@ -124,6 +126,19 @@ const (
 
 // DefaultThemeMode is the default theme mode
 const DefaultThemeMode = ThemeModeSystem
+
+// Message open mode values (how a message opens when the preview pane is off)
+const (
+	MessageOpenModeTab    = "tab"
+	MessageOpenModeDialog = "dialog"
+	MessageOpenModePopup  = "popup"
+)
+
+// DefaultMessageOpenMode is the default message open mode
+const DefaultMessageOpenMode = MessageOpenModeTab
+
+// DefaultShowMessagePreviewPane is the default preview-pane visibility
+const DefaultShowMessagePreviewPane = true
 
 // Composer mode values
 const (
@@ -406,6 +421,56 @@ func (s *Store) SetAccentUnreadStyle(style string) error {
 		return s.Set(KeyAccentUnreadStyle, style)
 	}
 	return fmt.Errorf("invalid accent unread style: %s (must be 'dot', 'glowdot' or 'bar')", style)
+}
+
+// GetShowMessagePreviewPane returns whether the conversation viewer pane
+// is shown beside the message list. Default: true.
+func (s *Store) GetShowMessagePreviewPane() (bool, error) {
+	value, err := s.Get(KeyShowMessagePreviewPane)
+	if err != nil {
+		return DefaultShowMessagePreviewPane, err
+	}
+	if value == "" {
+		return DefaultShowMessagePreviewPane, nil
+	}
+	return value == "true", nil
+}
+
+// SetShowMessagePreviewPane shows or hides the conversation viewer pane
+func (s *Store) SetShowMessagePreviewPane(enabled bool) error {
+	v := "false"
+	if enabled {
+		v = "true"
+	}
+	return s.Set(KeyShowMessagePreviewPane, v)
+}
+
+// GetMessageOpenMode returns how a message opens when the preview pane is
+// off ("tab", "dialog" or "popup"). Default: "tab". An unknown stored value
+// falls back to "tab" rather than failing the settings load.
+func (s *Store) GetMessageOpenMode() (string, error) {
+	value, err := s.Get(KeyMessageOpenMode)
+	if err != nil {
+		return DefaultMessageOpenMode, err
+	}
+	switch value {
+	case "", DefaultMessageOpenMode:
+		return DefaultMessageOpenMode, nil
+	case MessageOpenModeDialog, MessageOpenModePopup:
+		return value, nil
+	default:
+		return DefaultMessageOpenMode, nil
+	}
+}
+
+// SetMessageOpenMode sets how a message opens when the preview pane is off
+func (s *Store) SetMessageOpenMode(mode string) error {
+	switch mode {
+	case MessageOpenModeTab, MessageOpenModeDialog, MessageOpenModePopup:
+		return s.Set(KeyMessageOpenMode, mode)
+	default:
+		return fmt.Errorf("invalid message open mode: %s (must be 'tab', 'dialog' or 'popup')", mode)
+	}
 }
 
 // GetShowMessageListCircles returns whether colored sender circles

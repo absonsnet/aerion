@@ -39,6 +39,13 @@
     folderName?: string
     folderType?: string
     onConversationSelect?: (threadId: string, folderId: string, accountId: string) => void
+    // Called (instead of onConversationSelect) when the user explicitly
+    // opens a conversation — double-click or Enter — while the list is in
+    // select-only mode (preview pane off). Receives the subject for the tab label.
+    onConversationOpen?: (threadId: string, folderId: string, accountId: string, subject: string) => void
+    // Select-only mode (preview pane off): a single click only highlights
+    // the row; opening needs a double-click or Enter via onConversationOpen.
+    selectOnly?: boolean
     onReply?: (mode: 'reply' | 'reply-all' | 'forward', messageId: string) => void
     onRowActionComplete?: () => void
     isFocused?: boolean
@@ -53,6 +60,8 @@
     folderName = 'Inbox',
     folderType = 'inbox',
     onConversationSelect,
+    onConversationOpen,
+    selectOnly = false,
     onReply,
     onRowActionComplete,
     isFocused: _isFocused = false,
@@ -986,6 +995,10 @@
     checkedThreadIds = new Set()
     selectedThreadId = threadId
 
+    // Select-only mode (preview pane off): a single click only highlights
+    // the row. Opening is a double-click / Enter via openConversation.
+    if (selectOnly) return
+
     // For unified view or search, use real folderId and accountId from conversation data
     const conversation = activeList[index] as any
     const realFolderId = (isUnifiedView || isSearchMode) && conversation.folderId ? conversation.folderId : folderId!
@@ -997,6 +1010,29 @@
       return
     }
     onConversationSelect?.(threadId, realFolderId, realAccountId)
+  }
+
+  // Explicitly open a conversation (double-click / Enter in select-only
+  // mode). Resolves the real folder/account the same way selectConversation
+  // does and hands the subject to the parent for the tab label.
+  function openConversation(threadId: string, index: number) {
+    const conv = activeList[index] as any
+    if (!conv) return
+    const realFolderId = (isUnifiedView || isSearchMode) && conv.folderId ? conv.folderId : folderId!
+    const realAccountId = (isUnifiedView || isSearchMode) && conv.accountId ? conv.accountId : accountId!
+    const subject = (conv.subject as string) || ''
+    if (serverSearchMode && conv._isLocal === false && conv._uid) {
+      fetchAndOpenServerResult(conv, realFolderId, realAccountId, subject)
+      return
+    }
+    selectedThreadId = threadId
+    onConversationOpen?.(threadId, realFolderId, realAccountId, subject)
+  }
+
+  // Subject lookup for a thread in the currently loaded list (tab labels).
+  export function getConversationSubject(threadId: string): string {
+    const conv = activeList.find(c => c.threadId === threadId) as any
+    return (conv?.subject as string) || ''
   }
 
   // Fetch a non-local server result, save locally, update the result, then select
@@ -1019,6 +1055,32 @@
           selectedThreadId = serverSearchResults[idx].threadId
         }
         onConversationSelect?.(msg.threadId || msg.id, realFolderId, realAccountId)
+      }
+    } catch (err) {
+      console.error('Failed to fetch server message:', err)
+      error = $_('viewer.failedToLoadMessages')
+    }
+  }
+
+  // Fetch a non-local server result, save locally, update the result, then open it
+  async function fetchAndOpenServerResult(conversation: any, realFolderId: string, realAccountId: string, subject: string) {
+    try {
+      const msg = await FetchServerMessage(realAccountId, realFolderId, conversation._uid)
+      if (msg) {
+        const idx = serverSearchResults.findIndex(r => r._uid === conversation._uid)
+        if (idx >= 0) {
+          serverSearchResults[idx] = {
+            ...serverSearchResults[idx],
+            threadId: msg.threadId || msg.id,
+            messageIds: [msg.id],
+            snippet: msg.snippet || '',
+            _isLocal: true,
+            _uid: conversation._uid,
+          }
+          serverSearchResults = serverSearchResults
+          selectedThreadId = serverSearchResults[idx].threadId
+        }
+        onConversationOpen?.(msg.threadId || msg.id, realFolderId, realAccountId, subject || msg.subject || '')
       }
     } catch (err) {
       console.error('Failed to fetch server message:', err)
@@ -1403,6 +1465,12 @@
 
     const index = getSelectedIndex()
     if (index >= 0) {
+      // Select-only mode: Enter opens via the open path (tab), not the
+      // classic select path.
+      if (selectOnly) {
+        openConversation(selectedThreadId, index)
+        return
+      }
       const conv = activeList[index] as any
       const realFolderId = (isUnifiedView || isSearchMode) && conv.folderId ? conv.folderId : folderId!
       const realAccountId = (isUnifiedView || isSearchMode) && conv.accountId ? conv.accountId : accountId!
@@ -2113,6 +2181,7 @@
               selectedIsRead={!selectedHasUnread}
               isNonLocal={result._isLocal === false}
               onSelect={(e) => selectConversation(result.threadId, index, e)}
+              onOpen={selectOnly ? () => openConversation(result.threadId, index) : undefined}
               onCheck={(checked, e) => handleCheck(result.threadId, checked, index, e)}
               onClearSelection={clearSelection}
               onActionComplete={handleActionComplete}
@@ -2190,6 +2259,7 @@
             searchFolderName={result.folderName}
             searchFolderType={result.folderType}
             onSelect={(e) => selectConversation(result.threadId, index, e)}
+              onOpen={selectOnly ? () => openConversation(result.threadId, index) : undefined}
             onCheck={(checked, e) => handleCheck(result.threadId, checked, index, e)}
             onClearSelection={clearSelection}
             onActionComplete={handleActionComplete}
@@ -2263,6 +2333,7 @@
           accountColor={convAccountColor}
           accountName={convAccountName}
           onSelect={(e) => selectConversation(conv.threadId, index, e)}
+          onOpen={selectOnly ? () => openConversation(conv.threadId, index) : undefined}
           onCheck={(checked, e) => handleCheck(conv.threadId, checked, index, e)}
           onClearSelection={clearSelection}
           onActionComplete={handleActionComplete}

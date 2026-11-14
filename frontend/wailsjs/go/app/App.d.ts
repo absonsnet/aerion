@@ -325,6 +325,8 @@ export function GetMessageListDensity():Promise<string>;
 
 export function GetMessageListSortOrder():Promise<string>;
 
+export function GetMessageOpenMode():Promise<string>;
+
 export function GetMessageReactions(arg1:string):Promise<Array<app.MessageReaction>>;
 
 export function GetMessageSource(arg1:string):Promise<string>;
@@ -372,6 +374,8 @@ export function GetSearchCountUnifiedInbox(arg1:string,arg2:string):Promise<numb
 export function GetShowMessageListCircles():Promise<boolean>;
 
 export function GetShowMessageListProfilePics():Promise<boolean>;
+
+export function GetShowMessagePreviewPane():Promise<boolean>;
 
 export function GetShowTitleBar():Promise<boolean>;
 
@@ -693,6 +697,8 @@ export function SetMessageListDensity(arg1:string):Promise<void>;
 
 export function SetMessageListSortOrder(arg1:string):Promise<void>;
 
+export function SetMessageOpenMode(arg1:string):Promise<void>;
+
 export function SetNativeTitleBar(arg1:boolean):Promise<void>;
 
 export function SetOAuthCreds(arg1:string,arg2:string,arg3:string):Promise<void>;
@@ -716,6 +722,8 @@ export function SetSMIMESignPolicy(arg1:string,arg2:string):Promise<void>;
 export function SetShowMessageListCircles(arg1:boolean):Promise<void>;
 
 export function SetShowMessageListProfilePics(arg1:boolean):Promise<void>;
+
+export function SetShowMessagePreviewPane(arg1:boolean):Promise<void>;
 
 export function SetShowTitleBar(arg1:boolean):Promise<void>;
 

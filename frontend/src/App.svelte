@@ -3,6 +3,7 @@
   import './lib/iconify-offline'
 
   import { onMount, untrack } from 'svelte'
+  import Icon from '@iconify/svelte'
   import TitleBar from './lib/components/common/TitleBar.svelte'
   import Sidebar from './lib/components/sidebar/Sidebar.svelte'
   import MessageList from './lib/components/list/MessageList.svelte'
@@ -24,7 +25,7 @@
   import * as AlertDialog from '$lib/components/ui/alert-dialog'
   import { accountStore } from '$lib/stores/accounts.svelte'
   import { addToast } from '$lib/stores/toast'
-  import { loadSettings, getThemeMode, getShowTitleBar, getNativeTitleBar, getComposerMode, getMailtoMode } from '$lib/stores/settings.svelte'
+  import { loadSettings, getThemeMode, getShowTitleBar, getNativeTitleBar, getComposerMode, getMailtoMode, getShowMessagePreviewPane, getMessageOpenMode } from '$lib/stores/settings.svelte'
   import { loadWindowControlsLayout } from '$lib/stores/windowControls.svelte'
   import { loadImageAllowlist } from '$lib/stores/imageAllowlist.svelte'
   import { initTheme, applyThemeFromMode, handleSystemThemeEvent, handleMediaQueryChange } from '$lib/stores/theme.svelte'
@@ -93,6 +94,106 @@
   // suppress its Delete/Backspace shortcut during the composer's mount→focus race.
   $effect(() => {
     setComposerOpen(showComposer)
+  })
+
+  // Message tabs — active when the preview pane is off in full layout
+  // mode. The folder tab (activeMessageTabId === null) shows the message
+  // list; each message tab shows one ConversationViewer. Only one viewer
+  // is ever mounted: the active tab's. The list stays mounted across tab
+  // switches (hidden with display:none) so scroll/selection survive.
+  interface MessageTab {
+    threadId: string
+    folderId: string
+    accountId: string
+    subject: string
+  }
+  let messageTabs = $state<MessageTab[]>([])
+  let activeMessageTabId = $state<string | null>(null)
+  const tabMode = $derived(getLayoutMode() === 'full' && !getShowMessagePreviewPane())
+  const activeMessageTab = $derived(messageTabs.find(t => t.threadId === activeMessageTabId) ?? null)
+
+  function closeAllMessageTabs() {
+    messageTabs = []
+    activeMessageTabId = null
+  }
+
+  function openMessageTab(threadId: string, folderId: string, accountId: string, subject?: string) {
+    const label = subject?.trim()
+      ? subject
+      : messageListRef?.getConversationSubject(threadId) || $_('viewer.noSubject')
+    selectedThreadId = threadId
+    selectedConversationFolderId = folderId
+    selectedConversationAccountId = accountId
+    const existing = messageTabs.find(t => t.threadId === threadId)
+    if (existing) {
+      if (existing.subject !== label) {
+        messageTabs = messageTabs.map(t => (t.threadId === threadId ? { ...t, subject: label } : t))
+      }
+    } else {
+      messageTabs = [...messageTabs, { threadId, folderId, accountId, subject: label }]
+    }
+    activeMessageTabId = threadId
+
+    // Persist state
+    saveUIState({
+      selectedThreadId: threadId,
+      selectedConversationAccountId: accountId,
+      selectedConversationFolderId: folderId,
+    })
+  }
+
+  function closeMessageTab(threadId: string) {
+    messageTabs = messageTabs.filter(t => t.threadId !== threadId)
+    if (activeMessageTabId === threadId) {
+      // Closing a tab returns to the folder tab (list stays as it was).
+      activeMessageTabId = null
+    }
+  }
+
+  function activateMessageTab(threadId: string | null) {
+    activeMessageTabId = threadId
+    if (threadId) {
+      const tab = messageTabs.find(t => t.threadId === threadId)
+      if (tab) {
+        selectedThreadId = threadId
+        selectedConversationFolderId = tab.folderId
+        selectedConversationAccountId = tab.accountId
+        messageListRef?.selectThread(threadId)
+      }
+    }
+  }
+
+  // Single dispatch point for "open message". Phase 5 adds dialog/popup
+  // branches here; until then those modes fall back to tab behaviour so
+  // the message still opens instead of the open being dropped.
+  function openMessage(threadId: string, folderId: string, accountId: string, subject?: string) {
+    const mode = getMessageOpenMode()
+    if (mode === 'dialog' || mode === 'popup') {
+      // Not implemented until Phase 5 — fall back to a tab for now.
+    }
+    openMessageTab(threadId, folderId, accountId, subject)
+  }
+
+  // Turning the preview pane back on closes message tabs and restores the
+  // classic viewer with the active tab's thread selected, if any.
+  let tabModeBefore = false
+  $effect(() => {
+    const tm = tabMode
+    if (!tabModeBefore && tm) {
+      // Entering tab mode: focus mode belongs to the classic viewer.
+      focusMode = 'off'
+      focusedMessageIdInFocus = null
+    }
+    if (tabModeBefore && !tm) {
+      const active = messageTabs.find(t => t.threadId === activeMessageTabId)
+      closeAllMessageTabs()
+      if (active) {
+        selectedThreadId = active.threadId
+        selectedConversationFolderId = active.folderId
+        selectedConversationAccountId = active.accountId
+      }
+    }
+    tabModeBefore = tm
   })
 
   // Focus mode state — viewer (or single message) takes the whole window.
@@ -311,10 +412,10 @@
       selectedFolderType = folderInfo?.type || 'inbox'
       selectionSource = 'unified'
 
-      // Select the conversation
-      selectedThreadId = data.threadId
-      selectedConversationAccountId = data.accountId
-      selectedConversationFolderId = data.folderId
+      // Close tabs from the previous folder, then open the conversation
+      // through the single open dispatch (tab in tab mode, viewer otherwise).
+      closeAllMessageTabs()
+      handleConversationSelect(data.threadId, data.folderId, data.accountId)
 
       // Highlight the thread in the message list. The list keeps the request
       // pending until its folder load lands, so no timing assumption here.
@@ -556,6 +657,7 @@
     selectedFolderName = folderName
     selectedFolderType = folderType
     selectionSource = 'account'
+    closeAllMessageTabs()
     selectedThreadId = null // Clear conversation selection when changing folders
     selectedConversationFolderId = null
     selectedConversationAccountId = null
@@ -586,6 +688,7 @@
     selectedFolderName = folderName
     selectedFolderType = folderType
     selectionSource = 'unified'
+    closeAllMessageTabs()
     selectedThreadId = null
     selectedConversationFolderId = null
     selectedConversationAccountId = null
@@ -610,6 +713,7 @@
     selectedFolderName = 'All Inboxes'
     selectedFolderType = 'inbox'
     selectionSource = 'unified'
+    closeAllMessageTabs()
     selectedThreadId = null
     selectedConversationFolderId = null
     selectedConversationAccountId = null
@@ -627,8 +731,15 @@
     })
   }
 
-  // Handle conversation selection from list
-  function handleConversationSelect(threadId: string, folderId: string, accountId: string) {
+  // Handle conversation selection from list — the single dispatch point
+  // for opening a message (Phase 5 reuses it for dialog/popup). In tab
+  // mode (preview pane off, full layout) this opens a tab; otherwise it
+  // selects into the classic viewer beside the list.
+  function handleConversationSelect(threadId: string, folderId: string, accountId: string, subject?: string) {
+    if (tabMode) {
+      openMessage(threadId, folderId, accountId, subject)
+      return
+    }
     selectedThreadId = threadId
     selectedConversationFolderId = folderId
     selectedConversationAccountId = accountId
@@ -1297,6 +1408,11 @@
         hideSidebar()
         return
       }
+      if (tabMode && activeMessageTabId) {
+        // First: close the open message tab, back to the folder tab
+        closeMessageTab(activeMessageTabId)
+        return
+      }
       if (messageListRef?.hasCheckedMessages()) {
         // First: clear checkboxes
         messageListRef.clearChecked()
@@ -1671,13 +1787,53 @@
     <!-- Message List -->
     <section
       bind:this={messageListContainerRef}
-      class="{isResponsive() ? 'flex-1 min-w-0 border-r border-border bg-background' : 'flex-shrink-0 border-r border-border bg-background'}"
-      style="{getLayoutMode() === 'full' ? `width: ${listWidth}px` : ''}"
+      class="{tabMode || isResponsive() ? 'flex-1 min-w-0 flex flex-col border-r border-border bg-background' : 'flex-shrink-0 flex flex-col border-r border-border bg-background'}"
+      style="{getLayoutMode() === 'full' && !tabMode ? `width: ${listWidth}px` : ''}"
       role="presentation"
       data-pane="messageList"
       tabindex="-1"
       onclick={() => handlePaneClick('messageList')}
     >
+      {#if tabMode}
+        <!-- Tab strip: folder tab first, then one tab per open message -->
+        <div class="flex flex-shrink-0 items-end gap-1 overflow-x-auto border-b border-border bg-muted/30 px-2 pt-1.5" role="tablist" aria-label={$_('messageTabs.tabs')}>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeMessageTabId === null}
+            class="max-w-48 truncate rounded-t-md border px-3 py-1.5 text-sm {activeMessageTabId === null ? 'border-border border-b-background bg-background font-medium' : 'border-transparent text-muted-foreground hover:text-foreground'}"
+            onclick={() => activateMessageTab(null)}
+          >
+            {selectedFolderName}
+          </button>
+          {#each messageTabs as tab (tab.threadId)}
+            <!-- svelte-ignore a11y_no_static_element_interactions -->
+            <div
+              role="tab"
+              tabindex="0"
+              aria-selected={activeMessageTabId === tab.threadId}
+              class="flex max-w-56 flex-shrink-0 items-center gap-1 rounded-t-md border px-2 py-1.5 text-sm cursor-pointer {activeMessageTabId === tab.threadId ? 'border-border border-b-background bg-background font-medium' : 'border-transparent text-muted-foreground hover:text-foreground'}"
+              onclick={() => activateMessageTab(tab.threadId)}
+              onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activateMessageTab(tab.threadId) } }}
+            >
+              <span class="truncate">{tab.subject}</span>
+              <button
+                type="button"
+                class="flex-shrink-0 rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                aria-label={$_('messageTabs.closeTab')}
+                onclick={(e) => { e.stopPropagation(); closeMessageTab(tab.threadId) }}
+              >
+                <Icon icon="mdi:close" class="w-3.5 h-3.5" />
+              </button>
+            </div>
+          {/each}
+        </div>
+      {/if}
+
+      <!-- The list stays mounted across tab switches (hidden with
+           display:none while a message tab is active) so its scroll
+           position and selection survive without a reload. -->
+      <div class="flex-1 min-h-0 flex flex-col" style:display={tabMode && activeMessageTabId ? 'none' : ''}>
       <MessageList
         bind:this={messageListRef}
         accountId={selectedAccountId}
@@ -1685,6 +1841,8 @@
         folderName={selectedFolderName}
         folderType={selectedFolderType || 'inbox'}
         onConversationSelect={handleConversationSelect}
+        onConversationOpen={handleConversationSelect}
+        selectOnly={tabMode}
         onReply={handleReply}
         onRowActionComplete={() => viewerRef?.refreshFlags()}
         isFocused={getFocusedPane() === 'messageList'}
@@ -1692,10 +1850,42 @@
         showFolderToggle={getLayoutMode() === 'narrow'}
         onToggleSidebar={showSidebar}
       />
+      </div>
+
+      {#if tabMode && activeMessageTab}
+        <!-- One viewer at a time: only the active tab's is mounted -->
+        <div
+          class="flex-1 min-h-0 bg-background"
+          role="presentation"
+          data-pane="viewer"
+          onclick={() => handlePaneClick('viewer')}
+        >
+          <ConversationViewer
+            bind:this={viewerRef}
+            threadId={activeMessageTab.threadId}
+            folderId={activeMessageTab.folderId}
+            folderType={selectedFolderType}
+            accountId={activeMessageTab.accountId}
+            onReply={handleReply}
+            onComposeToAddress={handleComposeToAddress}
+            onEditDraft={handleEditDraft}
+            onActionComplete={(autoSelectNext) => messageListRef?.handleActionComplete(autoSelectNext)}
+            isFocused={getFocusedPane() === 'viewer'}
+            isFlashing={isPaneFlashing('viewer')}
+            showBackButton={false}
+            onBack={() => { activeMessageTabId = null }}
+            inFocusMode={false}
+            focusModeKind={null}
+            focusedMessageIdInFocus={null}
+            onToggleThreadFocus={toggleThreadFocus}
+            onToggleMessageFocus={toggleMessageFocus}
+          />
+        </div>
+      {/if}
     </section>
 
     <!-- List Resize Handle -->
-    {#if getLayoutMode() === 'full'}
+    {#if getLayoutMode() === 'full' && !tabMode}
     <button
       type="button"
       class="w-1 cursor-col-resize hover:bg-primary/20 active:bg-primary/40 transition-colors border-0 p-0 {isResizingList
@@ -1706,7 +1896,9 @@
     ></button>
     {/if}
 
-    <!-- Conversation Viewer -->
+    <!-- Conversation Viewer (classic layout only — in tab mode the
+         active tab's viewer lives inside the list section above) -->
+    {#if !tabMode}
     <main
       class="{viewerIsOverlay ? `responsive-viewer-overlay bg-background ${viewerIsVisible ? 'responsive-viewer-visible' : ''}` : 'flex-1 min-w-0 bg-background'}"
       role="presentation"
@@ -1734,6 +1926,7 @@
         onToggleMessageFocus={toggleMessageFocus}
       />
     </main>
+    {/if}
     </div>
   </div>
 </div>

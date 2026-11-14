@@ -610,6 +610,10 @@ export function GetMessageListSortOrder() {
   return window['go']['app']['App']['GetMessageListSortOrder']();
 }
 
+export function GetMessageOpenMode() {
+  return window['go']['app']['App']['GetMessageOpenMode']();
+}
+
 export function GetMessageReactions(arg1) {
   return window['go']['app']['App']['GetMessageReactions'](arg1);
 }
@@ -704,6 +708,10 @@ export function GetShowMessageListCircles() {
 
 export function GetShowMessageListProfilePics() {
   return window['go']['app']['App']['GetShowMessageListProfilePics']();
+}
+
+export function GetShowMessagePreviewPane() {
+  return window['go']['app']['App']['GetShowMessagePreviewPane']();
 }
 
 export function GetShowTitleBar() {
@@ -1346,6 +1354,10 @@ export function SetMessageListSortOrder(arg1) {
   return window['go']['app']['App']['SetMessageListSortOrder'](arg1);
 }
 
+export function SetMessageOpenMode(arg1) {
+  return window['go']['app']['App']['SetMessageOpenMode'](arg1);
+}
+
 export function SetNativeTitleBar(arg1) {
   return window['go']['app']['App']['SetNativeTitleBar'](arg1);
 }
@@ -1392,6 +1404,10 @@ export function SetShowMessageListCircles(arg1) {
 
 export function SetShowMessageListProfilePics(arg1) {
   return window['go']['app']['App']['SetShowMessageListProfilePics'](arg1);
+}
+
+export function SetShowMessagePreviewPane(arg1) {
+  return window['go']['app']['App']['SetShowMessagePreviewPane'](arg1);
 }
 
 export function SetShowTitleBar(arg1) {

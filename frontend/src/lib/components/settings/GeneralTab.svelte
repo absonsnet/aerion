@@ -36,6 +36,8 @@
     showViewerCircles: boolean
     darkMailContent: boolean
     darkComposerBody: boolean
+    showMessagePreviewPane: boolean
+    messageOpenMode: string
   }
 
   let {
@@ -66,6 +68,8 @@
     showViewerCircles = $bindable(),
     darkMailContent = $bindable(),
     darkComposerBody = $bindable(),
+    showMessagePreviewPane = $bindable(),
+    messageOpenMode = $bindable(),
   }: Props = $props()
 
   // Message list density options
@@ -179,6 +183,21 @@
   function handleWindowControlsSideChange(value: string) {
     windowControlsSide = value
     onWindowControlsSideChange?.(value)
+  }
+
+  // Message open mode options (used when the preview pane is off)
+  const messageOpenModeOptions = $derived([
+    { value: 'tab', label: $_('settingsGeneral.messageOpenModeTab') },
+    { value: 'dialog', label: $_('settingsGeneral.messageOpenModeDialog') },
+    { value: 'popup', label: $_('settingsGeneral.messageOpenModePopup') },
+  ])
+
+  function getMessageOpenModeLabel(value: string): string {
+    return messageOpenModeOptions.find(opt => opt.value === value)?.label || value
+  }
+
+  function handleMessageOpenModeChange(value: string) {
+    messageOpenMode = value
   }
 
   function handleDelayInput(e: Event) {
@@ -336,6 +355,43 @@
         </div>
       </div>
     {/if}
+
+    <!-- Show message preview pane — when off, the list fills the window
+         and messages open per the open-mode setting below -->
+    <div class="space-y-2">
+      <div class="flex items-center justify-between">
+        <div>
+          <Label for="show-message-preview-pane">{$_('settingsGeneral.showMessagePreviewPane')}</Label>
+          <p class="text-xs text-muted-foreground">
+            {$_('settingsGeneral.showMessagePreviewPaneHelp')}
+          </p>
+        </div>
+        <Switch
+          id="show-message-preview-pane"
+          bind:checked={showMessagePreviewPane}
+        />
+      </div>
+    </div>
+
+    <!-- Message open mode — how a message opens when the preview pane is off -->
+    <div class="space-y-2">
+      <Label>{$_('settingsGeneral.messageOpenMode')}</Label>
+      <Select.Root value={messageOpenMode} onValueChange={handleMessageOpenModeChange}>
+        <Select.Trigger>
+          <Select.Value>
+            {getMessageOpenModeLabel(messageOpenMode)}
+          </Select.Value>
+        </Select.Trigger>
+        <Select.Content>
+          {#each messageOpenModeOptions as opt (opt.value)}
+            <Select.Item value={opt.value} label={opt.label} />
+          {/each}
+        </Select.Content>
+      </Select.Root>
+      <p class="text-xs text-muted-foreground">
+        {$_('settingsGeneral.messageOpenModeHelp')}
+      </p>
+    </div>
 
     <!-- Always show checkbox next to message — reserve the fixed checkbox
          column instead of the hover/swipe slide-reveal -->

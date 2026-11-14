@@ -97,6 +97,10 @@
     "clearSelection": "Clear selection",
     "selectAll": "Select all"
   },
+  "messageTabs": {
+    "tabs": "Message tabs",
+    "closeTab": "Close tab"
+  },
   "viewer": {
     "selectConversation": "Select a conversation to read",
     "failedToLoad": "Failed to load conversation",
@@ -436,6 +440,13 @@
     "darkComposerBodyHelp": "Use a dark background for the composer message body when Aerion is in dark mode.",
     "alwaysShowCheckbox": "Always show checkbox next to message",
     "alwaysShowCheckboxHelp": "Reserve a fixed checkbox column in the message list instead of revealing it on hover or swipe.",
+    "showMessagePreviewPane": "Show message preview pane",
+    "showMessagePreviewPaneHelp": "Show the message preview beside the message list. When off, the list fills the window and messages open in tabs — double-click or press Enter to open.",
+    "messageOpenMode": "When the preview pane is off, open messages in",
+    "messageOpenModeHelp": "How a message opens when the preview pane is off. Dialog and popup window open modes are coming soon and open in a tab for now.",
+    "messageOpenModeTab": "Tab",
+    "messageOpenModeDialog": "Dialog",
+    "messageOpenModePopup": "Popup window",
     "selectDensity": "Select density",
     "readReceipts": "Read Receipts",
     "readReceiptPolicy": "When someone requests a read receipt",

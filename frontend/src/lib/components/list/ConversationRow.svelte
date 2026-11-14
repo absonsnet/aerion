@@ -45,6 +45,9 @@
     searchFolderType?: string       // Folder type for icon in search results
     isNonLocal?: boolean            // Show cloud icon for non-local server search results
     onSelect: (e?: MouseEvent) => void
+    // Explicit open (double-click / Enter) in select-only mode (preview
+    // pane off). Absent in classic mode, where a click already opens.
+    onOpen?: () => void
     onCheck: (checked: boolean, event?: MouseEvent) => void
     onClearSelection: () => void  // Clear multi-select when right-clicking unchecked row
     onActionComplete?: (autoSelectNext?: boolean) => void
@@ -73,6 +76,7 @@
     searchFolderType: _searchFolderType = '',
     isNonLocal = false,
     onSelect,
+    onOpen,
     onCheck,
     onClearSelection,
     onActionComplete,
@@ -449,6 +453,12 @@
     if (e.key === 'Enter') {
       e.preventDefault()
       e.stopPropagation()
+      // Select-only mode: Enter opens the message (tab); otherwise it
+      // selects, which in classic mode also opens it.
+      if (onOpen) {
+        onOpen()
+        return
+      }
       onSelect()
       return
     }
@@ -487,6 +497,7 @@
       ? 'bg-primary/20'
       : 'hover:bg-muted/50'} {getAccentBarUnread() && hasUnread && getAccentUnreadStyle() === 'bar' ? 'border-l-2 border-l-primary' : ''} {swipeAnim === 'select' ? 'swipe-select-anim' : ''} {swipeAnim === 'delete' ? 'swipe-delete-anim' : ''}"
     onclick={handleRowClick}
+    ondblclick={() => onOpen?.()}
     onkeydown={handleRowKeydown}
     ondragstart={handleDragStart}
     ontouchstart={handleTouchStart}

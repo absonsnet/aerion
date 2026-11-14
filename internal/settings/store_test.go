@@ -360,6 +360,58 @@ func TestSetGetBoolSettings(t *testing.T) {
 	}
 }
 
+func TestSetGetMessagePreviewPaneAndOpenMode(t *testing.T) {
+	store := NewStore(openTestDB(t))
+
+	// Defaults: preview pane on, open mode tab
+	if got, err := store.GetShowMessagePreviewPane(); err != nil || got != true {
+		t.Errorf("GetShowMessagePreviewPane default: got %v, err %v, want true", got, err)
+	}
+	if got, err := store.GetMessageOpenMode(); err != nil || got != "tab" {
+		t.Errorf("GetMessageOpenMode default: got %q, err %v, want %q", got, err, "tab")
+	}
+
+	// Toggle the pane off and back on
+	if err := store.SetShowMessagePreviewPane(false); err != nil {
+		t.Fatalf("SetShowMessagePreviewPane(false): %v", err)
+	}
+	if got, _ := store.GetShowMessagePreviewPane(); got != false {
+		t.Errorf("GetShowMessagePreviewPane after off: got %v, want false", got)
+	}
+	if err := store.SetShowMessagePreviewPane(true); err != nil {
+		t.Fatalf("SetShowMessagePreviewPane(true): %v", err)
+	}
+	if got, _ := store.GetShowMessagePreviewPane(); got != true {
+		t.Errorf("GetShowMessagePreviewPane after on: got %v, want true", got)
+	}
+
+	// Each open mode round-trips
+	for _, mode := range []string{"tab", "dialog", "popup"} {
+		if err := store.SetMessageOpenMode(mode); err != nil {
+			t.Fatalf("SetMessageOpenMode(%q): %v", mode, err)
+		}
+		if got, _ := store.GetMessageOpenMode(); got != mode {
+			t.Errorf("GetMessageOpenMode after %q: got %q", mode, got)
+		}
+	}
+
+	// Invalid mode is rejected and the previous value survives
+	if err := store.SetMessageOpenMode("window"); err == nil {
+		t.Errorf("SetMessageOpenMode(%q): expected error, got nil", "window")
+	}
+	if got, _ := store.GetMessageOpenMode(); got != "popup" {
+		t.Errorf("GetMessageOpenMode after invalid set: got %q, want %q", got, "popup")
+	}
+
+	// Unknown stored value falls back to "tab" instead of failing the load
+	if err := store.Set(KeyMessageOpenMode, "bogus"); err != nil {
+		t.Fatalf("raw Set: %v", err)
+	}
+	if got, err := store.GetMessageOpenMode(); err != nil || got != "tab" {
+		t.Errorf("GetMessageOpenMode unknown value: got %q, err %v, want %q", got, err, "tab")
+	}
+}
+
 func TestSetGetLanguage(t *testing.T) {
 	tests := []struct {
 		name      string
