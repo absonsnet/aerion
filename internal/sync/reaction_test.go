@@ -2,6 +2,8 @@ package sync
 
 import (
 	"testing"
+
+	"github.com/hkdb/aerion/internal/reaction"
 )
 
 // Reaction-format detection tests. The parser is exercised through
@@ -225,6 +227,35 @@ func TestDetectReactionRegularEmail(t *testing.T) {
 	}
 	if parsed.BodyText == "" {
 		t.Error("BodyText is empty, want the regular body preserved")
+	}
+}
+
+// TestDetectReactionOwnBuiltMessage is the send/receive round-trip: a
+// reaction email built by the Phase 2 sender must be detected by the
+// Phase 1 receive parser, so a reaction saved to Sent (or arriving from
+// another client built the same way) is recognised.
+func TestDetectReactionOwnBuiltMessage(t *testing.T) {
+	raw, _, err := reaction.BuildMessage(reaction.BuildOptions{
+		Emoji:       "👍",
+		SenderName:  "Me",
+		SenderEmail: "me@example.com",
+		Original: reaction.Original{
+			MessageID: "<orig@example.com>",
+			Subject:   "Hello there",
+			FromName:  "Alice",
+			FromEmail: "alice@example.com",
+			To:        []string{"me@example.com"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("reaction.BuildMessage() error = %v", err)
+	}
+	parsed := testEngine().parseMessageBodyInternal(raw, "msg-1")
+	if parsed.Reaction == nil {
+		t.Fatal("Reaction = nil, want the built reaction email to be detected")
+	}
+	if parsed.Reaction.Emoji != "👍" {
+		t.Errorf("Reaction.Emoji = %q, want 👍", parsed.Reaction.Emoji)
 	}
 }
 

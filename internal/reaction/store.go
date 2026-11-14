@@ -1,11 +1,11 @@
 // Package reaction stores email reactions: one emoji reaction per reactor
-// per message, recorded from reaction emails received during sync.
+// per message, recorded from reaction emails received during sync or sent
+// by this client (see send.go), and validates the emoji itself.
 //
 // A reaction is a separate email pointing back at the original via the
 // In-Reply-To header. Two wire formats are detected (see internal/sync):
 // Gmail's text/vnd.google.email-reaction+json part and RFC 9078
-// (Content-Disposition: reaction). This package only persists what the
-// sync parser found; it knows nothing about MIME.
+// (Content-Disposition: reaction).
 package reaction
 
 import (
