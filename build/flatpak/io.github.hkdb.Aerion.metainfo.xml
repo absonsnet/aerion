@@ -375,6 +375,15 @@
   </provides>
 
   <releases>
+    <release version="0.5.1" date="2026-11-14">
+      <description>
+        <ul>
+          <li>Window controls now follow the operating system and desktop environment: traffic-light buttons on the left on macOS and Ubuntu, on the right on Windows and GNOME/KDE/XFCE</li>
+          <li>Windows gets native-style glyph buttons instead of the traffic-light circles</li>
+          <li>New Settings option to force the buttons left or right (Auto by default)</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.5.0" date="2026-11-14">
       <description>
         <ul>

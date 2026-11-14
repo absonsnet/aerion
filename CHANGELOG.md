@@ -1,5 +1,12 @@
 # CHANGELOG
 
+**v0.5.1 - 14-11-2026**
+---
+
+- Window controls now follow the operating system and desktop environment: traffic-light buttons on the left on macOS and Ubuntu, on the right on Windows and GNOME/KDE/XFCE — with the button order taken from the desktop environment's own setting
+- Windows gets native-style glyph buttons (minimize, maximize, close) instead of the traffic-light circles
+- New Settings option to force the buttons left or right (Auto by default), which takes effect without a restart
+
 **v0.5.0 - 14-11-2026**
 ---
 
