@@ -22,6 +22,17 @@ const (
 
 	// TypeComposerClosed indicates the composer window was closed
 	TypeComposerClosed = "composer_closed"
+
+	// TypeViewerReady indicates a message-viewer popup finished loading
+	TypeViewerReady = "viewer_ready"
+
+	// TypeViewerClosed indicates a message-viewer popup window was closed
+	TypeViewerClosed = "viewer_closed"
+
+	// TypeViewerSwitch is sent by a viewer popup when the user picks
+	// another view mode in its switcher; the main window opens the
+	// message in that mode and the popup closes itself.
+	TypeViewerSwitch = "viewer_switch"
 )
 
 // Message type constants for Main -> Composer (broadcast) communication
@@ -71,6 +82,14 @@ type DraftDeletedPayload struct {
 // ComposerClosedPayload is the payload for TypeComposerClosed messages.
 type ComposerClosedPayload struct {
 	DraftID *int64 `json:"draft_id,omitempty"`
+}
+
+// ViewerSwitchPayload is the payload for TypeViewerSwitch messages.
+type ViewerSwitchPayload struct {
+	Mode      string `json:"mode"` // "tab" | "dialog"
+	AccountID string `json:"account_id"`
+	FolderID  string `json:"folder_id"`
+	ThreadID  string `json:"thread_id"`
 }
 
 // ThemeChangedPayload is the payload for TypeThemeChanged messages.

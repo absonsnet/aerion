@@ -101,6 +101,12 @@
     "tabs": "Message tabs",
     "closeTab": "Close tab"
   },
+  "messageView": {
+    "viewAs": "View as",
+    "switchToTab": "Open this message in a tab",
+    "switchToDialog": "Open this message in a dialog",
+    "switchToPopup": "Open this message in a popup window"
+  },
   "viewer": {
     "selectConversation": "Select a conversation to read",
     "failedToLoad": "Failed to load conversation",
@@ -441,9 +447,9 @@
     "alwaysShowCheckbox": "Always show checkbox next to message",
     "alwaysShowCheckboxHelp": "Reserve a fixed checkbox column in the message list instead of revealing it on hover or swipe.",
     "showMessagePreviewPane": "Show message preview pane",
-    "showMessagePreviewPaneHelp": "Show the message preview beside the message list. When off, the list fills the window and messages open in tabs — double-click or press Enter to open.",
+    "showMessagePreviewPaneHelp": "Show the message preview beside the message list. When off, the list fills the window and messages open in the mode chosen below — double-click or press Enter to open.",
     "messageOpenMode": "When the preview pane is off, open messages in",
-    "messageOpenModeHelp": "How a message opens when the preview pane is off. Dialog and popup window open modes are coming soon and open in a tab for now.",
+    "messageOpenModeHelp": "How a message opens when the preview pane is off. Dialog opens the message in a large dialog, popup window in a separate window. You can move an open message between tab, dialog and popup window from the view switcher in its header.",
     "messageOpenModeTab": "Tab",
     "messageOpenModeDialog": "Dialog",
     "messageOpenModePopup": "Popup window",

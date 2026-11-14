@@ -8,6 +8,7 @@
   import Sidebar from './lib/components/sidebar/Sidebar.svelte'
   import MessageList from './lib/components/list/MessageList.svelte'
   import ConversationViewer from './lib/components/viewer/ConversationViewer.svelte'
+  import ViewSwitcher from './lib/components/viewer/ViewSwitcher.svelte'
   import Composer from './lib/components/composer/Composer.svelte'
   import ToastContainer from './lib/components/ui/toast/ToastContainer.svelte'
   import SpellSuggestionMenu from './lib/spellcheck/SpellSuggestionMenu.svelte'
@@ -25,7 +26,7 @@
   import * as AlertDialog from '$lib/components/ui/alert-dialog'
   import { accountStore } from '$lib/stores/accounts.svelte'
   import { addToast } from '$lib/stores/toast'
-  import { loadSettings, getThemeMode, getShowTitleBar, getNativeTitleBar, getComposerMode, getMailtoMode, getShowMessagePreviewPane, getMessageOpenMode } from '$lib/stores/settings.svelte'
+  import { loadSettings, getThemeMode, getShowTitleBar, getNativeTitleBar, getComposerMode, getMailtoMode, getShowMessagePreviewPane, getMessageOpenMode, type MessageOpenMode } from '$lib/stores/settings.svelte'
   import { loadWindowControlsLayout } from '$lib/stores/windowControls.svelte'
   import { loadImageAllowlist } from '$lib/stores/imageAllowlist.svelte'
   import { initTheme, applyThemeFromMode, handleSystemThemeEvent, handleMediaQueryChange } from '$lib/stores/theme.svelte'
@@ -46,7 +47,7 @@
   import { dispatchExtensionShortcut } from '$lib/stores/extensionShortcuts.svelte'
   import { initLayout, getLayoutMode, getResponsiveView, showViewer, hideViewer, showSidebar, hideSidebar, isResponsive } from '$lib/stores/layout.svelte'
   // @ts-ignore - wailsjs path
-  import { PrepareReply, GetPendingMailto, GetDraft, MarkAsRead, MarkAsUnread, Star, Unstar, Archive, MarkAsSpam, MarkAsNotSpam, Undo, GetTermsAccepted, SetTermsAccepted, RefreshWindowConstraints, AcceptCertificate, GetStartHiddenActive, CloseWindow, QuitApp, OpenComposerWindow, GetSystemTheme, NotifyStartupComplete, GetOAuthBuildStatus, GetOAuthWarningDisabled, SetOAuthWarningDisabled, GetLastSeenVersion, SetLastSeenVersion, GetAppInfo } from '../wailsjs/go/app/App.js'
+  import { PrepareReply, GetPendingMailto, GetDraft, MarkAsRead, MarkAsUnread, Star, Unstar, Archive, MarkAsSpam, MarkAsNotSpam, Undo, GetTermsAccepted, SetTermsAccepted, RefreshWindowConstraints, AcceptCertificate, GetStartHiddenActive, CloseWindow, QuitApp, OpenComposerWindow, OpenViewerWindow, GetSystemTheme, NotifyStartupComplete, GetOAuthBuildStatus, GetOAuthWarningDisabled, SetOAuthWarningDisabled, GetLastSeenVersion, SetLastSeenVersion, GetAppInfo } from '../wailsjs/go/app/App.js'
   // @ts-ignore - wailsjs path
   import { smtp, folder, certificate } from '../wailsjs/go/models'
   // @ts-ignore - wailsjs runtime
@@ -112,9 +113,16 @@
   const tabMode = $derived(getLayoutMode() === 'full' && !getShowMessagePreviewPane())
   const activeMessageTab = $derived(messageTabs.find(t => t.threadId === activeMessageTabId) ?? null)
 
+  // Dialog mode: at most one message open in the modal. The list stays
+  // mounted behind it, so closing returns to the folder/list view with
+  // scroll and selection intact.
+  let dialogMessage = $state<MessageTab | null>(null)
+  let dialogViewerRef: ConversationViewer | null = null
+
   function closeAllMessageTabs() {
     messageTabs = []
     activeMessageTabId = null
+    dialogMessage = null
   }
 
   function openMessageTab(threadId: string, folderId: string, accountId: string, subject?: string) {
@@ -163,15 +171,76 @@
     }
   }
 
-  // Single dispatch point for "open message". Phase 5 adds dialog/popup
-  // branches here; until then those modes fall back to tab behaviour so
-  // the message still opens instead of the open being dropped.
+  // Single dispatch point for "open message". The open mode setting
+  // decides where the message opens: a tab, a large modal dialog, or a
+  // separate popup window. At most one open instance per message — opening
+  // in a new mode closes the old one.
   function openMessage(threadId: string, folderId: string, accountId: string, subject?: string) {
     const mode = getMessageOpenMode()
-    if (mode === 'dialog' || mode === 'popup') {
-      // Not implemented until Phase 5 — fall back to a tab for now.
+    if (mode === 'dialog') {
+      openMessageDialog(threadId, folderId, accountId, subject)
+      return
+    }
+    if (mode === 'popup') {
+      closeMessageTab(threadId)
+      if (dialogMessage?.threadId === threadId) dialogMessage = null
+      OpenViewerWindow(accountId, folderId, threadId)
+      return
     }
     openMessageTab(threadId, folderId, accountId, subject)
+  }
+
+  function resolveMessageLabel(threadId: string, subject?: string): string {
+    return subject?.trim()
+      ? subject
+      : messageListRef?.getConversationSubject(threadId) || $_('viewer.noSubject')
+  }
+
+  function openMessageDialog(threadId: string, folderId: string, accountId: string, subject?: string) {
+    closeMessageTab(threadId)
+    selectedThreadId = threadId
+    selectedConversationFolderId = folderId
+    selectedConversationAccountId = accountId
+    dialogMessage = { threadId, folderId, accountId, subject: resolveMessageLabel(threadId, subject) }
+    saveUIState({
+      selectedThreadId: threadId,
+      selectedConversationAccountId: accountId,
+      selectedConversationFolderId: folderId,
+    })
+  }
+
+  function closeMessageDialog() {
+    dialogMessage = null
+  }
+
+  function moveDialogMessageTo(mode: MessageOpenMode) {
+    if (!dialogMessage) return
+    moveMessageTo(mode, dialogMessage)
+  }
+
+  function moveActiveTabTo(mode: MessageOpenMode) {
+    if (!activeMessageTab) return
+    moveMessageTo(mode, activeMessageTab)
+  }
+
+  // View switcher: move an already-open message to another mode. Moving
+  // to tab opens/activates its tab and closes the dialog/popup; moving to
+  // dialog/popup closes its tab. The popup case is handled by the popup
+  // itself via SwitchView + the viewer:switch IPC event below.
+  function moveMessageTo(mode: MessageOpenMode, tab: MessageTab) {
+    if (mode === 'tab') {
+      closeMessageDialog()
+      openMessageTab(tab.threadId, tab.folderId, tab.accountId, tab.subject)
+      return
+    }
+    if (mode === 'dialog') {
+      closeMessageTab(tab.threadId)
+      openMessageDialog(tab.threadId, tab.folderId, tab.accountId, tab.subject)
+      return
+    }
+    closeMessageTab(tab.threadId)
+    closeMessageDialog()
+    OpenViewerWindow(tab.accountId, tab.folderId, tab.threadId)
   }
 
   // Turning the preview pane back on closes message tabs and restores the
@@ -483,6 +552,16 @@
         type: 'success',
         message: $_('composer.messageSent'),
       })
+    })
+
+    // A viewer popup's switcher asks the main window to open its thread
+    // in another mode; the popup closes itself after sending.
+    EventsOn('viewer:switch', (data: { mode: string; accountId: string; folderId: string; threadId: string }) => {
+      if (data.mode === 'tab') {
+        openMessageTab(data.threadId, data.folderId, data.accountId)
+      } else if (data.mode === 'dialog') {
+        openMessageDialog(data.threadId, data.folderId, data.accountId)
+      }
     })
 
     // Listen for escape-iframe-focus event (from EmailBody when navigating away from iframe)
@@ -1408,6 +1487,11 @@
         hideSidebar()
         return
       }
+      if (tabMode && dialogMessage) {
+        // First: close the open message dialog, back to the folder/list view
+        closeMessageDialog()
+        return
+      }
       if (tabMode && activeMessageTabId) {
         // First: close the open message tab, back to the folder tab
         closeMessageTab(activeMessageTabId)
@@ -1855,11 +1939,19 @@
       {#if tabMode && activeMessageTab}
         <!-- One viewer at a time: only the active tab's is mounted -->
         <div
-          class="flex-1 min-h-0 bg-background"
+          class="flex-1 min-h-0 flex flex-col bg-background"
           role="presentation"
           data-pane="viewer"
           onclick={() => handlePaneClick('viewer')}
         >
+          <!-- Tab header: subject + view switcher -->
+          <div class="flex flex-shrink-0 items-center gap-2 border-b border-border bg-muted/30 px-3 py-1.5">
+            <span class="min-w-0 flex-1 truncate text-sm font-medium" title={activeMessageTab.subject}>
+              {activeMessageTab.subject}
+            </span>
+            <ViewSwitcher current="tab" onSwitch={moveActiveTabTo} />
+          </div>
+          <div class="flex-1 min-h-0">
           <ConversationViewer
             bind:this={viewerRef}
             threadId={activeMessageTab.threadId}
@@ -1880,6 +1972,7 @@
             onToggleThreadFocus={toggleThreadFocus}
             onToggleMessageFocus={toggleMessageFocus}
           />
+          </div>
         </div>
       {/if}
     </section>
@@ -1957,6 +2050,52 @@
         onClose={closeComposer}
         onSent={closeComposer}
       />
+    </div>
+  </div>
+{/if}
+
+<!-- Message Dialog (preview pane off + open mode Dialog) -->
+{#if tabMode && dialogMessage}
+  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+    <div class="{getLayoutMode() === 'narrow' ? 'w-full h-full bg-background overflow-hidden flex flex-col' : 'w-full max-w-4xl h-[80vh] bg-background rounded-lg shadow-xl overflow-hidden flex flex-col'}">
+      <!-- Dialog header: subject + view switcher + close -->
+      <div class="flex flex-shrink-0 items-center gap-2 border-b border-border bg-muted/30 px-3 py-2">
+        <span class="min-w-0 flex-1 truncate text-sm font-medium" title={dialogMessage.subject}>
+          {dialogMessage.subject}
+        </span>
+        <ViewSwitcher current="dialog" onSwitch={moveDialogMessageTo} />
+        <button
+          type="button"
+          class="flex-shrink-0 rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+          aria-label={$_('window.closeWindow')}
+          title={$_('window.closeWindow')}
+          onclick={closeMessageDialog}
+        >
+          <Icon icon="mdi:close" class="w-4 h-4" />
+        </button>
+      </div>
+      <div class="flex-1 min-h-0">
+        <ConversationViewer
+          bind:this={dialogViewerRef}
+          threadId={dialogMessage.threadId}
+          folderId={dialogMessage.folderId}
+          folderType={selectedFolderType}
+          accountId={dialogMessage.accountId}
+          onReply={handleReply}
+          onComposeToAddress={handleComposeToAddress}
+          onEditDraft={handleEditDraft}
+          onActionComplete={(autoSelectNext) => {
+            messageListRef?.handleActionComplete(autoSelectNext)
+            if (autoSelectNext) closeMessageDialog()
+          }}
+          showBackButton={false}
+          inFocusMode={false}
+          focusModeKind={null}
+          focusedMessageIdInFocus={null}
+          onToggleThreadFocus={toggleThreadFocus}
+          onToggleMessageFocus={toggleMessageFocus}
+        />
+      </div>
     </div>
   </div>
 {/if}

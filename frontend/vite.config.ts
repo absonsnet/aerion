@@ -67,6 +67,7 @@ export default defineConfig({
       input: {
         main: path.resolve(__dirname, 'index.html'),
         composer: path.resolve(__dirname, 'composer.html'),
+        viewer: path.resolve(__dirname, 'viewer.html'),
       },
     },
   },

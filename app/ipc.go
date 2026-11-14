@@ -95,6 +95,27 @@ func (a *App) handleIPCMessage(clientID string, msg ipc.Message) {
 		}
 		log.Info().Str("clientID", clientID).Msg("Composer window closed")
 
+	case ipc.TypeViewerReady:
+		log.Info().Str("clientID", clientID).Msg("Viewer popup ready")
+
+	case ipc.TypeViewerClosed:
+		log.Info().Str("clientID", clientID).Msg("Viewer popup closed")
+
+	case ipc.TypeViewerSwitch:
+		var payload ipc.ViewerSwitchPayload
+		if err := msg.ParsePayload(&payload); err != nil {
+			log.Error().Err(err).Msg("Failed to parse viewer_switch payload")
+			return
+		}
+		// The popup closes itself after sending; the main window just
+		// opens the message in the requested mode.
+		wailsRuntime.EventsEmit(a.ctx, "viewer:switch", map[string]interface{}{
+			"mode":      payload.Mode,
+			"accountId": payload.AccountID,
+			"folderId":  payload.FolderID,
+			"threadId":  payload.ThreadID,
+		})
+
 	default:
 		log.Warn().Str("type", msg.Type).Msg("Unknown IPC message type")
 	}
@@ -269,6 +290,67 @@ func (a *App) OpenComposerWindow(accountID, mode, messageID, draftID, mailtoURL 
 	return nil
 }
 
+// OpenViewerWindow spawns a detached message-viewer popup window for one
+// thread. Mirrors OpenComposerWindow: a separate process of the same
+// executable with --view-message flags, authenticated to the IPC server
+// with the same token the composer windows use.
+func (a *App) OpenViewerWindow(accountID, folderID, threadID string) error {
+	log := logging.WithComponent("app.ipc")
+
+	if a.ipcServer == nil || a.ipcTokenMgr == nil {
+		return nil // IPC not initialized - not an error, just skip
+	}
+
+	execPath, err := os.Executable()
+	if err != nil {
+		return nil // Can't get executable path - skip
+	}
+
+	args := []string{
+		"--view-message",
+		"--account", accountID,
+		"--folder-id", folderID,
+		"--thread-id", threadID,
+		"--ipc-address", a.ipcServer.Address(),
+	}
+
+	// Forward the parent's logging options so a capture session covers the
+	// viewer popup too, on its own file like the composer.
+	if lvl := logging.LevelName(); lvl != "" {
+		args = append(args, "--log-level", lvl)
+	}
+	if f := logging.FilePath(); f != "" {
+		args = append(args, "--log-file", viewerLogPath(f))
+	}
+
+	log.Info().
+		Str("execPath", execPath).
+		Strs("args", args).
+		Msg("Spawning viewer popup window")
+
+	cmd := exec.Command(execPath, args...)
+
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		return nil // Can't create stdin pipe - skip
+	}
+
+	if err := cmd.Start(); err != nil {
+		return nil // Can't start process - skip
+	}
+
+	go func() {
+		defer recoverPanic("app.ipc", "write IPC token")
+		token := a.ipcTokenMgr.GetToken()
+		_, _ = stdin.Write([]byte(token))
+		stdin.Close()
+	}()
+
+	log.Info().Int("pid", cmd.Process.Pid).Msg("Viewer popup spawned")
+
+	return nil
+}
+
 // BroadcastThemeChange notifies all composer windows that the theme has changed.
 func (a *App) BroadcastThemeChange(theme string) {
 	if a.ipcServer == nil {
@@ -306,4 +388,11 @@ func (a *App) GetConnectedComposers() int {
 func composerLogPath(mainPath string) string {
 	ext := filepath.Ext(mainPath)
 	return strings.TrimSuffix(mainPath, ext) + ".composer" + ext
+}
+
+// viewerLogPath derives the viewer popup's log file the same way:
+// aerion.log → aerion.viewer.log.
+func viewerLogPath(mainPath string) string {
+	ext := filepath.Ext(mainPath)
+	return strings.TrimSuffix(mainPath, ext) + ".viewer" + ext
 }

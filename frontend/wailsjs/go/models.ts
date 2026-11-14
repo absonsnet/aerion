@@ -799,6 +799,24 @@ export namespace app {
 		    return a;
 		}
 	}
+	export class ViewMode {
+	    accountId: string;
+	    folderId: string;
+	    folderType: string;
+	    threadId: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ViewMode(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.accountId = source["accountId"];
+	        this.folderId = source["folderId"];
+	        this.folderType = source["folderType"];
+	        this.threadId = source["threadId"];
+	    }
+	}
 
 }
 

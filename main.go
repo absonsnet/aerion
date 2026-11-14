@@ -31,7 +31,10 @@ var (
 	logLevel    = flag.String("log-level", "", "Log level: fatal, error, warn, info, debug (default fatal; env AERION_LOG_LEVEL)")
 	logFile     = flag.String("log-file", "", "Also write logs to this file, 10 MB rollover to <file>.1 (env AERION_LOG_FILE)")
 	composeMode = flag.Bool("compose", false, "Run in composer mode (detached window)")
+	viewMessage = flag.Bool("view-message", false, "Run in message viewer mode (detached popup window)")
 	accountID   = flag.String("account", "", "Account ID for composer")
+	folderID    = flag.String("folder-id", "", "Folder ID for message viewer popup")
+	threadID    = flag.String("thread-id", "", "Thread ID for message viewer popup")
 	ipcAddress  = flag.String("ipc-address", "", "IPC server address to connect to")
 	mode        = flag.String("mode", "new", "Compose mode: new, reply, reply-all, forward")
 	messageID   = flag.String("message-id", "", "Original message ID for reply/forward")
@@ -114,6 +117,10 @@ func main() {
 		runComposerMode()
 		return
 	}
+	if *viewMessage {
+		runViewerMode()
+		return
+	}
 	runMainMode(mailtoData, rawMailtoArg)
 }
 
@@ -181,6 +188,11 @@ func runMainMode(mailtoData *app.MailtoData, rawMailtoArg string) {
 	// We need ComposerApp bindings for the detached composer window.
 	dummyComposerApp := app.NewComposerApp(app.ComposerConfig{})
 
+	// Create a dummy ViewerApp for binding generation only, same pattern:
+	// the detached message-viewer popup binds the real ViewerApp, and its
+	// frontend imports these bindings.
+	dummyViewerApp := app.NewViewerApp(app.ViewerConfig{})
+
 	// Create application with options
 	err = wails.Run(&options.App{
 		Title:                    "Aerion",
@@ -202,6 +214,7 @@ func runMainMode(mailtoData *app.MailtoData, rawMailtoArg string) {
 		Bind: []interface{}{
 			application,
 			dummyComposerApp, // For binding generation
+			dummyViewerApp,   // For binding generation
 		},
 		Linux: &linux.Options{
 			WebviewGpuPolicy: linux.WebviewGpuPolicyOnDemand,
@@ -306,6 +319,108 @@ func runComposerMode() {
 		println("Error:", err.Error())
 		os.Exit(1)
 	}
+}
+
+// runViewerMode runs a detached message-viewer popup window
+func runViewerMode() {
+	// Validate required flags
+	if *accountID == "" {
+		println("Error: --account is required for viewer mode")
+		os.Exit(1)
+	}
+	if *folderID == "" {
+		println("Error: --folder-id is required for viewer mode")
+		os.Exit(1)
+	}
+	if *threadID == "" {
+		println("Error: --thread-id is required for viewer mode")
+		os.Exit(1)
+	}
+	if *ipcAddress == "" {
+		println("Error: --ipc-address is required for viewer mode")
+		os.Exit(1)
+	}
+
+	preinitWebKit()
+
+	config := app.ViewerConfig{
+		AccountID:  *accountID,
+		FolderID:   *folderID,
+		ThreadID:   *threadID,
+		IPCAddress: *ipcAddress,
+	}
+
+	viewerApp := app.NewViewerApp(config)
+
+	viewerAssetHandler := &viewerAssetHandler{assets: assets}
+
+	// The viewer popup uses the native OS title bar (not frameless), like
+	// the detached composer: standard resize/drag, and BeforeClose keeps
+	// the close confirmation path when the OS close button is used.
+	err := wails.Run(&options.App{
+		Title:                    "Aerion - Message",
+		Width:                    900,
+		Height:                   650,
+		MinWidth:                 500,
+		MinHeight:                400,
+		Frameless:                false,
+		StartHidden:              true, // Hide until frontend is ready to prevent white flash
+		EnableDefaultContextMenu: true,
+		AssetServer: &assetserver.Options{
+			// Don't provide Assets here - we use Handler exclusively
+			// so we can rewrite "/" to "/viewer.html"
+			Handler: viewerAssetHandler,
+		},
+		BackgroundColour: &options.RGBA{R: 27, G: 38, B: 54, A: 1},
+		OnStartup:        viewerApp.Startup,
+		OnShutdown:       viewerApp.Shutdown,
+		OnBeforeClose:    viewerApp.BeforeClose,
+		Bind: []interface{}{
+			viewerApp,
+		},
+		Linux: &linux.Options{
+			WebviewGpuPolicy: linux.WebviewGpuPolicyOnDemand,
+			ProgramName:      "io.github.hkdb.Aerion",
+		},
+	})
+
+	if err != nil {
+		println("Error:", err.Error())
+		os.Exit(1)
+	}
+}
+
+// viewerAssetHandler serves viewer.html instead of index.html for the root request.
+type viewerAssetHandler struct {
+	assets embed.FS
+}
+
+// ServeHTTP implements http.Handler.
+// It intercepts requests for "/" and serves viewer.html instead.
+func (h *viewerAssetHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	path := r.URL.Path
+
+	// Rewrite root path to viewer.html
+	if path == "/" || path == "" || path == "/index.html" {
+		path = "/viewer.html"
+	}
+
+	// Try to read from the embedded filesystem
+	subFS, err := fs.Sub(h.assets, "frontend/dist")
+	if err != nil {
+		http.Error(w, "Asset not found", http.StatusNotFound)
+		return
+	}
+
+	// Create a modified request with the rewritten path
+	modifiedReq := new(http.Request)
+	*modifiedReq = *r
+	modifiedReq.URL = new(url.URL)
+	*modifiedReq.URL = *r.URL
+	modifiedReq.URL.Path = path
+
+	// Serve the file with the modified request
+	http.FileServer(http.FS(subFS)).ServeHTTP(w, modifiedReq)
 }
 
 // composerAssetHandler serves composer.html instead of index.html for the root request.

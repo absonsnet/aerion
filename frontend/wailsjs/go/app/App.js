@@ -1122,6 +1122,10 @@ export function OpenURL(arg1) {
   return window['go']['app']['App']['OpenURL'](arg1);
 }
 
+export function OpenViewerWindow(arg1, arg2, arg3) {
+  return window['go']['app']['App']['OpenViewerWindow'](arg1, arg2, arg3);
+}
+
 export function PickAttachmentFiles() {
   return window['go']['app']['App']['PickAttachmentFiles']();
 }

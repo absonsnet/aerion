@@ -581,6 +581,8 @@ export function OpenFolder(arg1:string):Promise<void>;
 
 export function OpenURL(arg1:string):Promise<void>;
 
+export function OpenViewerWindow(arg1:string,arg2:string,arg3:string):Promise<void>;
+
 export function PickAttachmentFiles():Promise<Array<app.ComposerAttachment>>;
 
 export function PickPGPKeyFile():Promise<string>;

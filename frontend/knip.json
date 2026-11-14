@@ -2,8 +2,10 @@
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "entry": [
     "src/composerMain.ts",
+    "src/viewerMain.ts",
     "index.html",
-    "composer.html"
+    "composer.html",
+    "viewer.html"
   ],
   "project": ["src/**/*.{ts,svelte}"],
   "includeEntryExports": false
