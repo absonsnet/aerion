@@ -17,7 +17,7 @@ This document records every approach we tried to fix the AppImage webkit bundlin
 ```bash
 bwrap --dev-bind / / \
   --bind "${HERE}/usr/lib/${LIB_ARCH}/webkit2gtk-4.1" "/usr/lib/${LIB_ARCH}/webkit2gtk-4.1" \
-  "${HERE}/usr/bin/aerion" "$@"
+  "${HERE}/usr/bin/daak" "$@"
 ```
 **Result:** ❌ FAILED
 - Works on Void Linux (empty /usr/lib/x86_64-linux-gnu/)
@@ -29,7 +29,7 @@ bwrap --dev-bind / / \
 ```bash
 bwrap --dev-bind / / \
   --bind "${HERE}/usr/lib/${LIB_ARCH}" "/usr/lib/${LIB_ARCH}" \
-  "${HERE}/usr/bin/aerion" "$@"
+  "${HERE}/usr/bin/daak" "$@"
 ```
 **Result:** ❌ FAILED
 - Hides ALL system libraries on Ubuntu/Debian
@@ -51,10 +51,10 @@ exec bwrap --dev-bind / / ...
 bwrap --ro-bind / / \
   --tmpfs /usr/lib \
   --ro-bind "${HERE}/usr/lib" /usr/lib \
-  "${HERE}/usr/bin/aerion" "$@"
+  "${HERE}/usr/bin/daak" "$@"
 ```
 **Result:** ❌ FAILED on Ubuntu/Debian
-- Error: `bwrap: execvp /tmp/.mount_AerionXXXX/usr/bin/aerion: No such file or directory`
+- Error: `bwrap: execvp /tmp/.mount_DaakXXXX/usr/bin/daak: No such file or directory`
 - AppImage FUSE mount not accessible in namespace
 - ✅ WORKS on Fedora Silverblue (immutable distros handle this differently)
 
@@ -64,7 +64,7 @@ bwrap --ro-bind / / \
 bwrap --dev-bind / / \
   --tmpfs /usr/lib \
   --ro-bind "${HERE}/usr/lib" /usr/lib \
-  "${HERE}/usr/bin/aerion" "$@"
+  "${HERE}/usr/bin/daak" "$@"
 # (no --bind /tmp /tmp)
 ```
 **Result:** ❌ NO CHANGE
@@ -78,7 +78,7 @@ bwrap --dev-bind / / \
   --bind /tmp /tmp \
   --tmpfs "/usr/lib/${LIB_ARCH}/webkit2gtk-4.1" \
   --ro-bind "${HERE}/usr/lib/${LIB_ARCH}/webkit2gtk-4.1" "/usr/lib/${LIB_ARCH}/webkit2gtk-4.1" \
-  "${HERE}/usr/bin/aerion" "$@"
+  "${HERE}/usr/bin/daak" "$@"
 ```
 **Result:** ❌ FAILED
 - Error: `bwrap: Can't mkdir /usr/lib/x86_64-linux-gnu/webkit2gtk-4.1: Permission denied`
@@ -91,7 +91,7 @@ bwrap --dev-bind / / \
 bwrap --dev-bind / / \
   --dir "/usr/lib/${LIB_ARCH}/webkit2gtk-4.1" \
   --bind "${HERE}/usr/lib/${LIB_ARCH}/webkit2gtk-4.1" "/usr/lib/${LIB_ARCH}/webkit2gtk-4.1" \
-  "${HERE}/usr/bin/aerion" "$@"
+  "${HERE}/usr/bin/daak" "$@"
 ```
 **Result:** ❌ FAILED
 - Error: `bwrap: Can't mkdir /usr/lib/x86_64-linux-gnu: Permission denied`
@@ -120,7 +120,7 @@ bwrap --dev-bind / / \
   --bind /tmp /tmp \
   --tmpfs "/usr/lib/${LIB_ARCH}/webkit2gtk-4.1" \
   --ro-bind "${HERE}/usr/lib/${LIB_ARCH}/webkit2gtk-4.1" "/usr/lib/${LIB_ARCH}/webkit2gtk-4.1" \
-  "${HERE}/usr/bin/aerion" "$@"
+  "${HERE}/usr/bin/daak" "$@"
 ```
 **Result:** ❌ FAILED
 - Same permission denied error
@@ -166,7 +166,7 @@ ln -s "${HERE}/usr/lib/${LIB_ARCH}/webkit2gtk-4.1" "/usr/lib/${LIB_ARCH}/webkit2
 ### 4. FUSE Mount Namespace Issues
 - AppImage mounts via FUSE at `/tmp/.mount_*`
 - When using tmpfs for /usr/lib, FUSE mount becomes inaccessible
-- Binary path `/tmp/.mount_*/usr/bin/aerion` not found
+- Binary path `/tmp/.mount_*/usr/bin/daak` not found
 - This only affects certain bwrap namespace configurations
 
 ## Why Nothing Worked

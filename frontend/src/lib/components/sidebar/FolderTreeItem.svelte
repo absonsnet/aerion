@@ -62,7 +62,7 @@
   let isDragOver = $state(false)
 
   function hasMessagesPayload(e: DragEvent): boolean {
-    return !!e.dataTransfer?.types.includes('application/x-aerion-messages')
+    return !!e.dataTransfer?.types.includes('application/x-daak-messages')
   }
 
   function handleDragEnter(e: DragEvent) {
@@ -83,7 +83,7 @@
 
   async function handleDrop(e: DragEvent) {
     isDragOver = false
-    const raw = e.dataTransfer?.getData('application/x-aerion-messages')
+    const raw = e.dataTransfer?.getData('application/x-daak-messages')
     if (!raw || !tree.folder) return
     e.preventDefault()
 

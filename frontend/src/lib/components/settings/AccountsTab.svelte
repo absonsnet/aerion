@@ -4,7 +4,7 @@
   import { accountStore } from '$lib/stores/accounts.svelte'
   import AccountDialog from './AccountDialog.svelte'
   import DeleteAccountDialog from './DeleteAccountDialog.svelte'
-  import AerionCoreOAuthSection from './AerionCoreOAuthSection.svelte'
+  import DaakCoreOAuthSection from './DaakCoreOAuthSection.svelte'
   // @ts-ignore - wailsjs path
   import type { account } from '../../../../wailsjs/go/models'
   import { _ } from '$lib/i18n'
@@ -160,8 +160,8 @@
     </div>
   {/if}
 
-  <!-- Aerion core OAuth credentials (advanced, collapsed by default) -->
-  <AerionCoreOAuthSection />
+  <!-- Daak core OAuth credentials (advanced, collapsed by default) -->
+  <DaakCoreOAuthSection />
 </div>
 
 <!-- Account Dialog -->

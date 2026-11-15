@@ -4,7 +4,7 @@ This directory contains archived AppImage build scripts and documentation from t
 
 ## Why This Was Archived
 
-AppImage packaging for Aerion proved to be fundamentally incompatible with systems that don't have webkit2gtk-4.1 pre-installed, due to WebKit's hardcoded library paths and bubblewrap namespace limitations. After extensive troubleshooting, we determined that **Flatpak is a better packaging solution** for Wails applications because the GNOME runtime provides webkit2gtk automatically.
+AppImage packaging for Daak proved to be fundamentally incompatible with systems that don't have webkit2gtk-4.1 pre-installed, due to WebKit's hardcoded library paths and bubblewrap namespace limitations. After extensive troubleshooting, we determined that **Flatpak is a better packaging solution** for Wails applications because the GNOME runtime provides webkit2gtk automatically.
 
 ## Archived Files
 
@@ -60,7 +60,7 @@ To make webkit helpers available, we use bubblewrap (bwrap) to create a namespac
 ```bash
 bwrap --dev-bind / / \
   --bind "${HERE}/usr/lib/${LIB_ARCH}/webkit2gtk-4.1" "/usr/lib/${LIB_ARCH}/webkit2gtk-4.1" \
-  "${HERE}/usr/bin/aerion" "$@"
+  "${HERE}/usr/bin/daak" "$@"
 ```
 
 **This works on Void because:**
@@ -100,7 +100,7 @@ When using tmpfs for `/usr/lib/`:
 --ro-bind "${HERE}/usr/lib" /usr/lib
 ```
 
-Result: `bwrap: execvp /tmp/.mount_AerionXXXX/usr/bin/aerion: No such file or directory`
+Result: `bwrap: execvp /tmp/.mount_DaakXXXX/usr/bin/daak: No such file or directory`
 
 The AppImage FUSE mount at `/tmp/.mount_*` becomes inaccessible from within the bwrap namespace. This is because:
 1. AppImage mounts via FUSE at `/tmp/.mount_*`
@@ -112,25 +112,25 @@ The AppImage FUSE mount at `/tmp/.mount_*` becomes inaccessible from within the 
 
 ### Ubuntu 22.04 WITHOUT webkit2gtk-4.1
 ```
-$ ./Aerion-0.1.9-x86_64.AppImage
-bwrap: execvp /tmp/.mount_AerionXXXX/usr/bin/aerion: No such file or directory
+$ ./Daak-0.1.9-x86_64.AppImage
+bwrap: execvp /tmp/.mount_DaakXXXX/usr/bin/daak: No such file or directory
 ```
 
 ### CachyOS (Arch-based)
 ```
-$ ./Aerion-0.1.9-x86_64.AppImage
+$ ./Daak-0.1.9-x86_64.AppImage
 bwrap: Can't mkdir /usr/lib/x86_64-linux-gnu: Permission denied
 ```
 
 ### Fedora Silverblue (WORKS)
 ```
-$ ./Aerion-0.1.9-x86_64.AppImage
+$ ./Daak-0.1.9-x86_64.AppImage
 [App launches successfully]
 ```
 
 ### Void Linux (WORKS)
 ```
-$ ./Aerion-0.1.9-x86_64.AppImage
+$ ./Daak-0.1.9-x86_64.AppImage
 [App launches successfully]
 ```
 
@@ -171,7 +171,7 @@ If AppImage ever improves to handle these issues, this work can be revived:
 3. If AppImage adds better namespace/FUSE mount handling
 4. If webkit2gtk-4.1 becomes universally installed on all distros
 
-Until then, **Flatpak is the recommended packaging format for Aerion**.
+Until then, **Flatpak is the recommended packaging format for Daak**.
 
 ## Build Instructions (For Historical Reference)
 
@@ -185,7 +185,7 @@ If you want to build the AppImage:
 make appimage
 ```
 
-The AppImage will be created at `build/bin/Aerion-*.AppImage`.
+The AppImage will be created at `build/bin/Daak-*.AppImage`.
 
 **Note:** This AppImage will only work on:
 - Systems with webkit2gtk-4.1 installed, OR

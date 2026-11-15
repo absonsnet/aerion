@@ -156,7 +156,7 @@ func (n *linuxNotifier) Stop() {
 func (n *linuxNotifier) generateNotificationID() string {
 	n.mu.Lock()
 	n.idCounter++
-	id := fmt.Sprintf("aerion-notification-%d-%d", time.Now().Unix(), n.idCounter)
+	id := fmt.Sprintf("daak-notification-%d-%d", time.Now().Unix(), n.idCounter)
 	n.mu.Unlock()
 	return id
 }

@@ -1,9 +1,9 @@
-// aerion-creds outputs OAuth credentials as JSON.
+// daak-creds outputs OAuth credentials as JSON.
 // Built with ldflags in CI, shipped alongside the Flatpak build so the main
 // app (built from source on Flathub) can read credentials at runtime.
 //
 // Build:
-//   go build -ldflags "-X 'main.GoogleClientID=...' -X 'main.GoogleClientSecret=...' -X 'main.MicrosoftClientID=...' -X 'main.GoogleTestingClientID=...' -X 'main.GoogleTestingClientSecret=...'" -o aerion-creds
+//   go build -ldflags "-X 'main.GoogleClientID=...' -X 'main.GoogleClientSecret=...' -X 'main.MicrosoftClientID=...' -X 'main.GoogleTestingClientID=...' -X 'main.GoogleTestingClientSecret=...'" -o daak-creds
 package main
 
 import (

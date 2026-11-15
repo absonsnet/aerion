@@ -1,7 +1,7 @@
 [Desktop Entry]
 Version=1.5
 Type=Application
-Name=Aerion
+Name=Daak
 GenericName=Email
 GenericName[cs]=E-mail
 GenericName[de]=E-Mail
@@ -44,14 +44,14 @@ Keywords[vi]=Mail;E-mail;email;IMAP;SMTP;CardDAV;thư;thư điện tử;
 Keywords[zh_CN]=邮件;电子邮件;IMAP;SMTP;CardDAV;
 Keywords[zh_HK]=郵件;電子郵件;IMAP;SMTP;CardDAV;
 Keywords[zh_TW]=郵件;電子郵件;IMAP;SMTP;CardDAV;
-Icon=io.github.hkdb.Aerion
-TryExec=aerion
-Exec=aerion %U
+Icon=net.absons.daak
+TryExec=daak
+Exec=daak %U
 Terminal=false
 Categories=Network;Email;
 MimeType=x-scheme-handler/mailto;
 StartupNotify=true
-StartupWMClass=Aerion
+StartupWMClass=Daak
 X-GNOME-UsesNotifications=true
 Actions=compose;
 
@@ -70,4 +70,4 @@ Name[vi]=Soạn thư mới
 Name[zh_CN]=撰写新邮件
 Name[zh_HK]=撰寫新郵件
 Name[zh_TW]=撰寫新郵件
-Exec=aerion mailto:
+Exec=daak mailto:

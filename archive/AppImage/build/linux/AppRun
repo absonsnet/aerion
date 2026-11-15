@@ -1,5 +1,5 @@
 #!/bin/sh
-# AppRun script for Aerion AppImage
+# AppRun script for Daak AppImage
 # Sets up environment to use bundled webkit2gtk helpers
 
 SELF=$(readlink -f "$0")
@@ -36,7 +36,7 @@ if [ -n "$LIB_ARCH" ] && [ -d "${HERE}/usr/lib/${LIB_ARCH}" ] && command -v bwra
             --bind /tmp /tmp \
             --bind "${HERE}/usr/lib/${LIB_ARCH}/webkit2gtk-4.1" "/usr/lib/${LIB_ARCH}/webkit2gtk-4.1" \
             --unsetenv LD_LIBRARY_PATH \
-            "${HERE}/usr/bin/aerion" "$@"
+            "${HERE}/usr/bin/daak" "$@"
     elif [ -f "/etc/debian_version" ] || grep -qi "^ID.*=.*debian\|^ID.*=.*ubuntu\|^ID_LIKE.*=.*debian\|^ID_LIKE.*=.*ubuntu" /etc/os-release 2>/dev/null; then
         # Debian/Ubuntu-based distro without webkit2gtk-4.1 installed
         # Use tmpfs to create webkit dir without hiding system libs
@@ -48,7 +48,7 @@ if [ -n "$LIB_ARCH" ] && [ -d "${HERE}/usr/lib/${LIB_ARCH}" ] && command -v bwra
             --tmpfs "/usr/lib/${LIB_ARCH}/webkit2gtk-4.1" \
             --ro-bind "${HERE}/usr/lib/${LIB_ARCH}/webkit2gtk-4.1" "/usr/lib/${LIB_ARCH}/webkit2gtk-4.1" \
             --ro-bind "${HERE}/usr/lib/${LIB_ARCH}/gdk-pixbuf-2.0" "/usr/lib/${LIB_ARCH}/gdk-pixbuf-2.0" \
-            "${HERE}/usr/bin/aerion" "$@"
+            "${HERE}/usr/bin/daak" "$@"
     elif [ -f "/run/ostree-booted" ] || [ -f "/ostree/repo/config" ] || \
          [ -f "/etc/NIXOS" ] || [ -f "/run/current-system/nixos-version" ] || \
          [ -f "/usr/share/abroot/abroot.json" ] || \
@@ -65,7 +65,7 @@ if [ -n "$LIB_ARCH" ] && [ -d "${HERE}/usr/lib/${LIB_ARCH}" ] && command -v bwra
             --tmpfs /usr/lib \
             --ro-bind "${HERE}/usr/lib" /usr/lib \
             --unsetenv LD_LIBRARY_PATH \
-            "${HERE}/usr/bin/aerion" "$@"
+            "${HERE}/usr/bin/daak" "$@"
     else
         # Regular distro (Void/etc) - bind entire arch lib directory
         exec bwrap \
@@ -74,7 +74,7 @@ if [ -n "$LIB_ARCH" ] && [ -d "${HERE}/usr/lib/${LIB_ARCH}" ] && command -v bwra
             --bind /tmp /tmp \
             --bind "${HERE}/usr/lib/${LIB_ARCH}" "/usr/lib/${LIB_ARCH}" \
             --unsetenv LD_LIBRARY_PATH \
-            "${HERE}/usr/bin/aerion" "$@"
+            "${HERE}/usr/bin/daak" "$@"
     fi
 else
     # No bwrap - fallback, use AppImage paths
@@ -83,5 +83,5 @@ else
     export GDK_PIXBUF_MODULE_FILE="${HERE}/usr/lib/${LIB_ARCH}/gdk-pixbuf-2.0/2.10.0/loaders.cache"
     # Don't set LD_LIBRARY_PATH to avoid conflicts with child processes
     unset LD_LIBRARY_PATH
-    exec "${HERE}/usr/bin/aerion" "$@"
+    exec "${HERE}/usr/bin/daak" "$@"
 fi

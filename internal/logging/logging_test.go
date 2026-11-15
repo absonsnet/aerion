@@ -46,7 +46,7 @@ func TestWithAccountID(t *testing.T) {
 }
 
 func TestInitFileConsoleFormat(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "sub", "aerion.log")
+	path := filepath.Join(t.TempDir(), "sub", "daak.log")
 	if err := Init(Config{Level: "info", File: path}); err != nil {
 		t.Fatalf("Init() with File returned error: %v", err)
 	}
@@ -72,7 +72,7 @@ func TestInitFileConsoleFormat(t *testing.T) {
 }
 
 func TestRotatingFileRollover(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "aerion.log")
+	path := filepath.Join(t.TempDir(), "daak.log")
 	orig := maxLogFileBytes
 	maxLogFileBytes = 64
 	t.Cleanup(func() { maxLogFileBytes = orig })

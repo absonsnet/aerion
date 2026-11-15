@@ -28,7 +28,7 @@ func PortalSaveFile(title, suggestedName, directory string) (string, error) {
 		return "", fmt.Errorf("portal service not available")
 	}
 
-	handleToken := fmt.Sprintf("aerion_%d", time.Now().UnixNano())
+	handleToken := fmt.Sprintf("daak_%d", time.Now().UnixNano())
 
 	// Compute expected request path from our unique bus name and handle token
 	sender := conn.Names()[0]
@@ -135,7 +135,7 @@ func PortalSaveFiles(title string, filenames []string, directory string) ([]stri
 		return nil, fmt.Errorf("portal service not available")
 	}
 
-	handleToken := fmt.Sprintf("aerion_%d", time.Now().UnixNano())
+	handleToken := fmt.Sprintf("daak_%d", time.Now().UnixNano())
 
 	sender := conn.Names()[0]
 	senderPath := strings.ReplaceAll(sender[1:], ".", "_")

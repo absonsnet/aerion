@@ -120,13 +120,13 @@
     "delete": {
       "title": "Bu kişi silinsin mi?",
       "descriptionLocal": "{name} yerel kişilerinizden kaldırılacak. Bu adrese daha önce gönderdiğiniz e-postalar etkilenmez.",
-      "descriptionCardDAV": "{name} sunucudaki bu adres defterinden kaldırılacak. Bu işlem Aerion'dan geri alınamaz."
+      "descriptionCardDAV": "{name} sunucudaki bu adres defterinden kaldırılacak. Bu işlem Daak'dan geri alınamaz."
     },
     "settings": {
       "title": "Kişiler ayarları",
       "description": "Kişiler uzantısı için OAuth kimlik bilgilerini yapılandırın. Okuma erişimi, posta hesabınızın mevcut izninden yararlanır; bu kimlik bilgileri Google veya Microsoft kaynaklarına karşı YAZMA işlemlerini (düzenle / oluştur / sil) destekler.",
       "oauthHeading": "OAuth Kimlik Bilgileri",
-      "oauthDescription": "Her alan, mevcut olduğunda Aerion'un doğrulanmış kimlik bilgileriyle birlikte gelir; kendi projenizin İstemci Kimliğini ve Gizli Anahtarını sağlamak için Özel'e geçin.",
+      "oauthDescription": "Her alan, mevcut olduğunda Daak'un doğrulanmış kimlik bilgileriyle birlikte gelir; kendi projenizin İstemci Kimliğini ve Gizli Anahtarını sağlamak için Özel'e geçin.",
       "googleLabel": "Google Kişiler",
       "microsoftLabel": "Microsoft Kişiler",
       "writeAccessHeading": "Yazma Erişimi",

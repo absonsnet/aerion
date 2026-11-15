@@ -1,6 +1,6 @@
-# Aerion Keyboard Shortcuts
+# Daak Keyboard Shortcuts
 
-Complete reference of all keyboard shortcuts in Aerion.
+Complete reference of all keyboard shortcuts in Daak.
 
 ## Global Shortcuts
 

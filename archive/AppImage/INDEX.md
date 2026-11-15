@@ -1,6 +1,6 @@
 # AppImage Archive Index
 
-Complete documentation of the AppImage implementation attempt for Aerion email client.
+Complete documentation of the AppImage implementation attempt for Daak email client.
 
 ## Quick Start
 

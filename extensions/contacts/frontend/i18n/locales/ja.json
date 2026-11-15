@@ -120,13 +120,13 @@
     "delete": {
       "title": "この連絡先を削除しますか？",
       "descriptionLocal": "{name} はローカル連絡先から削除されます。このアドレスに送信済みのメールには影響しません。",
-      "descriptionCardDAV": "{name} はサーバー上のこのアドレス帳から削除されます。Aerionからは元に戻せません。"
+      "descriptionCardDAV": "{name} はサーバー上のこのアドレス帳から削除されます。Daakからは元に戻せません。"
     },
     "settings": {
       "title": "連絡先設定",
       "description": "Contacts拡張機能のOAuth認証情報を設定します。読み取りアクセスはメールアカウントの既存の権限に依存します。これらの認証情報はGoogleまたはMicrosoftソースに対する書き込み操作（編集 / 作成 / 削除）を実行します。",
       "oauthHeading": "OAuth認証情報",
-      "oauthDescription": "各スロットには利用可能な場合Aerionの検証済み認証情報が設定されています。独自のプロジェクトのClient IDとSecretを使用するには「カスタム」に切り替えてください。",
+      "oauthDescription": "各スロットには利用可能な場合Daakの検証済み認証情報が設定されています。独自のプロジェクトのClient IDとSecretを使用するには「カスタム」に切り替えてください。",
       "googleLabel": "Google連絡先",
       "microsoftLabel": "Microsoft連絡先",
       "writeAccessHeading": "書き込みアクセス",

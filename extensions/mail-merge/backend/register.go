@@ -31,7 +31,7 @@ func (e *Extension) Manifest() coreapi.Manifest { return e.manifest }
 // for the outbox queue / job history (Phase 2), and the Mail Merge tab
 // in the Settings dialog.
 //
-// Runs once per Aerion process lifetime at App.Startup, regardless of
+// Runs once per Daak process lifetime at App.Startup, regardless of
 // enabled state — descriptive registrations persist across enable/disable
 // cycles. The frontend filters by enabled state at render time.
 func (e *Extension) Register(core coreapi.Core) (coreapi.Unregister, error) {

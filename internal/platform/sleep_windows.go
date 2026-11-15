@@ -139,7 +139,7 @@ func (m *WindowsSleepWakeMonitor) Start(ctx context.Context) error {
 
 		m.threadID = windows.GetCurrentThreadId()
 
-		className, _ := windows.UTF16PtrFromString("AerionSleepWake")
+		className, _ := windows.UTF16PtrFromString("DaakSleepWake")
 
 		wc := wndClassExW{
 			cbSize:        uint32(unsafe.Sizeof(wndClassExW{})),

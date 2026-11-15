@@ -51,9 +51,9 @@ appimage: build-linux $(LINUXDEPLOY) $(APPIMAGE_RUNTIME)
 	@mkdir -p build/linux/AppDir/usr/share/applications
 	@mkdir -p build/linux/AppDir/usr/share/icons/hicolor/256x256/apps
 	@mkdir -p build/linux/AppDir/usr/lib/$(ARCH)-linux-gnu/webkit2gtk-4.1
-	cp build/bin/aerion build/linux/AppDir/usr/bin/
-	cp build/linux/aerion.desktop build/linux/AppDir/usr/share/applications/
-	cp build/appicon.png build/linux/AppDir/usr/share/icons/hicolor/256x256/apps/aerion.png
+	cp build/bin/daak build/linux/AppDir/usr/bin/
+	cp build/linux/daak.desktop build/linux/AppDir/usr/share/applications/
+	cp build/appicon.png build/linux/AppDir/usr/share/icons/hicolor/256x256/apps/daak.png
 	@echo "Creating /lib symlink for webkit compatibility..."
 	ln -sf usr/lib build/linux/AppDir/lib
 	@echo "Bundling webkit2gtk helper processes..."
@@ -92,9 +92,9 @@ appimage: build-linux $(LINUXDEPLOY) $(APPIMAGE_RUNTIME)
 		$(LINUXDEPLOY) \
 		--appdir build/linux/AppDir \
 		--custom-apprun build/linux/AppRun \
-		--desktop-file build/linux/AppDir/usr/share/applications/aerion.desktop \
-		--icon-file build/linux/AppDir/usr/share/icons/hicolor/256x256/apps/aerion.png \
+		--desktop-file build/linux/AppDir/usr/share/applications/daak.desktop \
+		--icon-file build/linux/AppDir/usr/share/icons/hicolor/256x256/apps/daak.png \
 		--output appimage
-	@mv Aerion-*.AppImage build/bin/ 2>/dev/null || mv aerion-*.AppImage build/bin/
+	@mv Daak-*.AppImage build/bin/ 2>/dev/null || mv daak-*.AppImage build/bin/
 	@rm -rf build/linux/AppDir
 	@echo "AppImage created at build/bin/"

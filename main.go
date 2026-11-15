@@ -218,7 +218,7 @@ func runMainMode(mailtoData *app.MailtoData, rawMailtoArg string) {
 		},
 		Linux: &linux.Options{
 			WebviewGpuPolicy: linux.WebviewGpuPolicyOnDemand,
-			ProgramName:      "io.github.hkdb.Aerion",
+			ProgramName:      "net.absons.daak",
 		},
 	})
 
@@ -311,7 +311,7 @@ func runComposerMode() {
 		},
 		Linux: &linux.Options{
 			WebviewGpuPolicy: linux.WebviewGpuPolicyOnDemand,
-			ProgramName:      "io.github.hkdb.Aerion",
+			ProgramName:      "net.absons.daak",
 		},
 	})
 
@@ -380,7 +380,7 @@ func runViewerMode() {
 		},
 		Linux: &linux.Options{
 			WebviewGpuPolicy: linux.WebviewGpuPolicyOnDemand,
-			ProgramName:      "io.github.hkdb.Aerion",
+			ProgramName:      "net.absons.daak",
 		},
 	})
 

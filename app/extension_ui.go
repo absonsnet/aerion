@@ -111,7 +111,7 @@ type ExtensionInfo struct {
 	Version          string   `json:"version"`
 	Description      string   `json:"description"`
 	Author           string   `json:"author"`
-	MinAerionVersion string   `json:"minAerionVersion"`
+	MinDaakVersion string   `json:"minDaakVersion"`
 	Capabilities     []string `json:"capabilities"`
 	Enabled          bool     `json:"enabled"`
 }
@@ -136,7 +136,7 @@ func (a *App) ListExtensions() ([]ExtensionInfo, error) {
 			Version:          m.Version,
 			Description:      m.Description,
 			Author:           m.Author,
-			MinAerionVersion: m.MinAerionVersion,
+			MinDaakVersion: m.MinDaakVersion,
 			Capabilities:     m.Capabilities,
 			Enabled:          enabled,
 		})

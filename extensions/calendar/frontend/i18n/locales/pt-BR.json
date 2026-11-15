@@ -81,7 +81,7 @@
       "namePlaceholder": "ex.: Nextcloud pessoal",
       "urlLabel": "URL do servidor",
       "urlPlaceholder": "https://cloud.exemplo.com/remote.php/dav",
-      "urlHelp": "Informe a URL base ou a URL completa do calendar-home. O Aerion testará os caminhos mais comuns.",
+      "urlHelp": "Informe a URL base ou a URL completa do calendar-home. O Daak testará os caminhos mais comuns.",
       "usernameLabel": "Nome de usuário",
       "passwordLabel": "Senha",
       "authMethod": "Autenticação",
@@ -111,7 +111,7 @@
       "providerLabelMicrosoft": "Outlook",
       "organizerEmailLabel": "E-mail do organizador",
       "organizerEmailPlaceholder": "voce@exemplo.com",
-      "organizerEmailPrompt": "Seu servidor não informou um endereço de usuário de agenda. Informe o e-mail que o Aerion deve usar como organizador das reuniões nos eventos desta fonte.",
+      "organizerEmailPrompt": "Seu servidor não informou um endereço de usuário de agenda. Informe o e-mail que o Daak deve usar como organizador das reuniões nos eventos desta fonte.",
       "organizerEmailHelp": "Este é o endereço que aparecerá como ORGANIZADOR nos eventos que você criar aqui.",
       "organizerEmailInvalid": "Informe um endereço de e-mail válido."
     },
@@ -183,7 +183,7 @@
       "providerDefaultsLabel": "Padrões por conta",
       "noDefaultsHint": "Adicione uma agenda para definir os padrões.",
       "oauthSection": "Credenciais OAuth (avançado)",
-      "oauthHelp": "Escolha o cliente OAuth do Google ou da Microsoft usado por esta extensão. O padrão (Aerion testing para o Google, Aerion - Microsoft para a Microsoft) serve para a maioria dos usuários.",
+      "oauthHelp": "Escolha o cliente OAuth do Google ou da Microsoft usado por esta extensão. O padrão (Daak testing para o Google, Daak - Microsoft para a Microsoft) serve para a maioria dos usuários.",
       "oauthGoogleLabel": "Google",
       "oauthMicrosoftLabel": "Microsoft",
       "intervalMinutes": "{n} minutos",
@@ -243,7 +243,7 @@
       "renameTitle": "Renomear fonte",
       "renameToastSuccess": "Renomeada para \"{name}\"",
       "timezoneSection": "Fuso horário de exibição",
-      "timezoneHelp": "Escolha qual fuso horário o Aerion usa para exibir os horários dos eventos. A detecção automática usa o fuso horário do sistema."
+      "timezoneHelp": "Escolha qual fuso horário o Daak usa para exibir os horários dos eventos. A detecção automática usa o fuso horário do sistema."
     },
     "localCalendar": {
       "title": "Adicionar agenda local",

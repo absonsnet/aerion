@@ -218,7 +218,7 @@ func BuildMessage(opts BuildOptions) (raw []byte, messageID string, err error) {
 	}
 	oneLiner := fmt.Sprintf("%s — %s reacted to your message", strings.TrimSpace(opts.Emoji), senderName)
 
-	messageID = fmt.Sprintf("<%s@aerion>", uuid.New().String())
+	messageID = fmt.Sprintf("<%s@daak>", uuid.New().String())
 	inReplyTo := ensureAngleBrackets(orig.MessageID)
 	refs := opts.References
 	if len(refs) == 0 {

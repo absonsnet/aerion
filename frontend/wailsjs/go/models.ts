@@ -467,7 +467,7 @@ export namespace app {
 	    version: string;
 	    description: string;
 	    author: string;
-	    minAerionVersion: string;
+	    minDaakVersion: string;
 	    capabilities: string[];
 	    enabled: boolean;
 	
@@ -482,7 +482,7 @@ export namespace app {
 	        this.version = source["version"];
 	        this.description = source["description"];
 	        this.author = source["author"];
-	        this.minAerionVersion = source["minAerionVersion"];
+	        this.minDaakVersion = source["minDaakVersion"];
 	        this.capabilities = source["capabilities"];
 	        this.enabled = source["enabled"];
 	    }

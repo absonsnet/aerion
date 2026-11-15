@@ -21,10 +21,10 @@ cp .env.example .env
 make flatpak
 
 # Install
-flatpak --user install build/bin/Aerion.flatpak
+flatpak --user install build/bin/Daak.flatpak
 
 # Run
-flatpak run io.github.hkdb.Aerion
+flatpak run net.absons.daak
 ```
 
 See [build/flatpak/README.md](../build/flatpak/README.md) for detailed Flatpak build instructions and Flathub submission guide.
@@ -43,7 +43,7 @@ cp .env.example .env
 make build
 
 # Run
-./build/bin/aerion
+./build/bin/daak
 ```
 
 

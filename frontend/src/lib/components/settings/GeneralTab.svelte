@@ -82,7 +82,7 @@
 
   // Title bar options
   const titleBarOptions = $derived([
-    { value: 'aerion', label: $_('settingsGeneral.titleBarAerion'), description: $_('settingsGeneral.titleBarAerionDesc') },
+    { value: 'aerion', label: $_('settingsGeneral.titleBarDaak'), description: $_('settingsGeneral.titleBarDaakDesc') },
     { value: 'native', label: $_('settingsGeneral.titleBarNative'), description: $_('settingsGeneral.titleBarNativeDesc') },
     { value: 'disable', label: $_('settingsGeneral.titleBarDisable'), description: $_('settingsGeneral.titleBarDisableDesc') },
   ])
@@ -169,7 +169,7 @@
     return titleBarOptions.find(opt => opt.value === value)?.label || value
   }
 
-  // Window controls side options (only applies to the Aerion title bar)
+  // Window controls side options (only applies to the Daak title bar)
   const windowControlsSideOptions = $derived([
     { value: 'auto', label: $_('settingsGeneral.windowControlsAuto') },
     { value: 'left', label: $_('settingsGeneral.windowControlsLeft') },

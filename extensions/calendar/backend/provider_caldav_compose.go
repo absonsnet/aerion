@@ -157,7 +157,7 @@ func composeThisAndFuture(cal *ical.Calendar, payload PushInstancePayload) (comp
 	out := composedVCalendar{MasterBlob: masterBlob}
 
 	if payload.Kind == InstanceOpUpdate {
-		newUID := uuid.NewString() + "@aerion-caldav"
+		newUID := uuid.NewString() + "@daak-caldav"
 		newBlob, err := serializeVEVENT(newUID, payload.In)
 		if err != nil {
 			return composedVCalendar{}, fmt.Errorf("serialize new series: %w", err)

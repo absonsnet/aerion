@@ -81,7 +81,7 @@
       "namePlaceholder": "例: 個人用 Nextcloud",
       "urlLabel": "サーバーURL",
       "urlPlaceholder": "https://cloud.example.com/remote.php/dav",
-      "urlHelp": "ベースURLまたはカレンダーホームの完全なURLを入力してください。Aerionが一般的なパスを自動検出します。",
+      "urlHelp": "ベースURLまたはカレンダーホームの完全なURLを入力してください。Daakが一般的なパスを自動検出します。",
       "usernameLabel": "ユーザー名",
       "passwordLabel": "パスワード",
       "authMethod": "認証",
@@ -183,7 +183,7 @@
       "providerDefaultsLabel": "アカウントごとのデフォルト",
       "noDefaultsHint": "カレンダーを追加するとデフォルトを設定できます。",
       "oauthSection": "OAuth認証情報（上級）",
-      "oauthHelp": "この拡張機能が使用するGoogleまたはMicrosoftのOAuthクライアントを選択してください。デフォルト（GoogleはAerion testing、MicrosoftはAerion - Microsoft）でほとんどのユーザーに問題ありません。",
+      "oauthHelp": "この拡張機能が使用するGoogleまたはMicrosoftのOAuthクライアントを選択してください。デフォルト（GoogleはDaak testing、MicrosoftはDaak - Microsoft）でほとんどのユーザーに問題ありません。",
       "oauthGoogleLabel": "Google",
       "oauthMicrosoftLabel": "Microsoft",
       "intervalMinutes": "{n} 分",
@@ -243,7 +243,7 @@
       "renameTitle": "ソース名を変更",
       "renameToastSuccess": "「{name}」に名前を変更しました",
       "timezoneSection": "表示タイムゾーン",
-      "timezoneHelp": "Aerionがイベント時刻の表示に使用するタイムゾーンを選択してください。自動検出ではシステムのタイムゾーンを使用します。"
+      "timezoneHelp": "Daakがイベント時刻の表示に使用するタイムゾーンを選択してください。自動検出ではシステムのタイムゾーンを使用します。"
     },
     "localCalendar": {
       "title": "ローカルカレンダーを追加",

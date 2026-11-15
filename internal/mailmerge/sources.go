@@ -445,7 +445,7 @@ func rowIsEmpty(rec []string) bool {
 // adapter produces, in a stable order. Every row carries all of these
 // keys ("" when the contact has no value), so a template referencing any
 // of them validates. Custom1–4 and Anniversary have NO equivalent in
-// Aerion's contact.Record and are deliberately ABSENT — never invented.
+// Daak's contact.Record and are deliberately ABSENT — never invented.
 func ContactColumns() []string {
 	return []string{
 		"DisplayName", "FirstName", "LastName", "NickName",

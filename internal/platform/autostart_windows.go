@@ -22,7 +22,7 @@ func NewAutostartManager() AutostartManager {
 	return &windowsAutostartManager{}
 }
 
-// Enable adds a registry entry to start Aerion on login.
+// Enable adds a registry entry to start Daak on login.
 func (m *windowsAutostartManager) Enable() error {
 	log := logging.WithComponent("autostart")
 
@@ -79,7 +79,7 @@ func (m *windowsAutostartManager) IsEnabled() bool {
 func (m *windowsAutostartManager) execCommand() string {
 	exe, err := os.Executable()
 	if err != nil {
-		return "aerion.exe"
+		return "daak.exe"
 	}
 	return exe
 }

@@ -18,7 +18,7 @@ var migrations = []extensions.Migration{}
 
 // Store wraps the per-extension DB for the AI Writing extension. Lives in
 // an isolated SQLite file at <dataDir>/extensions/ai-writing/data.db,
-// separate from Aerion's main DB. No tables in this file are read or
+// separate from Daak's main DB. No tables in this file are read or
 // written by core code; cross-extension access flows through coreapi only.
 type Store struct {
 	*extensions.Store

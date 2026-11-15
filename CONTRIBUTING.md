@@ -1,6 +1,6 @@
-# Contributing to Aerion
+# Contributing to Daak
 
-Thank you for your interest in contributing to Aerion! This document provides guidelines and instructions for contributing.
+Thank you for your interest in contributing to Daak! This document provides guidelines and instructions for contributing.
 
 ## Code of Conduct
 
@@ -10,7 +10,7 @@ By participating in this project, you agree to maintain a respectful and inclusi
 
 ### Reporting Bugs
 
-1. Check if the bug has already been reported in [Issues](https://github.com/hkdb/aerion/issues)
+1. Check if the bug has already been reported in [Issues](https://github.com/absonsnet/daak/issues)
 2. If not, create a new issue with:
     - Select the `Bug` template and fill the form out in detail.
 
@@ -22,13 +22,13 @@ By participating in this project, you agree to maintain a respectful and inclusi
 
 ### Translation Pull Requests
 
-`v0.1.39` is a milestone release. As basic features are complete and all seem to be relatively stable, starting with the `v0.2.0-dev` branch, Aerion is ready for translation contributions.
+`v0.1.39` is a milestone release. As basic features are complete and all seem to be relatively stable, starting with the `v0.2.0-dev` branch, Daak is ready for translation contributions.
 
 Please read the [Translation Contribution Guide](docs/LANGUAGE.md) thoroughly prior to submitting any pull requests.
 
 ### General Pull Requests
 
-Aerion is currently in the rapid development state and aside from translation contributions, the workflow is not yet setup to accept pull requests. However, in the near future, we will transition to a workflow that will make accepting general PRs possible.
+Daak is currently in the rapid development state and aside from translation contributions, the workflow is not yet setup to accept pull requests. However, in the near future, we will transition to a workflow that will make accepting general PRs possible.
 
 Meanwhile, below are some guidelines for contributions when we become ready to accept general PRs.
 
@@ -50,7 +50,7 @@ Regardless of bug fix or feature implementation, all contributions must follow t
 - Security: always take a security-first approach
 - Privacy: user privacy is a top priority
 - Minimalist: always take the simplest approach and put forth best effort to have a clutter-free UI
-- Lightweight: maintain one of the core values of Aerion -- keep the app lightweight in all aspects
+- Lightweight: maintain one of the core values of Daak -- keep the app lightweight in all aspects
 - Efficiency: battery life on laptops is also a top priority -- minimize unnecessary resource consumption
 - Flexible: accommodate a reasonable range of mainstream user preferences through configurable options
 - Keyboard: ensure new UI components, features, and flows are fully accessible via keyboard
@@ -169,8 +169,8 @@ cd frontend && npm test
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/hkdb/aerion.git
-   cd aerion
+   git clone https://github.com/absonsnet/daak.git
+   cd daak
    ```
 
 2. **Install Go dependencies**
@@ -214,10 +214,10 @@ make flatpak
 
 ## Questions?
 
-- Open an [Issue](https://github.com/hkdb/aerion/issues) with the `Question` template for questions
+- Open an [Issue](https://github.com/absonsnet/daak/issues) with the `Question` template for questions
 - Check existing issues first
 - Be patient - maintainers are volunteers
 
 ## License
 
-By contributing to Aerion, you agree that your contributions will be licensed under the Apache License 2.0.
+By contributing to Daak, you agree that your contributions will be licensed under the Apache License 2.0.

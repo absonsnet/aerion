@@ -384,14 +384,14 @@ func (a *App) GetConnectedComposers() int {
 }
 
 // composerLogPath derives the detached composer's log file from the main
-// log file: aerion.log → aerion.composer.log (no extension → aerion.composer).
+// log file: daak.log → daak.composer.log (no extension → daak.composer).
 func composerLogPath(mainPath string) string {
 	ext := filepath.Ext(mainPath)
 	return strings.TrimSuffix(mainPath, ext) + ".composer" + ext
 }
 
 // viewerLogPath derives the viewer popup's log file the same way:
-// aerion.log → aerion.viewer.log.
+// daak.log → daak.viewer.log.
 func viewerLogPath(mainPath string) string {
 	ext := filepath.Ext(mainPath)
 	return strings.TrimSuffix(mainPath, ext) + ".viewer" + ext

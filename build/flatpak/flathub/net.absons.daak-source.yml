@@ -1,11 +1,11 @@
-app-id: io.github.hkdb.Aerion
+app-id: net.absons.daak
 runtime: org.gnome.Platform
 runtime-version: '50'
 sdk: org.gnome.Sdk
 sdk-extensions:
   - org.freedesktop.Sdk.Extension.golang
   - org.freedesktop.Sdk.Extension.node24
-command: aerion
+command: daak
 
 finish-args:
   # Network access for email sync
@@ -21,27 +21,27 @@ finish-args:
   - --system-talk-name=org.freedesktop.login1
 
 modules:
-  - name: aerion
+  - name: daak
     buildsystem: simple
     build-options:
       append-path: /usr/lib/sdk/golang/bin:/usr/lib/sdk/node24/bin
       env:
         GOROOT: /usr/lib/sdk/golang
-        GOPATH: /run/build/aerion/go
-        GOCACHE: /run/build/aerion/go-cache
+        GOPATH: /run/build/daak/go
+        GOCACHE: /run/build/daak/go-cache
         GO111MODULE: 'on'
         CGO_ENABLED: '1'
         # Use direct mode for reliability
         GOPROXY: 'direct'
         GOSUMDB: 'off'
         NODE_ENV: production
-        npm_config_cache: /run/build/aerion/npm-cache
+        npm_config_cache: /run/build/daak/npm-cache
 
     build-commands:
       # Install Wails CLI
       - |
-        export PATH=$PATH:/run/build/aerion/go/bin
-        export GOPATH=/run/build/aerion/go
+        export PATH=$PATH:/run/build/daak/go/bin
+        export GOPATH=/run/build/daak/go
         go install github.com/wailsapp/wails/v2/cmd/wails@latest
 
       # Install frontend dependencies
@@ -53,30 +53,30 @@ modules:
       # Build the application
       # Note: OAuth credentials should be configured via Flathub secrets if needed
       - |
-        export PATH=$PATH:/run/build/aerion/go/bin
-        /run/build/aerion/go/bin/wails build -tags webkit2_41,linux,production -o aerion
+        export PATH=$PATH:/run/build/daak/go/bin
+        /run/build/daak/go/bin/wails build -tags webkit2_41,linux,production -o daak
 
       # Install the binary
-      - install -Dm755 build/bin/aerion /app/bin/aerion
+      - install -Dm755 build/bin/daak /app/bin/daak
 
       # Install desktop file with correct app ID
-      - install -Dm644 build/linux/aerion.desktop /app/share/applications/io.github.hkdb.Aerion.desktop
+      - install -Dm644 build/linux/daak.desktop /app/share/applications/net.absons.daak.desktop
 
       # Update desktop file Icon and Exec fields
-      - desktop-file-edit --set-key=Icon --set-value=io.github.hkdb.Aerion /app/share/applications/io.github.hkdb.Aerion.desktop
-      - desktop-file-edit --set-key=Exec --set-value=aerion /app/share/applications/io.github.hkdb.Aerion.desktop
+      - desktop-file-edit --set-key=Icon --set-value=net.absons.daak /app/share/applications/net.absons.daak.desktop
+      - desktop-file-edit --set-key=Exec --set-value=daak /app/share/applications/net.absons.daak.desktop
 
       # Install themed icons with correct app ID (32-256 + scalable). A lone
       # 256 is skipped by hicolor MinSize=64 at small lookup sizes (#395).
       - |
         for sz in 32 48 64 128 256; do
-          install -Dm644 "build/linux/icons/${sz}x${sz}/io.github.hkdb.Aerion.png" \
-            "/app/share/icons/hicolor/${sz}x${sz}/apps/io.github.hkdb.Aerion.png"
+          install -Dm644 "build/linux/icons/${sz}x${sz}/net.absons.daak.png" \
+            "/app/share/icons/hicolor/${sz}x${sz}/apps/net.absons.daak.png"
         done
-      - install -Dm644 build/linux/icons/scalable/io.github.hkdb.Aerion.svg /app/share/icons/hicolor/scalable/apps/io.github.hkdb.Aerion.svg
+      - install -Dm644 build/linux/icons/scalable/net.absons.daak.svg /app/share/icons/hicolor/scalable/apps/net.absons.daak.svg
 
       # Install metainfo (AppStream metadata)
-      - install -Dm644 build/flatpak/io.github.hkdb.Aerion.metainfo.xml /app/share/metainfo/io.github.hkdb.Aerion.metainfo.xml
+      - install -Dm644 build/flatpak/net.absons.daak.metainfo.xml /app/share/metainfo/net.absons.daak.metainfo.xml
 
     sources:
       # Local source for development builds (make flatpak-dev)

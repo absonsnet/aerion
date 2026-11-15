@@ -1,12 +1,12 @@
 #!/bin/bash
-# Build Aerion Flatpak locally (no Docker)
+# Build Daak Flatpak locally (no Docker)
 # This uses the hybrid approach - network access during build
 
 set -e
 
 cd "$(dirname "$0")/../.."
 
-echo "=== Aerion Flatpak Local Builder ==="
+echo "=== Daak Flatpak Local Builder ==="
 echo ""
 
 # Check if flatpak-builder is installed
@@ -56,7 +56,7 @@ fi
 
 # Build the binary on the host first
 echo ""
-echo "Building Aerion binary on host..."
+echo "Building Daak binary on host..."
 cd "$(dirname "$0")/../.."
 make build-linux
 
@@ -67,7 +67,7 @@ echo "This will take a few minutes..."
 echo ""
 
 flatpak-builder --force-clean --user --install-deps-from=flathub \
-    --repo=repo build-dir build/flatpak/flathub/io.github.hkdb.Aerion.yml
+    --repo=repo build-dir build/flatpak/flathub/net.absons.daak.yml
 
 # Create bundle for distribution
 echo ""
@@ -76,9 +76,9 @@ mkdir -p build/bin
 
 # Get version from git tag, fallback to "dev" if no tag
 VERSION=$(git describe --tags --exact-match 2>/dev/null || echo "dev")
-BUNDLE_NAME="Aerion-${VERSION}.flatpak"
+BUNDLE_NAME="Daak-${VERSION}.flatpak"
 
-flatpak build-bundle repo "build/bin/${BUNDLE_NAME}" io.github.hkdb.Aerion
+flatpak build-bundle repo "build/bin/${BUNDLE_NAME}" net.absons.daak
 
 echo ""
 echo "✅ Build complete!"
@@ -86,7 +86,7 @@ echo ""
 echo "Flatpak bundle created: build/bin/${BUNDLE_NAME}"
 echo ""
 echo "To install locally:"
-echo "  flatpak install --user Aerion.flatpak"
+echo "  flatpak install --user Daak.flatpak"
 echo ""
 echo "To run:"
-echo "  flatpak run io.github.hkdb.Aerion"
+echo "  flatpak run net.absons.daak"

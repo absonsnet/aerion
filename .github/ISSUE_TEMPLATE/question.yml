@@ -1,5 +1,5 @@
 name: Question
-description: Ask a question about Aerion
+description: Ask a question about Daak
 labels: ["question"]
 body:
   - type: dropdown
@@ -62,8 +62,8 @@ body:
   - type: input
     id: version
     attributes:
-      label: Aerion Version
-      description: "Find out what version you are running from Aerion at ⚙️ (settings) --> About."
+      label: Daak Version
+      description: "Find out what version you are running from Daak at ⚙️ (settings) --> About."
       placeholder: e.g. v0.1.25
     validations:
       required: true

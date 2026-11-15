@@ -5,7 +5,7 @@
 // (detached popup window) under the same names. The components import
 // from here instead of `wailsjs/go/app/App` directly; this module
 // dispatches each call to the binding set of the window it runs in, based
-// on the `__AERION_VIEWER_WINDOW__` flag viewerMain.ts sets before
+// on the `__DAAK_VIEWER_WINDOW__` flag viewerMain.ts sets before
 // mounting. The main window never calls ViewerApp methods and vice versa
 // — the unused module's functions are only ever imported, never invoked,
 // so its missing `window.go` namespace is never dereferenced there.
@@ -15,8 +15,8 @@ import type { message, app } from '../../wailsjs/go/models'
 
 export function isViewerWindow(): boolean {
   return (
-    (window as unknown as { __AERION_VIEWER_WINDOW__?: boolean })
-      .__AERION_VIEWER_WINDOW__ === true
+    (window as unknown as { __DAAK_VIEWER_WINDOW__?: boolean })
+      .__DAAK_VIEWER_WINDOW__ === true
   )
 }
 

@@ -1,4 +1,4 @@
-// Package mailmerge implements Mail Merge for Aerion: one personalised
+// Package mailmerge implements Mail Merge for Daak: one personalised
 // message per recipient row, rendered from a single template.
 //
 // Attribution: Mail Merge is Alexander Bergmann's add-on for Thunderbird

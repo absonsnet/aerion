@@ -41,23 +41,23 @@ if [[ "$(uname -s)" != "Linux" ]]; then
 fi
 
 # Check if binary exists
-if [[ ! -f "aerion" ]]; then
-    print_error "aerion binary not found in current directory"
-    echo "Please run this script from the directory containing the aerion binary"
+if [[ ! -f "daak" ]]; then
+    print_error "daak binary not found in current directory"
+    echo "Please run this script from the directory containing the daak binary"
     exit 1
 fi
 
 # Check if desktop file exists
-if [[ ! -f "io.github.hkdb.Aerion.desktop" ]]; then
-    print_error "io.github.hkdb.Aerion.desktop file not found in current directory"
+if [[ ! -f "net.absons.daak.desktop" ]]; then
+    print_error "net.absons.daak.desktop file not found in current directory"
     echo "Please ensure the desktop file is in the same directory as this script"
     exit 1
 fi
 
 # Check if icons exist. New tarballs ship sized icons under icons/ plus a
 # scalable SVG (#395); the root 256px PNG remains for backward compatibility.
-if [[ ! -f "io.github.hkdb.Aerion.png" ]]; then
-    print_error "io.github.hkdb.Aerion.png icon not found in current directory"
+if [[ ! -f "net.absons.daak.png" ]]; then
+    print_error "net.absons.daak.png icon not found in current directory"
     echo "Please ensure the icon file is in the same directory as this script"
     exit 1
 fi
@@ -67,9 +67,9 @@ fi
 ICON_SIZES="32 48 64 128 256"
 
 echo ""
-print_info "Aerion Email Client - Installation Script"
+print_info "Daak Email Client - Installation Script"
 echo ""
-echo "This script will install Aerion on your system."
+echo "This script will install Daak on your system."
 echo ""
 echo "Choose installation type:"
 echo "  1) System-wide (requires sudo, installs to /usr/local)"
@@ -102,7 +102,7 @@ while true; do
 done
 
 echo ""
-print_info "Installing Aerion ($INSTALL_TYPE)..."
+print_info "Installing Daak ($INSTALL_TYPE)..."
 echo ""
 
 # Function to run command with or without sudo
@@ -122,6 +122,14 @@ if [[ -f "$OLD_DESKTOP_FILE" ]]; then
     print_success "Old desktop file renamed to aerion.desktop.backup"
 fi
 
+# Check for pre-rename app-ID desktop file and rename it (backwards compatibility)
+OLD_DESKTOP_FILE="$APPS_DIR/io.github.hkdb.Aerion.desktop"
+if [[ -f "$OLD_DESKTOP_FILE" ]]; then
+    print_info "Found old io.github.hkdb.Aerion.desktop, renaming to io.github.hkdb.Aerion.desktop.backup..."
+    run_cmd mv "$OLD_DESKTOP_FILE" "$APPS_DIR/io.github.hkdb.Aerion.desktop.backup"
+    print_success "Old desktop file renamed to io.github.hkdb.Aerion.desktop.backup"
+fi
+
 # Create directories if they don't exist (icon dirs are created per-size by
 # install -D below)
 print_info "Creating directories..."
@@ -130,29 +138,29 @@ run_cmd mkdir -p "$APPS_DIR"
 
 # Install binary
 print_info "Installing binary to $BIN_DIR..."
-run_cmd install -Dm755 aerion "$BIN_DIR/aerion"
+run_cmd install -Dm755 daak "$BIN_DIR/daak"
 
 # Install desktop file
 print_info "Installing desktop file to $APPS_DIR..."
-run_cmd install -Dm644 io.github.hkdb.Aerion.desktop "$APPS_DIR/io.github.hkdb.Aerion.desktop"
+run_cmd install -Dm644 net.absons.daak.desktop "$APPS_DIR/net.absons.daak.desktop"
 
 # Install icons: all hicolor sizes when the tarball ships them (#395),
 # falling back to the root 256px PNG for older tarballs
 print_info "Installing icons to $ICONS_BASE..."
 if [[ -d "icons" ]]; then
     for sz in $ICON_SIZES; do
-        if [[ -f "icons/${sz}x${sz}/io.github.hkdb.Aerion.png" ]]; then
-            run_cmd install -Dm644 "icons/${sz}x${sz}/io.github.hkdb.Aerion.png" \
-                "$ICONS_BASE/${sz}x${sz}/apps/io.github.hkdb.Aerion.png"
+        if [[ -f "icons/${sz}x${sz}/net.absons.daak.png" ]]; then
+            run_cmd install -Dm644 "icons/${sz}x${sz}/net.absons.daak.png" \
+                "$ICONS_BASE/${sz}x${sz}/apps/net.absons.daak.png"
         fi
     done
-    if [[ -f "icons/scalable/io.github.hkdb.Aerion.svg" ]]; then
-        run_cmd install -Dm644 "icons/scalable/io.github.hkdb.Aerion.svg" \
-            "$ICONS_BASE/scalable/apps/io.github.hkdb.Aerion.svg"
+    if [[ -f "icons/scalable/net.absons.daak.svg" ]]; then
+        run_cmd install -Dm644 "icons/scalable/net.absons.daak.svg" \
+            "$ICONS_BASE/scalable/apps/net.absons.daak.svg"
     fi
 else
     print_info "No sized icons in this package - installing 256px icon only"
-    run_cmd install -Dm644 io.github.hkdb.Aerion.png "$ICONS_BASE/256x256/apps/io.github.hkdb.Aerion.png"
+    run_cmd install -Dm644 net.absons.daak.png "$ICONS_BASE/256x256/apps/net.absons.daak.png"
 fi
 
 # Update icon cache
@@ -187,9 +195,9 @@ fi
 
 echo "You may need to log out and back in for the application to appear in your menu."
 echo ""
-echo "To set Aerion as your default email client, run:"
-echo "  xdg-mime default io.github.hkdb.Aerion.desktop x-scheme-handler/mailto"
+echo "To set Daak as your default email client, run:"
+echo "  xdg-mime default net.absons.daak.desktop x-scheme-handler/mailto"
 echo ""
-echo "To start Aerion, run:"
-echo "  aerion --dbus-notify"
+echo "To start Daak, run:"
+echo "  daak --dbus-notify"
 echo ""

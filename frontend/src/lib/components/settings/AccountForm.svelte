@@ -72,7 +72,7 @@
   let oauthInitialized = $state(false)
 
   // Custom ("bring your own app") OAuth — for a generic IMAP account whose OAuth
-  // provider Aerion does not ship. Primary inputs are the issuer URL + client ID;
+  // provider Daak does not ship. Primary inputs are the issuer URL + client ID;
   // OIDC discovery resolves the endpoints. Manual endpoint entry is an advanced
   // fallback. IMAP/SMTP server settings come from the advanced section.
   let customOAuthIssuer = $state('')
@@ -97,7 +97,7 @@
     oauthStore.flowState === 'pending' || oauthStore.flowState === 'success'
   )
   // Loopback redirect the user registers in their OAuth app. The port is assigned
-  // dynamically per RFC 8252 (this is why Aerion's shipped Google/Microsoft flows
+  // dynamically per RFC 8252 (this is why Daak's shipped Google/Microsoft flows
   // also use a dynamic port), so it's shown as a pattern for regex-matching
   // providers; strict-match providers need the fixed-port option instead.
   const customOAuthRedirectURI = 'http://localhost:[0-9]+/callback'

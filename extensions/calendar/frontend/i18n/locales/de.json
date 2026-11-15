@@ -81,7 +81,7 @@
       "namePlaceholder": "z. B. Private Nextcloud",
       "urlLabel": "Server-URL",
       "urlPlaceholder": "https://cloud.example.com/remote.php/dav",
-      "urlHelp": "Gib die Basis-URL oder die vollständige Kalender-Haupt-URL ein. Aerion wird gängige Pfade automatisch prüfen.",
+      "urlHelp": "Gib die Basis-URL oder die vollständige Kalender-Haupt-URL ein. Daak wird gängige Pfade automatisch prüfen.",
       "usernameLabel": "Benutzername",
       "passwordLabel": "Passwort",
       "authMethod": "Authentifizierung",
@@ -111,7 +111,7 @@
       "providerLabelMicrosoft": "Outlook",
       "organizerEmailLabel": "E-Mail des Organisators",
       "organizerEmailPlaceholder": "deine-adresse@example.com",
-      "organizerEmailPrompt": "Dein Server hat keine Kalender-Benutzeradresse bereitgestellt. Gib die E-Mail-Adresse ein, die Aerion als Organisator für Besprechungen in dieser Quelle verwenden soll.",
+      "organizerEmailPrompt": "Dein Server hat keine Kalender-Benutzeradresse bereitgestellt. Gib die E-Mail-Adresse ein, die Daak als Organisator für Besprechungen in dieser Quelle verwenden soll.",
       "organizerEmailHelp": "Dies ist die Adresse, die bei von dir erstellten Terminen als ORGANISATOR angezeigt wird.",
       "organizerEmailInvalid": "Gib eine gültige E-Mail-Adresse ein."
     },
@@ -183,7 +183,7 @@
       "providerDefaultsLabel": "Standardwerte pro Konto",
       "noDefaultsHint": "Füge einen Kalender hinzu, um Standardwerte festzulegen.",
       "oauthSection": "OAuth-Anmeldedaten (erweitert)",
-      "oauthHelp": "Wähle den Google- oder Microsoft-OAuth-Client, den diese Erweiterung verwendet. Der Standardwert (Aerion Testing für Google, Aerion - Microsoft für Microsoft) ist für die meisten Benutzer optimal.",
+      "oauthHelp": "Wähle den Google- oder Microsoft-OAuth-Client, den diese Erweiterung verwendet. Der Standardwert (Daak Testing für Google, Daak - Microsoft für Microsoft) ist für die meisten Benutzer optimal.",
       "oauthGoogleLabel": "Google",
       "oauthMicrosoftLabel": "Microsoft",
       "intervalMinutes": "{n} Minuten",
@@ -243,7 +243,7 @@
       "renameTitle": "Quelle umbenennen",
       "renameToastSuccess": "Umbenannt in „{name}“",
       "timezoneSection": "Anzeige-Zeitzone",
-      "timezoneHelp": "Wähle die Zeitzone, die Aerion zur Darstellung der Termine verwenden soll. 'Automatisch' nutzt deine Systemzeitzone."
+      "timezoneHelp": "Wähle die Zeitzone, die Daak zur Darstellung der Termine verwenden soll. 'Automatisch' nutzt deine Systemzeitzone."
     },
     "localCalendar": {
       "title": "Lokalen Kalender hinzufügen",

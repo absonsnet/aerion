@@ -8,7 +8,7 @@ If your language translation does not currently exist and you'd like to submit a
 
 Use this checklist to ensure your submission is complete:
 
-- [ ] **Claimed language** — filed a [Translation issue](https://github.com/hkdb/aerion/issues/new?template=translation.yml) to avoid duplicate efforts
+- [ ] **Claimed language** — filed a [Translation issue](https://github.com/absonsnet/daak/issues/new?template=translation.yml) to avoid duplicate efforts
 - [ ] **Core locale JSON** — `frontend/src/lib/i18n/locales/<code>.json` created with all core mail/UI keys translated
 - [ ] **Extension locale JSONs** — one `extensions/<name>/frontend/i18n/locales/<code>.json` per shipping extension (e.g., `extensions/contacts/frontend/i18n/locales/<code>.json`). Optional per locale — extensions you skip fall back to English at runtime; see [§ Extension translations](#extension-translations).
 - [ ] **Register locale** — added `register()` call in `frontend/src/lib/i18n/index.ts` (core locale only — extensions self-register via Vite glob)
@@ -16,8 +16,8 @@ Use this checklist to ensure your submission is complete:
 - [ ] **Supported locales** — added entry to `supportedLocales` array in `frontend/src/lib/i18n/index.ts`
 - [ ] **date-fns locale** — added `case` in `frontend/src/lib/i18n/dateFnsLocale.ts`
 - [ ] **Spellcheck dictionary (optional)** — if you bundle one, all five wiring steps in [§ Spellcheck dictionary](#spellcheck-dictionary-optional) are done, including the Flatpak sources regeneration
-- [ ] **AppStream metainfo** — added `xml:lang` entries in `build/flatpak/io.github.hkdb.Aerion.metainfo.xml`
-- [ ] **Desktop entry** — added `[locale]` suffixed keys in `build/linux/aerion.desktop`
+- [ ] **AppStream metainfo** — added `xml:lang` entries in `build/flatpak/net.absons.daak.metainfo.xml`
+- [ ] **Desktop entry** — added `[locale]` suffixed keys in `build/linux/daak.desktop`
 - [ ] **Checks pass** — `npm run check`, `npm run build`, and `go test ./...` all pass
 - [ ] **Live tested** — app launched with `make dev`, language switched, all strings verified (including any enabled extensions' UI)
 - [ ] **Tabs and buttons fit** — the tab labels in the Settings and Account dialogs (General, Accounts, Composer, Extensions, About; Identity, Server, Security, …) and the short button labels all fit; a label that is too long gets cut off or overlaps its neighbour rather than wrapping, so shorten the translation if that happens
@@ -25,9 +25,9 @@ Use this checklist to ensure your submission is complete:
 
 ## Claim Your Language
 
-Check [existing translation issues](https://github.com/hkdb/aerion/issues?q=label%3Atranslate) first — if someone is already working on your language, consider collaborating with them instead.
+Check [existing translation issues](https://github.com/absonsnet/daak/issues?q=label%3Atranslate) first — if someone is already working on your language, consider collaborating with them instead.
 
-Before starting any translation work, **file a [Translation issue](https://github.com/hkdb/aerion/issues/new?template=translation.yml)** to declare your intent. This prevents duplicate efforts and lets maintainers coordinate with contributors.
+Before starting any translation work, **file a [Translation issue](https://github.com/absonsnet/daak/issues/new?template=translation.yml)** to declare your intent. This prevents duplicate efforts and lets maintainers coordinate with contributors.
 
 ## Branch Target
 
@@ -74,9 +74,9 @@ Include in your PR:
 
 ---
 
-## Adding a New Language to Aerion
+## Adding a New Language to Daak
 
-The following sections walk through adding a new language to Aerion's frontend. The i18n system uses `svelte-i18n` with JSON locale files and lazy loading — only the active locale is loaded at runtime.
+The following sections walk through adding a new language to Daak's frontend. The i18n system uses `svelte-i18n` with JSON locale files and lazy loading — only the active locale is loaded at runtime.
 
 ## Prerequisites
 
@@ -195,7 +195,7 @@ For most languages, no changes are needed here.
 
 These files are shown in Linux app stores and desktop environments. They need translated entries for your language.
 
-#### A. AppStream Metainfo (`build/flatpak/io.github.hkdb.Aerion.metainfo.xml`)
+#### A. AppStream Metainfo (`build/flatpak/net.absons.daak.metainfo.xml`)
 
 This file is displayed in software centers (Flathub, GNOME Software). Add `xml:lang` variants for the following elements, placed directly after each English element:
 
@@ -220,7 +220,7 @@ This file is displayed in software centers (Flathub, GNOME Software). Add `xml:l
 
 Refer to the existing `cs`, `fr`, `zh-CN`, `zh-HK`, and `zh-TW` entries as working examples. Place new locale entries alphabetically by code (English first, the rest alphabetical).
 
-#### B. Desktop Entry (`build/linux/aerion.desktop`)
+#### B. Desktop Entry (`build/linux/daak.desktop`)
 
 This file is shown in app launchers and menus. Add `[locale_code]` suffixed keys. Note: desktop files use underscore (`_`) not hyphen for locale codes (e.g., `zh_TW` not `zh-TW`).
 
@@ -270,8 +270,8 @@ If you add one, all five steps are required — the Flatpak build fails if the l
 | `frontend/src/lib/i18n/index.ts` | Add `register()` for the core locale + `supportedLocales` entry. (Extensions self-register via Vite glob — no edit needed here for extension locales.) |
 | `extensions/<name>/frontend/i18n/index.ts` | Add `register()` line for your locale (per extension translated) |
 | `frontend/src/lib/i18n/dateFnsLocale.ts` | Add `case` for date-fns locale |
-| `build/flatpak/io.github.hkdb.Aerion.metainfo.xml` | Add `xml:lang` entries for app store listing |
-| `build/linux/aerion.desktop` | Add `[locale]` suffixed keys for desktop integration |
+| `build/flatpak/net.absons.daak.metainfo.xml` | Add `xml:lang` entries for app store listing |
+| `build/linux/daak.desktop` | Add `[locale]` suffixed keys for desktop integration |
 | `frontend/package.json` + `package-lock.json` | *(optional, dictionary only)* `dictionary-<code>` dependency |
 | `frontend/scripts/copy-dictionaries.mjs` | *(optional, dictionary only)* Add `<code>` to `LOCALES` |
 | `frontend/src/lib/spellcheck/locales.ts` | *(optional, dictionary only)* Add `<code>` to `SPELLCHECK_DICTS` (+ `APP_TO_DICT`) |
@@ -281,7 +281,7 @@ No backend changes are needed. The language setting is stored via the existing `
 
 ## Extension translations
 
-Aerion's extensions (Contacts today; Calendar and others over time) own their UI strings separately from the core mail locale files. This keeps each extension self-contained and lets translators pick up an extension independently of the core file.
+Daak's extensions (Contacts today; Calendar and others over time) own their UI strings separately from the core mail locale files. This keeps each extension self-contained and lets translators pick up an extension independently of the core file.
 
 ### Layout per extension
 

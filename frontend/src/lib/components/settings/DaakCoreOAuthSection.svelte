@@ -1,9 +1,9 @@
 <script lang="ts">
-  // AerionCoreOAuthSection — Settings → Accounts disclosure section for
-  // Aerion CORE's OAuth client credentials (google-mail, microsoft-mail).
+  // DaakCoreOAuthSection — Settings → Accounts disclosure section for
+  // Daak CORE's OAuth client credentials (google-mail, microsoft-mail).
   //
   // COLLAPSED by default — this is advanced power-user territory. Most users
-  // never expand it; Aerion ships verified mail creds out of the box.
+  // never expand it; Daak ships verified mail creds out of the box.
   //
   // Per-extension OAuth slots (google-contacts, microsoft-contacts, etc.)
   // live inside that extension's own settings dialog, NOT here.

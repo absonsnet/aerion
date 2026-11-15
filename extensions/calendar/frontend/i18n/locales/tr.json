@@ -81,7 +81,7 @@
       "namePlaceholder": "örn. Kişisel Nextcloud",
       "urlLabel": "Sunucu URL'si",
       "urlPlaceholder": "https://cloud.example.com/remote.php/dav",
-      "urlHelp": "Temel URL'yi veya tam takvim ana dizini URL'sini girin. Aerion yaygın yolları yoklar.",
+      "urlHelp": "Temel URL'yi veya tam takvim ana dizini URL'sini girin. Daak yaygın yolları yoklar.",
       "usernameLabel": "Kullanıcı adı",
       "passwordLabel": "Parola",
       "authMethod": "Kimlik doğrulama",
@@ -111,7 +111,7 @@
       "providerLabelMicrosoft": "Outlook",
       "organizerEmailLabel": "Düzenleyici e-postası",
       "organizerEmailPlaceholder": "siz@example.com",
-      "organizerEmailPrompt": "Sunucunuz bir takvim kullanıcı adresi yayınlamadı. Aerion'un bu kaynaktaki etkinliklerde toplantı düzenleyicisi olarak kullanması gereken e-posta adresini girin.",
+      "organizerEmailPrompt": "Sunucunuz bir takvim kullanıcı adresi yayınlamadı. Daak'un bu kaynaktaki etkinliklerde toplantı düzenleyicisi olarak kullanması gereken e-posta adresini girin.",
       "organizerEmailHelp": "Bu, burada oluşturduğunuz etkinliklerde ORGANIZER olarak görünecek adrestir.",
       "organizerEmailInvalid": "Geçerli bir e-posta adresi girin."
     },
@@ -183,7 +183,7 @@
       "providerDefaultsLabel": "Hesap başına varsayılanlar",
       "noDefaultsHint": "Varsayılanları ayarlamak için bir takvim ekleyin.",
       "oauthSection": "OAuth Kimlik Bilgileri (gelişmiş)",
-      "oauthHelp": "Bu uzantının kullandığı Google veya Microsoft OAuth istemcisini seçin. Varsayılan (Google için Aerion testing, Microsoft için Aerion - Microsoft) çoğu kullanıcı için uygundur.",
+      "oauthHelp": "Bu uzantının kullandığı Google veya Microsoft OAuth istemcisini seçin. Varsayılan (Google için Daak testing, Microsoft için Daak - Microsoft) çoğu kullanıcı için uygundur.",
       "oauthGoogleLabel": "Google",
       "oauthMicrosoftLabel": "Microsoft",
       "intervalMinutes": "{n} dakika",
@@ -243,7 +243,7 @@
       "renameTitle": "Kaynağı yeniden adlandır",
       "renameToastSuccess": "\"{name}\" olarak yeniden adlandırıldı",
       "timezoneSection": "Görüntüleme saat dilimi",
-      "timezoneHelp": "Aerion'un etkinlik saatlerini göstermek için hangi saat dilimini kullanacağını seçin. Otomatik algıla, sistem saat diliminizi kullanır."
+      "timezoneHelp": "Daak'un etkinlik saatlerini göstermek için hangi saat dilimini kullanacağını seçin. Otomatik algıla, sistem saat diliminizi kullanır."
     },
     "localCalendar": {
       "title": "Yerel takvim ekle",

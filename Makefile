@@ -1,4 +1,4 @@
-# Aerion Email Client - Build System
+# Daak Email Client - Build System
 # 
 # Usage:
 #   make build    - Build production binary
@@ -29,19 +29,19 @@ MODULE := github.com/absonsnet/daak
 #                               manifest declares in
 #                               first_party_uses_core_for_scopes (today:
 #                               contacts.readonly). Surfaced as
-#                               "Aerion - Google" in the picker.
+#                               "Daak - Google" in the picker.
 #   MICROSOFT_CLIENT_ID       — mail's Azure AD app registration. Also
 #                               backs microsoft-contacts and
 #                               microsoft-calendar (Microsoft Graph
 #                               doesn't gate scopes behind verification).
-#                               Surfaced as "Aerion - Microsoft".
+#                               Surfaced as "Daak - Microsoft".
 #   GOOGLE_TESTING_CLIENT_ID/SECRET — shared un-Google-verified test
 #                               project for extensions that need broader
 #                               scopes than the mail project carries
 #                               (contacts.readwrite, full Calendar).
 #                               Single client backs google-contacts AND
 #                               google-calendar slots. Surfaced as
-#                               "Aerion - Google (Testing)".
+#                               "Daak - Google (Testing)".
 LDFLAGS := -X '$(MODULE)/internal/oauth2.GoogleClientID=$(GOOGLE_CLIENT_ID)' \
            -X '$(MODULE)/internal/oauth2.GoogleClientSecret=$(GOOGLE_CLIENT_SECRET)' \
            -X '$(MODULE)/internal/oauth2.MicrosoftClientID=$(MICROSOFT_CLIENT_ID)' \
@@ -69,20 +69,20 @@ all: build
 
 # Build production binary
 build:
-	@echo "Building Aerion..."
+	@echo "Building Daak..."
 	@if [ -z "$(GOOGLE_CLIENT_ID)" ] && [ -z "$(MICROSOFT_CLIENT_ID)" ]; then \
 		echo "Warning: No OAuth credentials configured. Gmail/Outlook OAuth will not work."; \
 		echo "See .env.example for required variables."; \
 	fi
 	wails build -ldflags "$(LDFLAGS)" -tags $(BUILD_TAGS)
 ifeq ($(UNAME_S),Darwin)
-	@echo "Ad-hoc signing Aerion.app (required for macOS notifications)..."
-	codesign --force --deep --sign - build/bin/Aerion.app
+	@echo "Ad-hoc signing Daak.app (required for macOS notifications)..."
+	codesign --force --deep --sign - build/bin/Daak.app
 endif
 
 # Build for Linux specifically
 build-linux:
-	@echo "Building Aerion for Linux..."
+	@echo "Building Daak for Linux..."
 	wails build -ldflags "$(LDFLAGS)" -tags $(BUILD_TAGS),linux,production
 
 # Build Flatpak (recommended for Linux distribution)
@@ -97,7 +97,7 @@ flatpak-dev:
 
 # Run in development mode with hot reload
 dev:
-	@echo "Starting Aerion in development mode..."
+	@echo "Starting Daak in development mode..."
 	wails dev -ldflags "$(LDFLAGS)" -tags $(BUILD_TAGS)
 
 # Run in development mode with Go's race detector enabled. Builds significantly
@@ -106,7 +106,7 @@ dev:
 # shared-memory access. Use this when chasing a suspected data race —
 # reproduce the crash and the detector report points right at it.
 dev-race:
-	@echo "Starting Aerion in development mode with -race..."
+	@echo "Starting Daak in development mode with -race..."
 	wails dev -ldflags "$(LDFLAGS)" -tags $(BUILD_TAGS) -race
 
 # Generate Wails TypeScript bindings
@@ -147,7 +147,7 @@ clean:
 	rm -rf build/bin
 	rm -rf frontend/dist
 	rm -rf AppDir
-	rm -f aerion
+	rm -f daak
 
 # Clean downloaded tools (deprecated - AppImage removed)
 tools-clean:
@@ -174,7 +174,7 @@ else ifeq ($(UNAME_S),Darwin)
 	$(MAKE) install-darwin
 else
 	@echo "For Windows, use 'make build-windows-installer' and run the generated installer."
-	@echo "Or manually copy build/bin/aerion.exe to your preferred location."
+	@echo "Or manually copy build/bin/daak.exe to your preferred location."
 endif
 
 # Auto-detect platform and uninstall
@@ -193,59 +193,61 @@ endif
 # build/linux/install.sh ICON_SIZES and .github/workflows/release.yml.
 ICON_SIZES ?= 32 48 64 128 256
 
-# Install Aerion on Linux
+# Install Daak on Linux
 install-linux: build
-	@echo "Installing Aerion to $(DESTDIR)$(PREFIX)..."
-	install -Dm755 build/bin/aerion "$(DESTDIR)$(PREFIX)/bin/aerion"
+	@echo "Installing Daak to $(DESTDIR)$(PREFIX)..."
+	install -Dm755 build/bin/daak "$(DESTDIR)$(PREFIX)/bin/daak"
 	@for sz in $(ICON_SIZES); do \
-		install -Dm644 "build/linux/icons/$${sz}x$${sz}/io.github.hkdb.Aerion.png" \
-			"$(DESTDIR)$(PREFIX)/share/icons/hicolor/$${sz}x$${sz}/apps/io.github.hkdb.Aerion.png"; \
+		install -Dm644 "build/linux/icons/$${sz}x$${sz}/net.absons.daak.png" \
+			"$(DESTDIR)$(PREFIX)/share/icons/hicolor/$${sz}x$${sz}/apps/net.absons.daak.png"; \
 	done
-	install -Dm644 build/linux/icons/scalable/io.github.hkdb.Aerion.svg "$(DESTDIR)$(PREFIX)/share/icons/hicolor/scalable/apps/io.github.hkdb.Aerion.svg"
-	install -Dm644 build/linux/aerion.desktop "$(DESTDIR)$(PREFIX)/share/applications/io.github.hkdb.Aerion.desktop"
+	install -Dm644 build/linux/icons/scalable/net.absons.daak.svg "$(DESTDIR)$(PREFIX)/share/icons/hicolor/scalable/apps/net.absons.daak.svg"
+	install -Dm644 build/linux/daak.desktop "$(DESTDIR)$(PREFIX)/share/applications/net.absons.daak.desktop"
 	@echo "Updating icon cache..."
 	-gtk-update-icon-cache -f -t "$(DESTDIR)$(PREFIX)/share/icons/hicolor" 2>/dev/null || true
 	@echo ""
 	@echo "Installation complete!"
 	@echo "You may need to log out and back in for the application to appear in your menu."
 	@echo ""
-	@echo "To set Aerion as your default email client:"
-	@echo "  xdg-mime default io.github.hkdb.Aerion.desktop x-scheme-handler/mailto"
+	@echo "To set Daak as your default email client:"
+	@echo "  xdg-mime default net.absons.daak.desktop x-scheme-handler/mailto"
 
-# Uninstall Aerion from Linux
+# Uninstall Daak from Linux
 uninstall-linux:
-	@echo "Uninstalling Aerion from $(DESTDIR)$(PREFIX)..."
-	rm -f "$(DESTDIR)$(PREFIX)/bin/aerion"
+	@echo "Uninstalling Daak from $(DESTDIR)$(PREFIX)..."
+	rm -f "$(DESTDIR)$(PREFIX)/bin/daak"
 	@for sz in $(ICON_SIZES); do \
-		rm -f "$(DESTDIR)$(PREFIX)/share/icons/hicolor/$${sz}x$${sz}/apps/io.github.hkdb.Aerion.png"; \
+		rm -f "$(DESTDIR)$(PREFIX)/share/icons/hicolor/$${sz}x$${sz}/apps/net.absons.daak.png"; \
 	done
-	rm -f "$(DESTDIR)$(PREFIX)/share/icons/hicolor/scalable/apps/io.github.hkdb.Aerion.svg"
+	rm -f "$(DESTDIR)$(PREFIX)/share/icons/hicolor/scalable/apps/net.absons.daak.svg"
 	rm -f "$(DESTDIR)$(PREFIX)/share/icons/hicolor/256x256/apps/aerion.png"  # Remove old name if it exists
-	rm -f "$(DESTDIR)$(PREFIX)/share/applications/io.github.hkdb.Aerion.desktop"
+	rm -f "$(DESTDIR)$(PREFIX)/share/icons/hicolor/256x256/apps/io.github.hkdb.Aerion.png"  # Remove old name if it exists
+	rm -f "$(DESTDIR)$(PREFIX)/share/applications/net.absons.daak.desktop"
 	rm -f "$(DESTDIR)$(PREFIX)/share/applications/aerion.desktop"  # Remove old name if it exists
+	rm -f "$(DESTDIR)$(PREFIX)/share/applications/io.github.hkdb.Aerion.desktop"  # Remove old name if it exists
 	-gtk-update-icon-cache -f -t "$(DESTDIR)$(PREFIX)/share/icons/hicolor" 2>/dev/null || true
 	@echo "Uninstallation complete!"
 
 ## macOS Installation
 
-# Install Aerion on macOS
+# Install Daak on macOS
 install-darwin: build
-	@echo "Installing Aerion.app to /Applications..."
-	@if [ -d "/Applications/Aerion.app" ]; then \
+	@echo "Installing Daak.app to /Applications..."
+	@if [ -d "/Applications/Daak.app" ]; then \
 		echo "Removing existing installation..."; \
-		rm -rf "/Applications/Aerion.app"; \
+		rm -rf "/Applications/Daak.app"; \
 	fi
-	cp -R "build/bin/Aerion.app" "/Applications/"
+	cp -R "build/bin/Daak.app" "/Applications/"
 	@echo "Re-signing installed copy..."
-	codesign --force --deep --sign - "/Applications/Aerion.app"
+	codesign --force --deep --sign - "/Applications/Daak.app"
 	@echo ""
 	@echo "Installation complete!"
-	@echo "Aerion is now available in /Applications."
+	@echo "Daak is now available in /Applications."
 
-# Uninstall Aerion from macOS
+# Uninstall Daak from macOS
 uninstall-darwin:
-	@echo "Uninstalling Aerion from /Applications..."
-	rm -rf "/Applications/Aerion.app"
+	@echo "Uninstalling Daak from /Applications..."
+	rm -rf "/Applications/Daak.app"
 	@echo "Uninstallation complete!"
 
 ## Windows Installation
@@ -255,13 +257,13 @@ build-windows-installer:
 	@echo "Building Windows installer..."
 	wails build -ldflags "$(LDFLAGS)" -tags $(BUILD_TAGS) -nsis
 	@echo ""
-	@echo "Installer created at build/bin/aerion-amd64-installer.exe"
+	@echo "Installer created at build/bin/daak-amd64-installer.exe"
 
 ## Help
 
 # Show available targets
 help:
-	@echo "Aerion Email Client - Build System"
+	@echo "Daak Email Client - Build System"
 	@echo ""
 	@echo "Build Targets:"
 	@echo "  make build        - Build production binary"
@@ -272,8 +274,8 @@ help:
 	@echo "  make generate     - Generate Wails TypeScript bindings"
 	@echo ""
 	@echo "Installation (auto-detects platform):"
-	@echo "  make install      - Install Aerion (Linux/macOS)"
-	@echo "  make uninstall    - Uninstall Aerion (Linux/macOS)"
+	@echo "  make install      - Install Daak (Linux/macOS)"
+	@echo "  make uninstall    - Uninstall Daak (Linux/macOS)"
 	@echo ""
 	@echo "Platform-Specific Installation:"
 	@echo "  make install-linux      - Install on Linux to $(PREFIX)"

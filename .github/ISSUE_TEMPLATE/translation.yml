@@ -6,7 +6,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        **Before submitting**, please search [existing issues](https://github.com/hkdb/aerion/issues?q=label%3Atranslate) to make sure no one is already working on this language.
+        **Before submitting**, please search [existing issues](https://github.com/absonsnet/daak/issues?q=label%3Atranslate) to make sure no one is already working on this language.
   - type: input
     id: language
     attributes:

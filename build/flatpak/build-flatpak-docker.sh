@@ -1,11 +1,11 @@
 #!/bin/bash
-# Build Aerion Flatpak using Docker (hybrid approach: build binary on host in container, then package)
+# Build Daak Flatpak using Docker (hybrid approach: build binary on host in container, then package)
 
 set -e
 
 cd "$(dirname "$0")/../.."
 
-echo "=== Aerion Flatpak Docker Builder ==="
+echo "=== Daak Flatpak Docker Builder ==="
 echo ""
 
 # Check if Docker is installed
@@ -36,10 +36,10 @@ if [ -z "$GOOGLE_CLIENT_ID" ] && [ -z "$MICROSOFT_CLIENT_ID" ]; then
 fi
 
 echo "Building Docker image (this may take a few minutes on first run)..."
-docker build -t aerion-flatpak-builder -f build/flatpak/Dockerfile build/flatpak
+docker build -t daak-flatpak-builder -f build/flatpak/Dockerfile build/flatpak
 
 echo ""
-echo "Building Aerion in Docker container..."
+echo "Building Daak in Docker container..."
 echo ""
 
 # Get version from git tag
@@ -52,32 +52,32 @@ docker run --rm \
     -e GOOGLE_CLIENT_ID="${GOOGLE_CLIENT_ID}" \
     -e GOOGLE_CLIENT_SECRET="${GOOGLE_CLIENT_SECRET}" \
     -e MICROSOFT_CLIENT_ID="${MICROSOFT_CLIENT_ID}" \
-    aerion-flatpak-builder \
+    daak-flatpak-builder \
     bash -c "
         echo 'Installing frontend dependencies...'
         cd frontend && npm install && cd ..
 
         echo ''
-        echo 'Building Aerion binary...'
+        echo 'Building Daak binary...'
         make build-linux
 
         echo ''
         echo 'Packaging into Flatpak...'
-        flatpak-builder --force-clean --repo=repo build-dir build/flatpak/flathub/io.github.hkdb.Aerion.yml
+        flatpak-builder --force-clean --repo=repo build-dir build/flatpak/flathub/net.absons.daak.yml
 
         echo ''
         echo 'Creating .flatpak bundle...'
         mkdir -p build/bin
-        flatpak build-bundle repo build/bin/Aerion-${VERSION}.flatpak io.github.hkdb.Aerion
+        flatpak build-bundle repo build/bin/Daak-${VERSION}.flatpak net.absons.daak
     "
 
 echo ""
 echo "✅ Build complete!"
 echo ""
-echo "Flatpak bundle created: build/bin/Aerion-${VERSION}.flatpak"
+echo "Flatpak bundle created: build/bin/Daak-${VERSION}.flatpak"
 echo ""
 echo "To install locally:"
-echo "  flatpak install --user build/bin/Aerion-${VERSION}.flatpak"
+echo "  flatpak install --user build/bin/Daak-${VERSION}.flatpak"
 echo ""
 echo "To run:"
-echo "  flatpak run io.github.hkdb.Aerion"
+echo "  flatpak run net.absons.daak"

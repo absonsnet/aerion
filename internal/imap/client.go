@@ -1,4 +1,4 @@
-// Package imap provides IMAP client functionality for Aerion
+// Package imap provides IMAP client functionality for Daak
 package imap
 
 import (
@@ -261,7 +261,7 @@ func (c *Client) Login() error {
 
 	// Coremail-based servers (163.com, 126.com, …) reject LOGIN until the
 	// client has identified itself with an IMAP ID command. Privacy rule:
-	// Aerion never sends ID unprompted, so the first login on such a server
+	// Daak never sends ID unprompted, so the first login on such a server
 	// fails once, we identify, retry, and remember (IDRequired → the pool
 	// persists the account flag so later connections send ID up front).
 	if err != nil && !c.config.SendID && isUnsafeLoginError(err) && c.caps.Has(imap.CapID) {

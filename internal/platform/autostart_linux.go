@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	autostartFilename = "io.github.hkdb.Aerion.desktop"
+	autostartFilename = "net.absons.daak.desktop"
 )
 
 // desktopEntryTmpl is the XDG autostart .desktop file content. Name and
@@ -23,7 +23,7 @@ Type=Application
 Name=` + AppName + `
 Comment=` + AppName + ` Email Client
 Exec=%s
-Icon=io.github.hkdb.Aerion
+Icon=net.absons.daak
 Terminal=false
 Categories=Network;Email;
 X-GNOME-Autostart-enabled=true
@@ -87,7 +87,7 @@ func (m *linuxAutostartManager) portalRequestBackground(autostart bool) error {
 	}
 
 	// Generate handle token so we know the request object path in advance.
-	handleToken := fmt.Sprintf("aerion_%d", time.Now().UnixNano())
+	handleToken := fmt.Sprintf("daak_%d", time.Now().UnixNano())
 
 	// Compute expected request path from our unique bus name and handle token.
 	// Unique name is like ":1.42" → remove ":" and replace "." with "_" → "1_42"

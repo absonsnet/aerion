@@ -1,4 +1,4 @@
-// Package smtp provides SMTP client functionality for Aerion
+// Package smtp provides SMTP client functionality for Daak
 package smtp
 
 import (
@@ -108,7 +108,7 @@ func (m *ComposeMessage) ToRFC822() ([]byte, error) {
 	var buf bytes.Buffer
 
 	// Generate Message-ID
-	messageID := fmt.Sprintf("<%s@aerion>", uuid.New().String())
+	messageID := fmt.Sprintf("<%s@daak>", uuid.New().String())
 
 	// Write headers
 	writeHeader(&buf, "From", m.From.String())

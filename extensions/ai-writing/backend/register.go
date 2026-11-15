@@ -29,7 +29,7 @@ func (e *Extension) Manifest() coreapi.Manifest { return e.manifest }
 // covering both inline and detached composers since they share
 // Composer.svelte) and the AI Writing Assistant tab in the Settings dialog.
 //
-// Runs once per Aerion process lifetime at App.Startup, regardless of
+// Runs once per Daak process lifetime at App.Startup, regardless of
 // enabled state — descriptive registrations persist across enable/disable
 // cycles. The frontend filters by enabled state at render time.
 func (e *Extension) Register(core coreapi.Core) (coreapi.Unregister, error) {

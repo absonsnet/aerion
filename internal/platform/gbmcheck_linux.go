@@ -78,7 +78,7 @@ func showGBMFixDialog() {
 		AppName+" - Display Issue Detected",
 		"A display rendering error was detected that may cause a blank window or crash.\n\n"+
 			"To fix this permanently, close "+AppName+" and run:\n\n"+
-			"flatpak override --user --env=WEBKIT_DISABLE_DMABUF_RENDERER=1 io.github.hkdb.Aerion\n\n"+
+			"flatpak override --user --env=WEBKIT_DISABLE_DMABUF_RENDERER=1 net.absons.daak\n\n"+
 			"Then restart "+AppName+".",
 	)
 }

@@ -75,4 +75,4 @@ require (
 	modernc.org/memory v1.11.0 // indirect
 )
 
-// replace github.com/wailsapp/wails/v2 v2.11.0 => /home/hkdb/go/pkg/mod
+// replace github.com/wailsapp/wails/v2 v2.11.0 => /home/<upstream-author>/go/pkg/mod

@@ -82,7 +82,7 @@ ALTER TABLE mailmerge_runs ADD COLUMN queued_count INTEGER NOT NULL DEFAULT 0;
 }
 
 // Store wraps the per-extension DB for the Mail Merge extension. Lives
-// in an isolated SQLite file, separate from Aerion's main DB. No tables
+// in an isolated SQLite file, separate from Daak's main DB. No tables
 // in this file are read or written by core code; cross-extension access
 // flows through coreapi only.
 type Store struct {

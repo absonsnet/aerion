@@ -1,6 +1,6 @@
 <script lang="ts">
   // OAuthCredsSlotEditor — single-slot OAuth credential editor primitive.
-  // Used by Aerion core's "OAuth Credentials (advanced)" section (Settings →
+  // Used by Daak core's "OAuth Credentials (advanced)" section (Settings →
   // Accounts) AND by each extension's settings dialog.
   //
   // Props:
@@ -9,7 +9,7 @@
   //   extensionID         — the manifest id of the consuming extension
   //                         (e.g., "contacts", "calendar"). Omit (or pass "")
   //                         for core/mail's settings UI — then the backend
-  //                         skips the manifest lookup and the "Aerion mail
+  //                         skips the manifest lookup and the "Daak mail
   //                         client" option never appears.
   //   label               — display name (e.g., "Google Mail")
   //   secretRequired      — whether the slot needs a client_secret (true for
@@ -23,8 +23,8 @@
   //                           the edit form.
   //     - "aerion-shipped"  — the slot's own shipped client (compiled in via
   //                           the extension's .env / Makefile ldflags). Labeled
-  //                           by the backend per slot ("Aerion - Google",
-  //                           "Aerion - Microsoft", "Aerion testing", etc.).
+  //                           by the backend per slot ("Daak - Google",
+  //                           "Daak - Microsoft", "Daak testing", etc.).
   //     - "aerion-mail"     — reuse the core mail OAuth slot for scopes the
   //                           extension manifest declares as core-routable
   //                           (first_party_uses_core_for_scopes).
@@ -72,11 +72,11 @@
 
   // Status badge driven by the currently-selected mode rather than two
   // independent has* booleans. Maps to the same three visual states the
-  // previous version had: Custom / Aerion / Not configured.
-  function statusBadgeKind(): 'custom' | 'aerion' | 'unset' {
+  // previous version had: Custom / Daak / Not configured.
+  function statusBadgeKind(): 'custom' | 'daak' | 'unset' {
     if (loading) return 'unset'
     if (mode === 'custom' && choices?.hasUserOverride) return 'custom'
-    if (mode !== 'custom') return 'aerion'
+    if (mode !== 'custom') return 'daak'
     return 'unset'
   }
 
@@ -207,7 +207,7 @@
           <Icon icon="mdi:loading" class="w-3.5 h-3.5 animate-spin text-muted-foreground" />
         {:else if statusBadgeKind() === 'custom'}
           <span class="text-xs px-2 py-0.5 rounded bg-primary/15 text-primary">Custom</span>
-        {:else if statusBadgeKind() === 'aerion'}
+        {:else if statusBadgeKind() === 'daak'}
           <span class="text-xs px-2 py-0.5 rounded bg-muted text-muted-foreground">{APP_NAME}</span>
         {:else}
           <span class="text-xs px-2 py-0.5 rounded bg-destructive/15 text-destructive">Not configured</span>

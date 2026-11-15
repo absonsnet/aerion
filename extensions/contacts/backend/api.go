@@ -16,7 +16,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// Source IDs for Aerion's core local contact store. CardDAV sources use their
+// Source IDs for Daak's core local contact store. CardDAV sources use their
 // own UUIDs (one per configured source).
 //
 // The local source has two sub-categories distinguished by `contacts.kind`:

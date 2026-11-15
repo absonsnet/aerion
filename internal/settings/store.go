@@ -644,14 +644,14 @@ func (s *Store) SetTermsAccepted(accepted bool) error {
 	return s.Set(KeyTermsAccepted, value)
 }
 
-// GetLastSeenVersion returns the Aerion version that was running the last time
+// GetLastSeenVersion returns the Daak version that was running the last time
 // the "What's new in this version" dialog was acknowledged with OK. Empty
 // string means it's never been acknowledged (e.g. fresh install).
 func (s *Store) GetLastSeenVersion() (string, error) {
 	return s.Get(KeyLastSeenVersion)
 }
 
-// SetLastSeenVersion records the current Aerion version as acknowledged so the
+// SetLastSeenVersion records the current Daak version as acknowledged so the
 // What's New dialog doesn't fire again until the next version upgrade.
 func (s *Store) SetLastSeenVersion(version string) error {
 	return s.Set(KeyLastSeenVersion, version)
@@ -678,7 +678,7 @@ func (s *Store) SetOAuthWarningDisabled(disabled bool) error {
 	return s.Set(KeyOAuthWarningDisabled, value)
 }
 
-// GetRunBackground returns whether Aerion should keep running when the window is closed
+// GetRunBackground returns whether Daak should keep running when the window is closed
 func (s *Store) GetRunBackground() (bool, error) {
 	value, err := s.Get(KeyRunBackground)
 	if err != nil {
@@ -687,7 +687,7 @@ func (s *Store) GetRunBackground() (bool, error) {
 	return value == "true", nil
 }
 
-// SetRunBackground sets whether Aerion should keep running when the window is closed
+// SetRunBackground sets whether Daak should keep running when the window is closed
 func (s *Store) SetRunBackground(enabled bool) error {
 	value := "false"
 	if enabled {
@@ -696,7 +696,7 @@ func (s *Store) SetRunBackground(enabled bool) error {
 	return s.Set(KeyRunBackground, value)
 }
 
-// GetStartHidden returns whether Aerion should start with the window hidden
+// GetStartHidden returns whether Daak should start with the window hidden
 func (s *Store) GetStartHidden() (bool, error) {
 	value, err := s.Get(KeyStartHidden)
 	if err != nil {
@@ -705,7 +705,7 @@ func (s *Store) GetStartHidden() (bool, error) {
 	return value == "true", nil
 }
 
-// SetStartHidden sets whether Aerion should start with the window hidden
+// SetStartHidden sets whether Daak should start with the window hidden
 func (s *Store) SetStartHidden(enabled bool) error {
 	value := "false"
 	if enabled {
@@ -714,7 +714,7 @@ func (s *Store) SetStartHidden(enabled bool) error {
 	return s.Set(KeyStartHidden, value)
 }
 
-// GetAutostart returns whether Aerion should start on login
+// GetAutostart returns whether Daak should start on login
 func (s *Store) GetAutostart() (bool, error) {
 	value, err := s.Get(KeyAutostart)
 	if err != nil {
@@ -723,7 +723,7 @@ func (s *Store) GetAutostart() (bool, error) {
 	return value == "true", nil
 }
 
-// SetAutostart sets whether Aerion should start on login
+// SetAutostart sets whether Daak should start on login
 func (s *Store) SetAutostart(enabled bool) error {
 	value := "false"
 	if enabled {
@@ -976,7 +976,7 @@ func (s *Store) SetAlwaysLoadImages(enabled bool) error {
 }
 
 // GetDarkMailContent returns whether email content should be visually darkened
-// while Aerion is in dark mode. Off by default.
+// while Daak is in dark mode. Off by default.
 func (s *Store) GetDarkMailContent() (bool, error) {
 	value, err := s.Get(KeyDarkMailContent)
 	if err != nil {
@@ -995,7 +995,7 @@ func (s *Store) SetDarkMailContent(enabled bool) error {
 }
 
 // GetDarkComposerBody returns whether the composer message body should use a
-// dark background while Aerion is in dark mode. Off by default (white body).
+// dark background while Daak is in dark mode. Off by default (white body).
 func (s *Store) GetDarkComposerBody() (bool, error) {
 	value, err := s.Get(KeyDarkComposerBody)
 	if err != nil {

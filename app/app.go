@@ -330,7 +330,7 @@ type App struct {
 	wakeSyncing     bool                          // guards syncAfterWake against concurrent calls
 	syncMu          goSync.Mutex                  // protects sync maps
 
-	// Suppresses the IDLE echo of our own flag writes: when Aerion STOREs a flag
+	// Suppresses the IDLE echo of our own flag writes: when Daak STOREs a flag
 	// change it stamps the account here, so the incoming IDLE FETCH echo of that
 	// same change doesn't trigger a re-sync (only other clients' changes do).
 	ownFlagMu       goSync.Mutex
@@ -488,7 +488,7 @@ func (a *App) Preflight() error {
 
 	// Wire user-picked slot aliases into the oauth2 resolver chain. When the
 	// user has chosen a non-default shipped option for a given config id
-	// (e.g., contacts settings → "Aerion mail client" reroutes google-contacts
+	// (e.g., contacts settings → "Daak mail client" reroutes google-contacts
 	// onto google-mail), the resolver consults this hook after the user-
 	// override step and before the provider chain.
 	oauth2.SlotAliasLookup = func(configID string) (string, bool) {

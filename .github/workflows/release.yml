@@ -79,9 +79,9 @@ jobs:
 
           # Rename binary with version tag
           if [ "${{ matrix.arch }}" = "amd64" ]; then
-            mv build/bin/aerion build/bin/aerion-${{ github.ref_name }}-linux-x86_64
+            mv build/bin/daak build/bin/daak-${{ github.ref_name }}-linux-x86_64
           elif [ "${{ matrix.arch }}" = "arm64" ]; then
-            mv build/bin/aerion build/bin/aerion-${{ github.ref_name }}-linux-aarch64
+            mv build/bin/daak build/bin/daak-${{ github.ref_name }}-linux-aarch64
           fi
 
           # Build OAuth credentials shim binary
@@ -89,36 +89,36 @@ jobs:
             CGO_ENABLED=0 GOARCH=amd64 go build \
               -ldflags "-X 'main.GoogleClientID=$GOOGLE_CLIENT_ID' -X 'main.GoogleClientSecret=$GOOGLE_CLIENT_SECRET' -X 'main.MicrosoftClientID=$MICROSOFT_CLIENT_ID' -X 'main.GoogleTestingClientID=$GOOGLE_TESTING_CLIENT_ID' -X 'main.GoogleTestingClientSecret=$GOOGLE_TESTING_CLIENT_SECRET'" \
               -o build/bin/flathub-build-env-${{ github.ref_name }}-linux-x86_64 \
-              cmd/aerion-creds/main.go
+              cmd/daak-creds/main.go
           elif [ "${{ matrix.arch }}" = "arm64" ]; then
             CGO_ENABLED=0 GOARCH=arm64 go build \
               -ldflags "-X 'main.GoogleClientID=$GOOGLE_CLIENT_ID' -X 'main.GoogleClientSecret=$GOOGLE_CLIENT_SECRET' -X 'main.MicrosoftClientID=$MICROSOFT_CLIENT_ID' -X 'main.GoogleTestingClientID=$GOOGLE_TESTING_CLIENT_ID' -X 'main.GoogleTestingClientSecret=$GOOGLE_TESTING_CLIENT_SECRET'" \
               -o build/bin/flathub-build-env-${{ github.ref_name }}-linux-aarch64 \
-              cmd/aerion-creds/main.go
+              cmd/daak-creds/main.go
           fi
 
           # Create distribution tarball (complete package for manual installation)
           mkdir -p dist-package
-          cp build/bin/aerion-${{ github.ref_name }}-linux-* dist-package/aerion
+          cp build/bin/daak-${{ github.ref_name }}-linux-* dist-package/daak
           cp build/linux/install.sh dist-package/
           cp build/linux/uninstall.sh dist-package/
-          cp build/linux/aerion.desktop dist-package/io.github.hkdb.Aerion.desktop
-          # 256 at tarball root keeps AUR aerion-bin working; sized copies +
+          cp build/linux/daak.desktop dist-package/net.absons.daak.desktop
+          # 256 at tarball root keeps AUR daak-bin working; sized copies +
           # scalable SVG live under icons/ so install.sh can fill hicolor
           # (#395). Keep sizes in sync with ICON_SIZES in Makefile/install.sh.
-          cp build/linux/aerion.png dist-package/io.github.hkdb.Aerion.png
+          cp build/linux/daak.png dist-package/net.absons.daak.png
           for sz in 32 48 64 128 256; do
             mkdir -p dist-package/icons/${sz}x${sz}
-            cp build/linux/icons/${sz}x${sz}/io.github.hkdb.Aerion.png \
+            cp build/linux/icons/${sz}x${sz}/net.absons.daak.png \
               dist-package/icons/${sz}x${sz}/
           done
           mkdir -p dist-package/icons/scalable
-          cp build/linux/icons/scalable/io.github.hkdb.Aerion.svg dist-package/icons/scalable/
+          cp build/linux/icons/scalable/net.absons.daak.svg dist-package/icons/scalable/
 
           if [ "${{ matrix.arch }}" = "amd64" ]; then
-            tar czf aerion-linux-amd64.tar.gz -C dist-package .
+            tar czf daak-linux-amd64.tar.gz -C dist-package .
           elif [ "${{ matrix.arch }}" = "arm64" ]; then
-            tar czf aerion-linux-arm64.tar.gz -C dist-package .
+            tar czf daak-linux-arm64.tar.gz -C dist-package .
           fi
 
           rm -rf dist-package
@@ -135,9 +135,9 @@ jobs:
           # is separate. (Cross-compiling to Mac from Linux is not an
           # option — Wails 2.16 refuses it outright.)
           GOARCH=amd64 make build
-          (cd build/bin && zip -r Aerion-darwin-amd64.zip Aerion.app && rm -rf Aerion.app)
+          (cd build/bin && zip -r Daak-darwin-amd64.zip Daak.app && rm -rf Daak.app)
           GOARCH=arm64 make build
-          (cd build/bin && zip -r Aerion-darwin-arm64.zip Aerion.app && rm -rf Aerion.app)
+          (cd build/bin && zip -r Daak-darwin-arm64.zip Daak.app && rm -rf Daak.app)
 
       - name: Build (Windows)
         if: matrix.platform == 'windows'
@@ -146,17 +146,17 @@ jobs:
           GOARCH: ${{ matrix.arch }}
         run: |
           make build-windows-installer
-          Move-Item build/bin/aerion.exe build/bin/Aerion-windows-${{ matrix.arch }}.exe
-          Move-Item build/bin/aerion-${{ matrix.arch }}-installer.exe build/bin/Aerion-windows-setup-${{ matrix.arch }}.exe
+          Move-Item build/bin/daak.exe build/bin/Daak-windows-${{ matrix.arch }}.exe
+          Move-Item build/bin/daak-${{ matrix.arch }}-installer.exe build/bin/Daak-windows-setup-${{ matrix.arch }}.exe
 
       - uses: actions/upload-artifact@v7
         with:
-          name: aerion-${{ matrix.platform }}-${{ matrix.arch }}${{ matrix.variant && format('-{0}', matrix.variant) || '' }}
+          name: daak-${{ matrix.platform }}-${{ matrix.arch }}${{ matrix.variant && format('-{0}', matrix.variant) || '' }}
           path: |
-            build/bin/aerion-*
-            build/bin/Aerion-*
+            build/bin/daak-*
+            build/bin/Daak-*
             build/bin/flathub-build-env-*
-            aerion-*.tar.gz
+            daak-*.tar.gz
           retention-days: 1
 
   publish:
@@ -197,7 +197,7 @@ jobs:
           # Collect the files to upload first, so we can verify each one
           # landed in the release by name afterwards.
           FILES=()
-          for pattern in aerion-*/build/bin/* aerion-*/*.tar.gz; do
+          for pattern in daak-*/build/bin/* daak-*/*.tar.gz; do
             [ -f "$pattern" ] && FILES+=("$pattern")
           done
           if [ "${#FILES[@]}" -eq 0 ]; then
@@ -250,7 +250,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: flathub-manifest
-          path: build/flatpak/flathub/io.github.hkdb.Aerion.yml
+          path: build/flatpak/flathub/net.absons.daak.yml
           retention-days: 1
 
   build-flatpak:
@@ -318,15 +318,15 @@ jobs:
         run: |
           flatpak-builder --user --force-clean --repo=repo \
             --install-deps-from=flathub \
-            build-dir build/flatpak/flathub/io.github.hkdb.Aerion.yml
+            build-dir build/flatpak/flathub/net.absons.daak.yml
 
           mkdir -p build/bin
-          flatpak build-bundle repo build/bin/Aerion-${{ github.ref_name }}-${{ matrix.arch }}.flatpak io.github.hkdb.Aerion
+          flatpak build-bundle repo build/bin/Daak-${{ github.ref_name }}-${{ matrix.arch }}.flatpak net.absons.daak
 
       - name: Upload Flatpak to release
         run: |
           gh release upload ${{ github.ref_name }} \
-            build/bin/Aerion-${{ github.ref_name }}-${{ matrix.arch }}.flatpak \
+            build/bin/Daak-${{ github.ref_name }}-${{ matrix.arch }}.flatpak \
             --clobber
 
   commit-manifest:
@@ -351,6 +351,6 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git fetch origin main:main
           git checkout main
-          git add build/flatpak/flathub/io.github.hkdb.Aerion.yml
+          git add build/flatpak/flathub/net.absons.daak.yml
           git commit -m "${{ github.ref_name }} - Flathub submission" || echo "No changes to commit"
           git push origin main

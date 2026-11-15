@@ -10,7 +10,7 @@
   //
   // No promptHtml2Text field: plain-text conversion is local now
   // (htmlToPlainText via the ComposerContext), so the TB Html2Text prompt
-  // has no Aerion counterpart. Validation mirrors the backend contract
+  // has no Daak counterpart. Validation mirrors the backend contract
   // (temperature 0–2, maxTokens 1–4000, custom needs endpoint + model,
   // non-custom needs a key unless one is already saved).
   //

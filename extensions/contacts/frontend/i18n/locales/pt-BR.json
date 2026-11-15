@@ -120,13 +120,13 @@
     "delete": {
       "title": "Excluir este contato?",
       "descriptionLocal": "{name} será removido dos seus contatos locais. Os e-mails que você já enviou para este endereço não são afetados.",
-      "descriptionCardDAV": "{name} será removido deste catálogo de endereços no servidor. Isso não pode ser desfeito pelo Aerion."
+      "descriptionCardDAV": "{name} será removido deste catálogo de endereços no servidor. Isso não pode ser desfeito pelo Daak."
     },
     "settings": {
       "title": "Configurações de contatos",
       "description": "Configure as credenciais OAuth da extensão Contatos. O acesso de leitura usa a permissão já existente da sua conta de e-mail; estas credenciais são usadas nas operações de ESCRITA (editar / criar / excluir) em fontes do Google ou da Microsoft.",
       "oauthHeading": "Credenciais OAuth",
-      "oauthDescription": "Cada opção vem com as credenciais verificadas do Aerion, quando disponíveis; mude para Personalizado para informar o ID do cliente e o segredo do seu próprio projeto.",
+      "oauthDescription": "Cada opção vem com as credenciais verificadas do Daak, quando disponíveis; mude para Personalizado para informar o ID do cliente e o segredo do seu próprio projeto.",
       "googleLabel": "Contatos do Google",
       "microsoftLabel": "Contatos da Microsoft",
       "writeAccessHeading": "Acesso de escrita",
