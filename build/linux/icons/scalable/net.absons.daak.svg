@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!-- Daak app icon: white open envelope with a paper plane flying up-right,
+       on the violet/indigo gradient of the brand mark. Vector redraw of the
+       approved logo; geometry and gradient stops measured from the raster
+       master (envelope 31-164 x 128-221, V apex 102,175; plane nose 228,33,
+       tail 120,65, bottom tip 201,115). -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1E1A54"/>
+      <stop offset="0.5" stop-color="#2C1760"/>
+      <stop offset="1" stop-color="#3A0F6C"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="256" height="256" fill="url(#bg)"/>
+
+  <!-- envelope front: V notch dipping to the centre -->
+  <path fill="#FFFFFF" d="M31,128 L102,175 L164,128 L164,210 Q164,221 153,221 L42,221 Q31,221 31,210 Z"/>
+
+  <!-- open flap, rising up-right from the envelope's top-left corner -->
+  <path fill="#FFFFFF" d="M31,128 L84,92 Q93,84 104,92 L126,108 Q131,114 123,116 Q78,126 31,128 Z"/>
+
+  <!-- paper plane: top wing, bottom wing, small tail facet -->
+  <polygon fill="#FFFFFF" points="228,33 120,65 162,84"/>
+  <polygon fill="#FFFFFF" points="228,33 162,84 201,115"/>
+  <polygon fill="#FFFFFF" points="120,108 128,99 132,105"/>
+  <!-- centre fold: tapered lavender band, measured from the master -->
+  <polygon fill="#BDB8D3" points="220,38 198,51 178,64 157,77 153,90 156,102 158,115 172,102 164,90 177,77 192,64 206,51 224,36"/>
+
+  <!-- motion dashes between envelope and plane -->
+  <g fill="none" stroke="#9586B7" stroke-width="3.5" stroke-linecap="round">
+    <path d="M127,89 Q133,83 139,79"/>
+    <path d="M130,111 Q136,105 142,100"/>
+    <path d="M172,114 Q178,108 184,103"/>
+  </g>
+</svg>
