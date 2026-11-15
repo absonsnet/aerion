@@ -51,6 +51,8 @@ export function AddPGPKeyServer(arg1:string):Promise<void>;
 
 export function AddSpellcheckCustomWord(arg1:string):Promise<void>;
 
+export function ApplyCodeChipAction(arg1:string,arg2:string):Promise<boolean>;
+
 export function Archive(arg1:Array<string>):Promise<void>;
 
 export function BroadcastThemeChange(arg1:string):Promise<void>;
@@ -201,6 +203,8 @@ export function DiscoverCardDAVAddressbooksOAuth(arg1:string,arg2:string):Promis
 
 export function DiscoverOAuthProvider(arg1:string):Promise<app.OIDCDiscoveryResult>;
 
+export function DismissAttention(arg1:string):Promise<void>;
+
 export function DownloadAttachment(arg1:string,arg2:string):Promise<string>;
 
 export function DownloadEncryptedAttachment(arg1:string,arg2:string,arg3:string):Promise<string>;
@@ -241,9 +245,19 @@ export function GetAttachment(arg1:string):Promise<message.Attachment>;
 
 export function GetAttachments(arg1:string):Promise<Array<message.Attachment>>;
 
+export function GetAttentionCount():Promise<number>;
+
+export function GetAttentionEnabled():Promise<boolean>;
+
+export function GetAttentionItems(arg1:string,arg2:boolean):Promise<Array<app.AttentionItem>>;
+
+export function GetAttentionTypeEnabled(arg1:string):Promise<boolean>;
+
 export function GetAutoDetectedFolders(arg1:string):Promise<Record<string, string>>;
 
 export function GetAutostart():Promise<boolean>;
+
+export function GetCodeChipClickMode():Promise<string>;
 
 export function GetComposerFormat():Promise<string>;
 
@@ -346,6 +360,8 @@ export function GetOAuthCredsStatus(arg1:string):Promise<app.OAuthCredsStatus>;
 export function GetOAuthStatus(arg1:string):Promise<app.OAuthStatus>;
 
 export function GetOAuthWarningDisabled():Promise<boolean>;
+
+export function GetOtpClipboardClearSeconds():Promise<number>;
 
 export function GetPGPEncryptPolicy(arg1:string):Promise<string>;
 
@@ -625,6 +641,10 @@ export function RemoveTrustedCertificate(arg1:string):Promise<void>;
 
 export function ReorderAccounts(arg1:Array<string>):Promise<void>;
 
+export function ResolveMessageUID(arg1:string):Promise<number>;
+
+export function RunEnrichmentBackfill():Promise<number>;
+
 export function SaveAllAttachments(arg1:string):Promise<string>;
 
 export function SaveAllEncryptedAttachments(arg1:string):Promise<string>;
@@ -663,7 +683,13 @@ export function SetAlwaysLoadImages(arg1:boolean):Promise<void>;
 
 export function SetAlwaysShowMessageCheckbox(arg1:boolean):Promise<void>;
 
+export function SetAttentionEnabled(arg1:boolean):Promise<void>;
+
+export function SetAttentionTypeEnabled(arg1:string,arg2:boolean):Promise<void>;
+
 export function SetAutostart(arg1:boolean):Promise<void>;
+
+export function SetCodeChipClickMode(arg1:string):Promise<void>;
 
 export function SetComposerFormat(arg1:string):Promise<void>;
 
@@ -708,6 +734,8 @@ export function SetOAuthCreds(arg1:string,arg2:string,arg3:string):Promise<void>
 export function SetOAuthCredsChoice(arg1:string,arg2:string):Promise<void>;
 
 export function SetOAuthWarningDisabled(arg1:boolean):Promise<void>;
+
+export function SetOtpClipboardClearSeconds(arg1:number):Promise<void>;
 
 export function SetPGPEncryptPolicy(arg1:string,arg2:string):Promise<void>;
 

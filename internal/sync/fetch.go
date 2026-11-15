@@ -5,13 +5,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"strings"
 	"time"
 
-	"github.com/emersion/go-imap/v2"
-	"github.com/emersion/go-imap/v2/imapclient"
+	"github.com/absonsnet/daak/internal/enrich"
 	imapPkg "github.com/absonsnet/daak/internal/imap"
 	"github.com/absonsnet/daak/internal/message"
 	"github.com/absonsnet/daak/internal/smime"
+	"github.com/emersion/go-imap/v2"
+	"github.com/emersion/go-imap/v2/imapclient"
 )
 
 // ProcessedBody holds the parsed body content and attachments for a message
@@ -23,7 +25,7 @@ type ProcessedBody struct {
 	HasAttachments bool
 	Attachments    []*message.Attachment  // Extracted during parsing (no re-parse needed)
 	RawBytes       []byte                 // For on-demand attachment content fetch
-	SMIMEResult    *smime.SignatureResult  // S/MIME verification result
+	SMIMEResult    *smime.SignatureResult // S/MIME verification result
 	SMIMERawBody   []byte                 // Raw S/MIME body for on-view processing
 	SMIMEEncrypted bool                   // Whether the message is encrypted
 	PGPRawBody     []byte                 // Raw PGP body for on-view processing
@@ -99,6 +101,12 @@ func (e *Engine) FetchMessageBody(ctx context.Context, accountID, messageID stri
 	if !result.IsReaction {
 		if err := e.messageStore.UpdateBody(messageID, result.BodyHTML, result.BodyText, result.Snippet, result.HasAttachments); err != nil {
 			return nil, fmt.Errorf("failed to update message body: %w", err)
+		}
+		// Full sync-time enrichment for the on-demand body fetch.
+		if res := e.enrichBody(messageID, result.BodyText, result.Snippet); res != nil {
+			if err := e.messageStore.UpdateEnrichment(messageID, *res); err != nil {
+				e.log.Warn().Err(err).Str("messageID", messageID).Msg("Failed to store enrichment after on-demand body fetch")
+			}
 		}
 	}
 
@@ -337,10 +345,11 @@ const bodyTruncationThreshold = 0.8
 // skip the message.
 //
 // Decision table (all comparisons in bytes):
-//   reportedSize == 0          → charge   (no signal to defer on; treat as definitive)
-//   received    >= maxMsgSize  → charge   (Daak's own cap, not server truncation; next fetch hits same wall)
-//   received    <  reported*T  → DON'T    (clear shortfall; likely server-side truncation)
-//   otherwise                  → charge   (received is close enough to expected; the empty body is real)
+//
+//	reportedSize == 0          → charge   (no signal to defer on; treat as definitive)
+//	received    >= maxMsgSize  → charge   (Daak's own cap, not server truncation; next fetch hits same wall)
+//	received    <  reported*T  → DON'T    (clear shortfall; likely server-side truncation)
+//	otherwise                  → charge   (received is close enough to expected; the empty body is real)
 //
 // Kept as a pure function (no Engine receiver) so it can be unit-tested
 // against synthetic inputs without standing up a full sync engine.
@@ -834,6 +843,12 @@ func (e *Engine) FetchBodiesInBackground(ctx context.Context, accountID, folderI
 					PGPRawBody:     pb.PGPRawBody,
 					PGPEncrypted:   pb.PGPEncrypted,
 				}
+				// Full sync-time enrichment: category + code/reference
+				// extraction from the body head. Runs in the processing
+				// goroutine so the DB update (next iteration) carries it.
+				if res := e.enrichBody(pb.MessageID, pb.BodyText, pb.Snippet); res != nil {
+					bu.Enrichment = res
+				}
 				// Don't cache S/MIME or PGP verification status — computed fresh on each view
 				bodyUpdates = append(bodyUpdates, bu)
 
@@ -1035,6 +1050,34 @@ func (e *Engine) buildMessageFromStreamedData(accountID, folderID string, uid im
 		} else if bodyHTML != "" {
 			m.Snippet = generateSnippet(stripHTMLTags(bodyHTML), 200)
 		}
+
+		// Sync-time enrichment: the full raw message is in hand
+		// (headers + body), so classification + extraction run inline.
+		lu := e.headerValue(rawBytes, "List-Unsubscribe")
+		post := e.headerValue(rawBytes, "List-Unsubscribe-Post")
+		in := enrich.Input{
+			FromEmail:       m.FromEmail,
+			FromName:        m.FromName,
+			Subject:         m.Subject,
+			Snippet:         m.Snippet,
+			BodyHead:        truncateHead(m.BodyText, 2000),
+			ListUnsubscribe: lu,
+			Precedence:      e.headerValue(rawBytes, "Precedence"),
+		}
+		if cat, ok, err := e.messageStore.GetSenderCategoryOverride(m.FromEmail); err == nil && ok {
+			in.OverrideCategory, in.HasOverride = cat, true
+		}
+		if known, err := e.messageStore.IsKnownPersonalSender(m.FromEmail); err == nil && known {
+			in.KnownPersonalSender = true
+		}
+		res := enrich.Enrich(in)
+		m.ListUnsubscribe = res.ListUnsubscribe
+		m.ListUnsubscribePost = lu != "" && strings.Contains(strings.ToLower(post), "one-click")
+		m.Category = res.Category
+		m.SubCategory = res.SubCategory
+		m.ExtractKind = res.ExtractKind
+		m.ExtractValue = res.ExtractValue
+		m.ExtractRule = res.ExtractRule
 	}
 
 	return m

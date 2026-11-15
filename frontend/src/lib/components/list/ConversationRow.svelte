@@ -18,6 +18,7 @@
   // @ts-ignore - wailsjs path
   import { Star, Unstar } from '../../../../wailsjs/go/app/App'
   import MessageContextMenu from '$lib/components/common/MessageContextMenu.svelte'
+  import CodeChip from '$lib/components/list/CodeChip.svelte'
   import Avatar from '$lib/components/kit/Avatar.svelte'
   import { toasts } from '$lib/stores/toast'
   import { getAccentBarUnread, getAccentUnreadStyle, getShowMessageListCircles, getShowMessageListProfilePics, getAlwaysShowMessageCheckbox } from '$lib/stores/settings.svelte'
@@ -662,6 +663,22 @@
         >
           {conversation.subject || $_('viewer.noSubject')}
         </p>
+      {/if}
+
+      <!-- Code/reference chip (Phase A): under the subject, above the
+           snippet, left-aligned with the subject text. Clicking the chip
+           never opens the message (stopPropagation in CodeChip). -->
+      {#if conversation.extractKind === 'code' || conversation.extractKind === 'reference'}
+        {#if conversation.extractValue && conversation.extractMessageId}
+          <div class="flex items-center mt-1">
+            <CodeChip
+              messageId={conversation.extractMessageId}
+              kind={conversation.extractKind}
+              value={conversation.extractValue}
+              onDone={onActionComplete}
+            />
+          </div>
+        {/if}
       {/if}
 
       <!-- Snippet (with highlighting if in search mode) -->

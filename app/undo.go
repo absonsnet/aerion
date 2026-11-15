@@ -26,6 +26,9 @@ func (a *App) Undo() (string, error) {
 
 	// Emit event to refresh UI
 	wailsRuntime.EventsEmit(a.ctx, "undo:completed", cmd.Description())
+	// An undone move/read can restore a message to the Needs attention
+	// strip (e.g. undoing a code-chip delete), so refresh its surfaces.
+	wailsRuntime.EventsEmit(a.ctx, "attention:changed", "")
 
 	return cmd.Description(), nil
 }
@@ -142,6 +145,11 @@ func (a *App) DeleteLocalMessages(messageIDs []string) error {
 // Finds current local DB message IDs by RFC822 Message-ID header and folder
 func (a *App) FindLocalMessageIDs(accountID, folderID string, rfc822MessageIDs []string) ([]string, error) {
 	return a.messageStore.GetIDsByMessageIDs(accountID, folderID, rfc822MessageIDs)
+}
+
+// ResolveMessageUID implements undo.UndoContext
+func (a *App) ResolveMessageUID(messageID string) (uint32, string, error) {
+	return a.messageStore.GetMessageUIDAndFolder(messageID)
 }
 
 // MoveMessagesToFolder implements undo.UndoContext

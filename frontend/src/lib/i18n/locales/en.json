@@ -405,7 +405,9 @@
     "defaultBcc": "Default BCC",
     "defaultBccHelp": "Automatically added to the BCC field when composing from an enabled account.",
     "defaultReplyTo": "Default Reply-To",
-    "defaultReplyToHelp": "Sets the Reply-To address for messages composed from an enabled account."
+    "defaultReplyToHelp": "Sets the Reply-To address for messages composed from an enabled account.",
+    "messages": "Messages",
+    "attention": "Attention"
   },
   "settingsGeneral": {
     "display": "Display",
@@ -1039,5 +1041,46 @@
       "successToast": "Write access enabled for {name}",
       "failureToast": "Failed to enable write access: {message}"
     }
+  },
+  "chip": {
+    "codeLabel": "Code",
+    "referenceLabel": "Reference",
+    "codeClickHint": "Click to copy the code. By default the message is marked read and moved to Trash.",
+    "referenceClickHint": "Click to copy the reference",
+    "codeCopied": "Code {value} copied",
+    "codeCopiedMessageDeleted": "Code {value} copied — message deleted",
+    "referenceCopied": "Reference {value} copied"
+  },
+  "attention": {
+    "title": "Needs attention",
+    "dismiss": "Dismiss",
+    "turnOff": "Turn off Needs attention",
+    "turnOffMenu": "Turn off Needs attention",
+    "turnedOff": "Needs attention turned off",
+    "failedToDismiss": "Failed to dismiss.",
+    "more": "+{count} more",
+    "showLess": "Show less",
+    "typeVerificationCode": "Verification code",
+    "typeFlightChanged": "Flight changed",
+    "typePaymentFailed": "Payment failed",
+    "typeDeliveryProblem": "Delivery problem"
+  },
+  "settingsMessages": {
+    "codeChipClick": "Code chip click",
+    "codeChipClickHelp": "What happens when you click a verification code chip in the message list or viewer. The code is always copied to the clipboard first.",
+    "codeChipCopyMarkReadDelete": "Copy, mark read & delete",
+    "codeChipCopyMarkRead": "Copy & mark read",
+    "codeChipCopyOnly": "Copy only",
+    "otpClearSeconds": "Clear copied code from clipboard after (seconds)",
+    "otpClearSecondsHelp": "Daak clears a copied code from the clipboard after this many seconds, but only if the clipboard still holds that code. 0 means never."
+  },
+  "settingsAttention": {
+    "enabled": "Show Needs attention bars",
+    "enabledHelp": "Surface important mail — verification codes, travel changes, payment failures and delivery problems — as bars above the message list.",
+    "typesHeading": "Which kinds to show",
+    "typeVerificationCodeHelp": "A verification code arrived in the last 24 hours.",
+    "typeFlightChangedHelp": "A flight, hotel or booking was cancelled, rescheduled or delayed.",
+    "typePaymentFailedHelp": "A payment failed, was declined, or is overdue.",
+    "typeDeliveryProblemHelp": "A delivery ran into a problem, such as a failed delivery or customs hold."
   }
 }

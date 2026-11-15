@@ -16,10 +16,10 @@
   // @ts-ignore - wailsjs path
   import { account, folder } from '../../../../wailsjs/go/models'
   // @ts-ignore - wailsjs path
-  import { GetUnifiedInboxUnreadCount } from '../../../../wailsjs/go/app/App'
+  import { GetUnifiedInboxUnreadCount, GetAttentionCount } from '../../../../wailsjs/go/app/App'
   import { formatDistanceToNow } from 'date-fns'
   import { getCurrentDateFnsLocale } from '$lib/stores/settings.svelte'
-  import { EventsOn } from '../../../../wailsjs/runtime/runtime'
+  import { EventsOn, EventsEmit } from '../../../../wailsjs/runtime/runtime'
 
   // Folder item type for flat navigation list
   interface FolderNavItem {
@@ -139,6 +139,10 @@
   // Unified inbox state
   let unifiedUnreadCount = $state(0)
 
+  // Needs attention (Phase A): live count for the shortcut entry under
+  // Unified Inbox. Hidden when the count is 0.
+  let attentionCount = $state(0)
+
   // Dialog state
   let showAccountDialog = $state(false)
   let showDeleteDialog = $state(false)
@@ -159,14 +163,20 @@
 
     contactSourcesStore.load()
     loadUnifiedInboxCount()
+    loadAttentionCount()
 
     // Listen for folder count changes to update unified inbox count
     const unsubscribe = EventsOn('folders:countsChanged', (_data: Record<string, number>) => {
       loadUnifiedInboxCount()
     })
+    // Chip actions, dismissals and settings changes all emit this.
+    const unsubscribeAttention = EventsOn('attention:changed', () => {
+      loadAttentionCount()
+    })
 
     return () => {
       unsubscribe()
+      unsubscribeAttention()
     }
   })
 
@@ -178,6 +188,23 @@
     } catch (err) {
       console.error('Failed to load unified inbox count:', err)
     }
+  }
+
+  // Load Needs attention count
+  async function loadAttentionCount() {
+    try {
+      attentionCount = await GetAttentionCount()
+    } catch (err) {
+      console.error('Failed to load attention count:', err)
+    }
+  }
+
+  // Needs attention shortcut: opens Inbox/Unified Inbox with the bars in
+  // place (and scrolls the list to them when already there). This is a
+  // shortcut to the same bars, not a separate folder.
+  function handleAttentionSelect() {
+    handleUnifiedInboxSelect()
+    EventsEmit('attention:scrollToTop')
   }
 
   // Get accounts with their inbox folders for unified inbox section
@@ -590,6 +617,24 @@
           onSelectAccountInbox={handleAccountInboxSelect}
         />
         <div class="border-b border-border mx-3 my-1"></div>
+      {/if}
+
+      <!-- Needs attention shortcut (Phase A): under Unified Inbox when
+           present, otherwise at the top of the list. Hidden when empty. -->
+      {#if accountStore.accounts.length > 0 && attentionCount > 0}
+        <div class="px-3 py-1">
+          <button
+            type="button"
+            class="w-full flex items-center gap-2 px-3 py-2 text-sm rounded-md hover:bg-muted/50 transition-colors text-left"
+            onclick={handleAttentionSelect}
+          >
+            <Icon icon="mdi:bell-alert-outline" class="w-4 h-4 text-primary flex-shrink-0" />
+            <span class="flex-1 truncate font-medium">{$_('attention.title')}</span>
+            <span class="flex-shrink-0 min-w-5 h-5 px-1 rounded-full bg-primary text-primary-foreground text-xs flex items-center justify-center">
+              {attentionCount}
+            </span>
+          </button>
+        </div>
       {/if}
 
       {#each accountStore.accounts as accWithFolders (accWithFolders.account.id)}

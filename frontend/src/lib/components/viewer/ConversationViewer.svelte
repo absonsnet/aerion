@@ -10,6 +10,7 @@
   // @ts-ignore - wailsjs path
   import { message as messageModels, app as appModels } from '../../../../wailsjs/go/models'
   import AttachmentList from './AttachmentList.svelte'
+  import CodeChip from '$lib/components/list/CodeChip.svelte'
   import EmailBody from './EmailBody.svelte'
   import { toasts } from '$lib/stores/toast'
   import { setFocusedPane, isInputElement, isComposerOpen } from '$lib/stores/keyboard.svelte'
@@ -1776,6 +1777,18 @@
                 {#if isExpanded}
                   <div class="px-4 pb-4 pt-0">
                     <div class="ml-13 pl-3 border-l-2 border-border">
+                      <!-- Code/reference chip (Phase A): at the top of the
+                           open message, same action as the list-row chip. -->
+                      {#if (msg.extractKind === 'code' || msg.extractKind === 'reference') && msg.extractValue}
+                        <div class="flex items-center mb-3">
+                          <CodeChip
+                            messageId={msg.id}
+                            kind={msg.extractKind}
+                            value={msg.extractValue}
+                            onDone={handleContextMenuActionComplete}
+                          />
+                        </div>
+                      {/if}
                       <!-- Read Receipt Banner -->
                       {#if shouldShowReadReceiptBanner(msg) && readReceiptPolicy === 'ask'}
                         <div class="flex items-center justify-between gap-3 px-3 py-2 mb-4 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-md">

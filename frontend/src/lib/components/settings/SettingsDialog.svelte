@@ -5,9 +5,9 @@
   import * as Tabs from '$lib/components/ui/tabs'
   import { Button } from '$lib/components/ui/button'
   // @ts-ignore - wailsjs path
-  import { GetReadReceiptResponsePolicy, SetReadReceiptResponsePolicy, GetMarkAsReadDelay, SetMarkAsReadDelay, GetMessageListDensity, SetMessageListDensity, GetThemeMode, SetThemeMode, GetShowTitleBar, SetShowTitleBar, GetRunBackground, SetRunBackground, GetStartHidden, SetStartHidden, GetAutostart, SetAutostart, GetLanguage, SetLanguage, GetComposerMode, SetComposerMode, GetMailtoMode, SetMailtoMode, GetComposerFormat, SetComposerFormat, GetNativeTitleBar, SetNativeTitleBar, GetAlwaysLoadImages, SetAlwaysLoadImages, GetDarkMailContent, SetDarkMailContent, GetDarkComposerBody, SetDarkComposerBody, GetAccentBarUnread, SetAccentBarUnread, GetAccentUnreadStyle, SetAccentUnreadStyle, GetShowMessageListCircles, SetShowMessageListCircles, GetShowMessageListProfilePics, SetShowMessageListProfilePics, GetAlwaysShowMessageCheckbox, SetAlwaysShowMessageCheckbox, GetShowViewerCircles, SetShowViewerCircles, GetShowMessagePreviewPane, SetShowMessagePreviewPane, GetMessageOpenMode, SetMessageOpenMode, GetSpellcheckEnabled, SetSpellcheckEnabled, GetSpellcheckLanguages, SetSpellcheckLanguages, GetWindowControlsSide, SetWindowControlsSide, QuitApp } from '../../../../wailsjs/go/app/App.js'
+  import { GetReadReceiptResponsePolicy, SetReadReceiptResponsePolicy, GetMarkAsReadDelay, SetMarkAsReadDelay, GetMessageListDensity, SetMessageListDensity, GetThemeMode, SetThemeMode, GetShowTitleBar, SetShowTitleBar, GetRunBackground, SetRunBackground, GetStartHidden, SetStartHidden, GetAutostart, SetAutostart, GetLanguage, SetLanguage, GetComposerMode, SetComposerMode, GetMailtoMode, SetMailtoMode, GetComposerFormat, SetComposerFormat, GetNativeTitleBar, SetNativeTitleBar, GetAlwaysLoadImages, SetAlwaysLoadImages, GetDarkMailContent, SetDarkMailContent, GetDarkComposerBody, SetDarkComposerBody, GetAccentBarUnread, SetAccentBarUnread, GetAccentUnreadStyle, SetAccentUnreadStyle, GetShowMessageListCircles, SetShowMessageListCircles, GetShowMessageListProfilePics, SetShowMessageListProfilePics, GetAlwaysShowMessageCheckbox, SetAlwaysShowMessageCheckbox, GetShowViewerCircles, SetShowViewerCircles, GetShowMessagePreviewPane, SetShowMessagePreviewPane, GetMessageOpenMode, SetMessageOpenMode, GetSpellcheckEnabled, SetSpellcheckEnabled, GetSpellcheckLanguages, SetSpellcheckLanguages, GetWindowControlsSide, SetWindowControlsSide, GetCodeChipClickMode, SetCodeChipClickMode, GetAttentionEnabled, SetAttentionEnabled, GetAttentionTypeEnabled, SetAttentionTypeEnabled, GetOtpClipboardClearSeconds, SetOtpClipboardClearSeconds, QuitApp } from '../../../../wailsjs/go/app/App.js'
   import { addToast } from '$lib/stores/toast'
-  import { setMessageListDensity as updateDensityStore, setThemeMode as updateThemeStore, setShowTitleBar as updateShowTitleBarStore, setRunBackground as updateRunBackgroundStore, setStartHidden as updateStartHiddenStore, setAutostart as updateAutostartStore, setLanguage as updateLanguageStore, setComposerMode as updateComposerModeStore, setMailtoMode as updateMailtoModeStore, setComposerFormat as updateComposerFormatStore, setNativeTitleBar as updateNativeTitleBarStore, setAlwaysLoadImages as updateAlwaysLoadImagesStore, setDarkMailContent as updateDarkMailContentStore, setDarkComposerBody as updateDarkComposerBodyStore, setAccentBarUnread as updateAccentBarUnreadStore, setAccentUnreadStyle as updateAccentUnreadStyleStore, setShowMessageListCircles as updateShowMessageListCirclesStore, setShowMessageListProfilePics as updateShowMessageListProfilePicsStore, setAlwaysShowMessageCheckbox as updateAlwaysShowMessageCheckboxStore, setShowViewerCircles as updateShowViewerCirclesStore, setShowMessagePreviewPane as updateShowMessagePreviewPaneStore, setMessageOpenMode as updateMessageOpenModeStore, setSpellcheckEnabled as updateSpellcheckEnabledStore, setSpellcheckLanguages as updateSpellcheckLanguagesStore, setWindowControlsSide as updateWindowControlsSideStore, type MessageListDensity, type ThemeMode, type ComposerMode, type ComposerFormat, type WindowControlsSide, type MessageOpenMode } from '$lib/stores/settings.svelte'
+  import { setMessageListDensity as updateDensityStore, setThemeMode as updateThemeStore, setShowTitleBar as updateShowTitleBarStore, setRunBackground as updateRunBackgroundStore, setStartHidden as updateStartHiddenStore, setAutostart as updateAutostartStore, setLanguage as updateLanguageStore, setComposerMode as updateComposerModeStore, setMailtoMode as updateMailtoModeStore, setComposerFormat as updateComposerFormatStore, setNativeTitleBar as updateNativeTitleBarStore, setAlwaysLoadImages as updateAlwaysLoadImagesStore, setDarkMailContent as updateDarkMailContentStore, setDarkComposerBody as updateDarkComposerBodyStore, setAccentBarUnread as updateAccentBarUnreadStore, setAccentUnreadStyle as updateAccentUnreadStyleStore, setShowMessageListCircles as updateShowMessageListCirclesStore, setShowMessageListProfilePics as updateShowMessageListProfilePicsStore, setAlwaysShowMessageCheckbox as updateAlwaysShowMessageCheckboxStore, setShowViewerCircles as updateShowViewerCirclesStore, setShowMessagePreviewPane as updateShowMessagePreviewPaneStore, setMessageOpenMode as updateMessageOpenModeStore, setSpellcheckEnabled as updateSpellcheckEnabledStore, setSpellcheckLanguages as updateSpellcheckLanguagesStore, setWindowControlsSide as updateWindowControlsSideStore, setCodeChipClickMode as updateCodeChipClickModeStore, setAttentionEnabled as updateAttentionEnabledStore, setAttentionTypeEnabled as updateAttentionTypeEnabledStore, setOtpClipboardClearSeconds as updateOtpClipboardClearSecondsStore, type MessageListDensity, type ThemeMode, type ComposerMode, type ComposerFormat, type WindowControlsSide, type MessageOpenMode } from '$lib/stores/settings.svelte'
   import { syncSpellcheckLanguagesIfActive, defaultSpellcheckLanguages } from '$lib/spellcheck/settings'
   import { applyThemeFromMode } from '$lib/stores/theme.svelte'
   import { dialogGuardOpen, dialogGuardClose } from '$lib/stores/dialogGuard'
@@ -20,6 +20,8 @@
   import ContactsTab from './ContactsTab.svelte'
   import ExtensionsTab from './ExtensionsTab.svelte'
   import AboutTab from './AboutTab.svelte'
+  import MessagesTab from './MessagesTab.svelte'
+  import AttentionTab from './AttentionTab.svelte'
 
   interface Props {
     /** Whether the dialog is open */
@@ -61,6 +63,13 @@
   let showViewerCircles = $state<boolean>(true)
   let showMessagePreviewPane = $state<boolean>(true)
   let messageOpenMode = $state<string>('tab')
+  let codeChipClickMode = $state<string>('copy_mark_read_delete')
+  let otpClipboardClearSeconds = $state<number>(60)
+  let attentionEnabled = $state<boolean>(true)
+  let attentionTypeVerificationCode = $state<boolean>(true)
+  let attentionTypeFlightChanged = $state<boolean>(true)
+  let attentionTypePaymentFailed = $state<boolean>(true)
+  let attentionTypeDeliveryProblem = $state<boolean>(true)
   let originalNativeTitleBar = false
   // Snapshot of the saved theme at dialog open time. Used to revert live preview
   // if the dialog closes without Save (Cancel / ESC / click-outside).
@@ -105,7 +114,7 @@
     loading = true
     hasSaved = false
     try {
-      const [policy, delayMs, density, theme, titleBar, runBg, startHid, autoSt, lang, comp, mail, compFmt, nativeTB, alwaysImages, darkMail, darkComposer, accentBar, accentStyle, listCircles, listProfilePics, alwaysCheckbox, viewerCircles, scEnabled, scLangs, wcSide, previewPane, openMode] = await Promise.all([
+      const [policy, delayMs, density, theme, titleBar, runBg, startHid, autoSt, lang, comp, mail, compFmt, nativeTB, alwaysImages, darkMail, darkComposer, accentBar, accentStyle, listCircles, listProfilePics, alwaysCheckbox, viewerCircles, scEnabled, scLangs, wcSide, previewPane, openMode, chipMode, otpClearSecs, attnEnabled, attnCode, attnFlight, attnPayment, attnDelivery] = await Promise.all([
         GetReadReceiptResponsePolicy(),
         GetMarkAsReadDelay(),
         GetMessageListDensity(),
@@ -133,6 +142,13 @@
         GetWindowControlsSide(),
         GetShowMessagePreviewPane(),
         GetMessageOpenMode(),
+        GetCodeChipClickMode(),
+        GetOtpClipboardClearSeconds(),
+        GetAttentionEnabled(),
+        GetAttentionTypeEnabled('verification_code'),
+        GetAttentionTypeEnabled('flight_changed'),
+        GetAttentionTypeEnabled('payment_failed'),
+        GetAttentionTypeEnabled('delivery_problem'),
       ])
       readReceiptResponsePolicy = policy
       // Convert ms to seconds for display
@@ -164,6 +180,13 @@
       showViewerCircles = viewerCircles ?? true
       showMessagePreviewPane = previewPane ?? true
       messageOpenMode = openMode || 'tab'
+      codeChipClickMode = chipMode || 'copy_mark_read_delete'
+      otpClipboardClearSeconds = otpClearSecs ?? 60
+      attentionEnabled = attnEnabled ?? true
+      attentionTypeVerificationCode = attnCode ?? true
+      attentionTypeFlightChanged = attnFlight ?? true
+      attentionTypePaymentFailed = attnPayment ?? true
+      attentionTypeDeliveryProblem = attnDelivery ?? true
       originalNativeTitleBar = nativeTitleBar
     } catch (err) {
       console.error('Failed to load settings:', err)
@@ -208,6 +231,13 @@
       await SetShowViewerCircles(showViewerCircles)
       await SetShowMessagePreviewPane(showMessagePreviewPane)
       await SetMessageOpenMode(messageOpenMode)
+      await SetCodeChipClickMode(codeChipClickMode)
+      await SetOtpClipboardClearSeconds(otpClipboardClearSeconds)
+      await SetAttentionEnabled(attentionEnabled)
+      await SetAttentionTypeEnabled('verification_code', attentionTypeVerificationCode)
+      await SetAttentionTypeEnabled('flight_changed', attentionTypeFlightChanged)
+      await SetAttentionTypeEnabled('payment_failed', attentionTypePaymentFailed)
+      await SetAttentionTypeEnabled('delivery_problem', attentionTypeDeliveryProblem)
       // Update the reactive stores so UI updates immediately
       updateDensityStore(messageListDensity as MessageListDensity)
       updateThemeStore(themeMode as ThemeMode)
@@ -237,6 +267,13 @@
       updateShowViewerCirclesStore(showViewerCircles)
       updateShowMessagePreviewPaneStore(showMessagePreviewPane)
       updateMessageOpenModeStore(messageOpenMode as MessageOpenMode)
+      updateCodeChipClickModeStore(codeChipClickMode)
+      updateOtpClipboardClearSecondsStore(otpClipboardClearSeconds)
+      updateAttentionEnabledStore(attentionEnabled)
+      updateAttentionTypeEnabledStore('verification_code', attentionTypeVerificationCode)
+      updateAttentionTypeEnabledStore('flight_changed', attentionTypeFlightChanged)
+      updateAttentionTypeEnabledStore('payment_failed', attentionTypePaymentFailed)
+      updateAttentionTypeEnabledStore('delivery_problem', attentionTypeDeliveryProblem)
       addToast({
         type: 'success',
         message: $_('toast.settingsSaved'),
@@ -298,7 +335,7 @@
       </div>
     {:else}
       <Tabs.Root bind:value={activeTab} class="w-full">
-        <Tabs.List class="grid w-full grid-cols-7">
+        <Tabs.List class="grid w-full grid-cols-9">
           <Tabs.Trigger value="general" class="flex items-center gap-2">
             <span class="inline-flex w-4 h-4 items-center justify-center shrink-0"><Icon icon="lucide:settings-2" width="16" height="16" /></span>
             {$_('settings.general')}
@@ -310,6 +347,14 @@
           <Tabs.Trigger value="images" class="flex items-center gap-2">
             <span class="inline-flex w-4 h-4 items-center justify-center shrink-0"><Icon icon="lucide:image" width="16" height="16" /></span>
             {$_('settings.images')}
+          </Tabs.Trigger>
+          <Tabs.Trigger value="messages" class="flex items-center gap-2">
+            <span class="inline-flex w-4 h-4 items-center justify-center shrink-0"><Icon icon="lucide:message-square-text" width="16" height="16" /></span>
+            {$_('settings.messages')}
+          </Tabs.Trigger>
+          <Tabs.Trigger value="attention" class="flex items-center gap-2">
+            <span class="inline-flex w-4 h-4 items-center justify-center shrink-0"><Icon icon="lucide:bell-ring" width="16" height="16" /></span>
+            {$_('settings.attention')}
           </Tabs.Trigger>
           <Tabs.Trigger value="accounts" class="flex items-center gap-2">
             <span class="inline-flex w-4 h-4 items-center justify-center shrink-0"><Icon icon="lucide:mails" width="16" height="16" /></span>
@@ -388,6 +433,32 @@
             />
           </Tabs.Content>
 
+          <Tabs.Content value="messages" class="mt-0">
+            <MessagesTab
+              bind:codeChipClickMode
+              bind:otpClipboardClearSeconds
+              onCodeChipClickModeChange={(v) => codeChipClickMode = v}
+              onOtpClipboardClearSecondsChange={(v) => otpClipboardClearSeconds = v}
+            />
+          </Tabs.Content>
+
+          <Tabs.Content value="attention" class="mt-0">
+            <AttentionTab
+              bind:attentionEnabled
+              bind:attentionTypeVerificationCode
+              bind:attentionTypeFlightChanged
+              bind:attentionTypePaymentFailed
+              bind:attentionTypeDeliveryProblem
+              onAttentionEnabledChange={(v) => attentionEnabled = v}
+              onAttentionTypeChange={(type, v) => {
+                if (type === 'verification_code') attentionTypeVerificationCode = v
+                if (type === 'flight_changed') attentionTypeFlightChanged = v
+                if (type === 'payment_failed') attentionTypePaymentFailed = v
+                if (type === 'delivery_problem') attentionTypeDeliveryProblem = v
+              }}
+            />
+          </Tabs.Content>
+
           <Tabs.Content value="accounts" class="mt-0">
             <AccountsTab />
           </Tabs.Content>
@@ -407,7 +478,7 @@
       </Tabs.Root>
 
       <!-- Actions - show Save/Cancel on General and Composer tabs -->
-      {#if activeTab === 'general' || activeTab === 'composer' || activeTab === 'images'}
+      {#if activeTab === 'general' || activeTab === 'composer' || activeTab === 'images' || activeTab === 'messages' || activeTab === 'attention'}
         <div class="flex items-center justify-end gap-2 pt-4 border-t border-border">
           <Button variant="ghost" onclick={handleCancel} disabled={saving}>
             {$_('common.cancel')}

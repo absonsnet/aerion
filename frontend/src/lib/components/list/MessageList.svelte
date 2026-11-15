@@ -14,6 +14,7 @@
   import { onMount, onDestroy } from 'svelte'
   import Icon from '@iconify/svelte'
   import ConversationRow from './ConversationRow.svelte'
+  import NeedsAttentionStrip from './NeedsAttentionStrip.svelte'
   import { DropdownMenu } from 'bits-ui'
   import { cn } from '$lib/utils'
   import { Button } from '$lib/components/ui/button'
@@ -24,7 +25,7 @@
   import { ConfirmDialog } from '$lib/components/ui/confirm-dialog'
   import FolderPickerDialog from '$lib/components/common/FolderPickerDialog.svelte'
   // @ts-ignore - wailsjs path
-  import { message, account } from '../../../../wailsjs/go/models'
+  import { message, account, app } from '../../../../wailsjs/go/models'
   // @ts-ignore - wailsjs runtime
   import { EventsOn, EventsOff } from '../../../../wailsjs/runtime/runtime'
   import { getMessageListDensity, getMessageListSortOrder, setMessageListSortOrder, getShowMessageListProfilePics } from '$lib/stores/settings.svelte'
@@ -71,6 +72,7 @@
   }: Props = $props()
 
   // State
+  let attentionStripRef = $state<{ refresh: () => Promise<void> } | undefined>()
   let conversations = $state<message.Conversation[]>([])
   let totalCount = $state(0)
   let loading = $state(false)
@@ -331,6 +333,12 @@
       }
     })
 
+    // Sidebar "Needs attention" shortcut: scroll the list to the bars at
+    // the top (the bars are above the list, so top of list = bars).
+    EventsOn('attention:scrollToTop', () => {
+      if (listContainerRef) listContainerRef.scrollTop = 0
+    })
+
     // Check initial FTS index status for current folder
     checkFTSIndexStatus()
 
@@ -570,6 +578,8 @@
       error = $_('viewer.failedToLoadMessages')
     } finally {
       loading = false
+      // New mail may have arrived with the sync — refresh the bars too.
+      attentionStripRef?.refresh()
       // Flush any deferred reload (from sync event during load or dialog guard).
       // Only the latest-generation load should drive the flush — otherwise a
       // stale completion could fire scheduleReload redundantly.
@@ -1027,6 +1037,17 @@
     }
     selectedThreadId = threadId
     onConversationOpen?.(threadId, realFolderId, realAccountId, subject)
+  }
+
+  // Open the message behind an attention bar in the active view mode
+  // (select in classic mode, explicit open in select-only/tab mode).
+  function openAttentionItem(item: app.AttentionItem) {
+    selectedThreadId = item.threadId
+    if (selectOnly) {
+      onConversationOpen?.(item.threadId, item.folderId, item.accountId, item.subject)
+    } else {
+      onConversationSelect?.(item.threadId, item.folderId, item.accountId)
+    }
   }
 
   // Subject lookup for a thread in the currently loaded list (tab labels).
@@ -2107,6 +2128,17 @@
         ></div>
       </div>
     </div>
+  {/if}
+
+  <!-- Needs attention bars (Phase A): only Inbox / Unified Inbox, never
+       Spam/Trash or search. They push the list down, never overlay. -->
+  {#if !isSearchMode && (isUnifiedView || folderType === 'inbox')}
+    <NeedsAttentionStrip
+      bind:this={attentionStripRef}
+      folderId={isUnifiedView ? null : folderId}
+      unified={isUnifiedView}
+      onOpenItem={openAttentionItem}
+    />
   {/if}
 
   <!-- Conversation List -->

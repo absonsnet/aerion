@@ -51,6 +51,16 @@ type Message struct {
 	BodyFetched bool   `json:"bodyFetched"` // Whether full body has been downloaded
 	BodyFailed  bool   `json:"-"`           // Set when fetch+parse produced no usable content; excludes from body-fetch queue (server-internal; not exposed to frontend)
 
+	// Sync-time enrichment (Phase A; see internal/enrich). ExtractValue
+	// holds a one-time code or a booking reference: never log it.
+	ListUnsubscribe     string `json:"listUnsubscribe,omitempty"`
+	ListUnsubscribePost bool   `json:"listUnsubscribePost,omitempty"`
+	Category            string `json:"category,omitempty"`
+	SubCategory         string `json:"subCategory,omitempty"`
+	ExtractKind         string `json:"extractKind,omitempty"`
+	ExtractValue        string `json:"extractValue,omitempty"`
+	ExtractRule         string `json:"extractRule,omitempty"`
+
 	// Read receipt
 	ReadReceiptTo      string `json:"readReceiptTo,omitempty"` // Email requesting receipt (from Disposition-Notification-To header)
 	ReadReceiptHandled bool   `json:"readReceiptHandled"`      // Whether user has responded (sent or ignored)
@@ -99,6 +109,12 @@ type MessageHeader struct {
 	IsRead         bool `json:"isRead"`
 	IsStarred      bool `json:"isStarred"`
 	HasAttachments bool `json:"hasAttachments"`
+
+	// Sync-time enrichment (Phase A). ExtractValue is a one-time code or
+	// a booking reference: never log it.
+	ExtractKind  string `json:"extractKind,omitempty"`
+	ExtractValue string `json:"extractValue,omitempty"`
+	ExtractRule  string `json:"extractRule,omitempty"`
 }
 
 // ToHeader returns a MessageHeader from a Message
@@ -116,6 +132,9 @@ func (m *Message) ToHeader() *MessageHeader {
 		IsRead:         m.IsRead,
 		IsStarred:      m.IsStarred,
 		HasAttachments: m.HasAttachments,
+		ExtractKind:    m.ExtractKind,
+		ExtractValue:   m.ExtractValue,
+		ExtractRule:    m.ExtractRule,
 	}
 }
 
@@ -133,6 +152,14 @@ type Conversation struct {
 	MessageIDs     []string   `json:"messageIds"`         // Message IDs for context menu actions
 	IsEncrypted    bool       `json:"isEncrypted"`        // Any message in thread is encrypted (S/MIME or PGP)
 	Messages       []*Message `json:"messages,omitempty"` // Only populated when fetching full conversation
+
+	// Sync-time enrichment of the latest message in the thread (Phase A):
+	// the row chip acts on ExtractMessageID. ExtractValue is a one-time
+	// code or a booking reference: never log it.
+	ExtractKind      string `json:"extractKind,omitempty"`
+	ExtractValue     string `json:"extractValue,omitempty"`
+	ExtractRule      string `json:"extractRule,omitempty"`
+	ExtractMessageID string `json:"extractMessageId,omitempty"`
 
 	// For unified inbox view - populated when querying across accounts
 	AccountID    string `json:"accountId,omitempty"`

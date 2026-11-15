@@ -2,7 +2,7 @@
 // Provides reactive state for application settings
 
 // @ts-ignore - wailsjs path
-import { GetMessageListDensity, GetMessageListSortOrder, GetThemeMode, GetShowTitleBar, GetRunBackground, GetStartHidden, GetAutostart, GetLanguage, GetComposerMode, GetMailtoMode, GetComposerFormat, GetNativeTitleBar, GetAlwaysLoadImages, GetDarkMailContent, GetDarkComposerBody, GetAccentBarUnread, GetAccentUnreadStyle, GetShowMessageListCircles, GetShowMessageListProfilePics, GetAlwaysShowMessageCheckbox, GetShowViewerCircles, GetShowMessagePreviewPane, GetMessageOpenMode, GetSpellcheckEnabled, GetSpellcheckLanguages, GetSpellcheckCustomWords, GetWindowControlsSide } from '../../../wailsjs/go/app/App'
+import { GetMessageListDensity, GetMessageListSortOrder, GetThemeMode, GetShowTitleBar, GetRunBackground, GetStartHidden, GetAutostart, GetLanguage, GetComposerMode, GetMailtoMode, GetComposerFormat, GetNativeTitleBar, GetAlwaysLoadImages, GetDarkMailContent, GetDarkComposerBody, GetAccentBarUnread, GetAccentUnreadStyle, GetShowMessageListCircles, GetShowMessageListProfilePics, GetAlwaysShowMessageCheckbox, GetShowViewerCircles, GetShowMessagePreviewPane, GetMessageOpenMode, GetSpellcheckEnabled, GetSpellcheckLanguages, GetSpellcheckCustomWords, GetWindowControlsSide, GetCodeChipClickMode, GetAttentionEnabled, GetAttentionTypeEnabled, GetOtpClipboardClearSeconds } from '../../../wailsjs/go/app/App'
 import { setLocale as setI18nLocale, locale as i18nLocale } from '$lib/i18n'
 import { get } from 'svelte/store'
 import { loadDateFnsLocale, getDateFnsLocale } from '$lib/i18n/dateFnsLocale'
@@ -54,6 +54,13 @@ let alwaysShowMessageCheckbox = $state<boolean>(false)
 let showViewerCircles = $state<boolean>(true)
 let showMessagePreviewPane = $state<boolean>(true)
 let messageOpenMode = $state<MessageOpenMode>('tab')
+let codeChipClickMode = $state<string>('copy_mark_read_delete')
+let attentionEnabled = $state<boolean>(true)
+let attentionTypeVerificationCode = $state<boolean>(true)
+let attentionTypeFlightChanged = $state<boolean>(true)
+let attentionTypePaymentFailed = $state<boolean>(true)
+let attentionTypeDeliveryProblem = $state<boolean>(true)
+let otpClipboardClearSeconds = $state<number>(60)
 
 // Getter functions to access the state
 export function getMessageListDensity(): MessageListDensity {
@@ -162,6 +169,43 @@ export function getShowMessagePreviewPane(): boolean {
 
 export function getMessageOpenMode(): MessageOpenMode {
   return messageOpenMode
+}
+
+// Phase A: code chips + Needs attention
+export function getCodeChipClickMode(): string {
+  return codeChipClickMode
+}
+export function setCodeChipClickMode(v: string) {
+  codeChipClickMode = v
+}
+export function getAttentionEnabled(): boolean {
+  return attentionEnabled
+}
+export function setAttentionEnabled(v: boolean) {
+  attentionEnabled = v
+}
+export function getAttentionTypeEnabled(type: string): boolean {
+  switch (type) {
+    case 'verification_code': return attentionTypeVerificationCode
+    case 'flight_changed': return attentionTypeFlightChanged
+    case 'payment_failed': return attentionTypePaymentFailed
+    case 'delivery_problem': return attentionTypeDeliveryProblem
+    default: return true
+  }
+}
+export function setAttentionTypeEnabled(type: string, v: boolean) {
+  switch (type) {
+    case 'verification_code': attentionTypeVerificationCode = v; break
+    case 'flight_changed': attentionTypeFlightChanged = v; break
+    case 'payment_failed': attentionTypePaymentFailed = v; break
+    case 'delivery_problem': attentionTypeDeliveryProblem = v; break
+  }
+}
+export function getOtpClipboardClearSeconds(): number {
+  return otpClipboardClearSeconds
+}
+export function setOtpClipboardClearSeconds(v: number) {
+  otpClipboardClearSeconds = v
 }
 
 export function getCurrentDateFnsLocale(): Locale | undefined {
@@ -284,7 +328,7 @@ export function setMessageOpenMode(mode: MessageOpenMode) {
 // Load settings from backend (call on app startup)
 export async function loadSettings(): Promise<ThemeMode> {
   try {
-    const [density, sortOrder, theme, titleBar, runBg, startHid, autoSt, lang, compMode, mailMode, compFormat, nativeTB, alwaysImages, darkMail, darkComposer, accentBar, accentStyle, listCircles, listProfilePics, alwaysCheckbox, viewerCircles, scEnabled, scLangs, scWords, wcSide, previewPane, openMode] = await Promise.all([
+    const [density, sortOrder, theme, titleBar, runBg, startHid, autoSt, lang, compMode, mailMode, compFormat, nativeTB, alwaysImages, darkMail, darkComposer, accentBar, accentStyle, listCircles, listProfilePics, alwaysCheckbox, viewerCircles, scEnabled, scLangs, scWords, wcSide, previewPane, openMode, chipMode, attnEnabled, attnCode, attnFlight, attnPayment, attnDelivery, otpClearSecs] = await Promise.all([
       GetMessageListDensity(),
       GetMessageListSortOrder(),
       GetThemeMode(),
@@ -312,6 +356,13 @@ export async function loadSettings(): Promise<ThemeMode> {
       GetWindowControlsSide(),
       GetShowMessagePreviewPane(),
       GetMessageOpenMode(),
+      GetCodeChipClickMode(),
+      GetAttentionEnabled(),
+      GetAttentionTypeEnabled('verification_code'),
+      GetAttentionTypeEnabled('flight_changed'),
+      GetAttentionTypeEnabled('payment_failed'),
+      GetAttentionTypeEnabled('delivery_problem'),
+      GetOtpClipboardClearSeconds(),
     ])
     messageListDensity = (density as MessageListDensity) || 'standard'
     messageListSortOrder = (sortOrder as MessageListSortOrder) || 'newest'
@@ -339,6 +390,13 @@ export async function loadSettings(): Promise<ThemeMode> {
     spellcheckLanguages = scLangs ?? []
     spellcheckCustomWords = scWords ?? []
     windowControlsSide = (wcSide as WindowControlsSide) || 'auto'
+    codeChipClickMode = (chipMode as string) || 'copy_mark_read_delete'
+    attentionEnabled = attnEnabled ?? true
+    attentionTypeVerificationCode = attnCode ?? true
+    attentionTypeFlightChanged = attnFlight ?? true
+    attentionTypePaymentFailed = attnPayment ?? true
+    attentionTypeDeliveryProblem = attnDelivery ?? true
+    otpClipboardClearSeconds = otpClearSecs ?? 60
     // Apply saved language (if set, overrides system detection from initI18n)
     if (lang) {
       language = lang

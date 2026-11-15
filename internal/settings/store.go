@@ -43,11 +43,18 @@ const (
 	KeyShowViewerCircles          = "show_viewer_circles"
 	KeyShowMessagePreviewPane     = "show_message_preview_pane" // show the conversation viewer pane beside the message list (default on)
 	KeyMessageOpenMode            = "message_open_mode"         // how a message opens when the preview pane is off: "tab" | "dialog" | "popup" (default "tab")
-	KeyLastSeenVersion            = "last_seen_version"       // for "What's new in this version" launch dialog
-	KeyOAuthWarningDisabled       = "oauth_warning_disabled"  // user toggled "Don't show again" on the missing-OAuth-creds launch warning
-	KeySpellcheckEnabled          = "spellcheck_enabled"      // composer spellcheck master toggle (defaults on)
-	KeySpellcheckLanguages        = "spellcheck_languages"    // JSON array of enabled dictionary codes, e.g. ["en","de"]
-	KeySpellcheckCustomWords      = "spellcheck_custom_words" // JSON array of user-added dictionary words
+	KeyLastSeenVersion            = "last_seen_version"         // for "What's new in this version" launch dialog
+	KeyOAuthWarningDisabled       = "oauth_warning_disabled"    // user toggled "Don't show again" on the missing-OAuth-creds launch warning
+	KeySpellcheckEnabled          = "spellcheck_enabled"        // composer spellcheck master toggle (defaults on)
+	KeyCodeChipClickMode          = "code_chip_click_mode"      // "copy_mark_read_delete" | "copy_mark_read" | "copy_only"
+	KeyAttentionEnabled           = "attention_enabled"         // Needs attention strip master toggle (default on)
+	KeyAttentionTypeCode          = "attention_type_verification_code"
+	KeyAttentionTypeFlight        = "attention_type_flight_changed"
+	KeyAttentionTypePayment       = "attention_type_payment_failed"
+	KeyAttentionTypeDelivery      = "attention_type_delivery_problem"
+	KeyOtpClipboardClearSeconds   = "otp_clipboard_clear_seconds" // seconds until Daak clears a copied code (0 = never)
+	KeySpellcheckLanguages        = "spellcheck_languages"        // JSON array of enabled dictionary codes, e.g. ["en","de"]
+	KeySpellcheckCustomWords      = "spellcheck_custom_words"     // JSON array of user-added dictionary words
 )
 
 // Extension enable/disable keys. Format: extension_<name>_enabled.
@@ -55,10 +62,10 @@ const (
 // they explicitly opt in. Phase 1 reserves keys only for confirmed first-
 // party extensions (Calendar, Contacts, AI Writing).
 const (
-	KeyExtensionCalendarEnabled   = "extension_calendar_enabled"
-	KeyExtensionContactsEnabled   = "extension_contacts_enabled"
-	KeyExtensionAIWritingEnabled  = "extension_ai_writing_enabled"
-	KeyExtensionMailMergeEnabled  = "extension_mail-merge_enabled"
+	KeyExtensionCalendarEnabled  = "extension_calendar_enabled"
+	KeyExtensionContactsEnabled  = "extension_contacts_enabled"
+	KeyExtensionAIWritingEnabled = "extension_ai_writing_enabled"
+	KeyExtensionMailMergeEnabled = "extension_mail-merge_enabled"
 )
 
 // AllExtensionKeys is the list of all known first-party extension names. Add
@@ -831,6 +838,134 @@ func (s *Store) RemoveSpellcheckCustomWord(word string) error {
 		return err
 	}
 	return s.Set(KeySpellcheckCustomWords, string(data))
+}
+
+// Code chip click modes (Settings -> Messages -> "Code chip click").
+const (
+	CodeChipClickCopyMarkReadDelete = "copy_mark_read_delete" // copy, mark read, move to Trash (default)
+	CodeChipClickCopyMarkRead       = "copy_mark_read"        // copy + mark read
+	CodeChipClickCopyOnly           = "copy_only"             // copy only
+)
+
+// DefaultCodeChipClickMode is the default code-chip click behaviour.
+const DefaultCodeChipClickMode = CodeChipClickCopyMarkReadDelete
+
+// DefaultOtpClipboardClearSeconds is the default clipboard hygiene delay.
+const DefaultOtpClipboardClearSeconds = 60
+
+// GetCodeChipClickMode returns the code-chip click mode. Unknown stored
+// values fall back to the default rather than failing the settings load.
+func (s *Store) GetCodeChipClickMode() (string, error) {
+	value, err := s.Get(KeyCodeChipClickMode)
+	if err != nil {
+		return DefaultCodeChipClickMode, err
+	}
+	switch value {
+	case "", CodeChipClickCopyMarkReadDelete, CodeChipClickCopyMarkRead, CodeChipClickCopyOnly:
+		if value == "" {
+			return DefaultCodeChipClickMode, nil
+		}
+		return value, nil
+	default:
+		return DefaultCodeChipClickMode, nil
+	}
+}
+
+// SetCodeChipClickMode sets the code-chip click mode.
+func (s *Store) SetCodeChipClickMode(mode string) error {
+	switch mode {
+	case CodeChipClickCopyMarkReadDelete, CodeChipClickCopyMarkRead, CodeChipClickCopyOnly:
+		return s.Set(KeyCodeChipClickMode, mode)
+	default:
+		return fmt.Errorf("invalid code chip click mode: %s (must be 'copy_mark_read_delete', 'copy_mark_read' or 'copy_only')", mode)
+	}
+}
+
+// GetAttentionEnabled returns whether the Needs attention strip is on.
+// Default: true (only an explicit "false" disables it).
+func (s *Store) GetAttentionEnabled() (bool, error) {
+	value, err := s.Get(KeyAttentionEnabled)
+	if err != nil {
+		return true, err
+	}
+	return value != "false", nil
+}
+
+// SetAttentionEnabled enables or disables the Needs attention strip.
+func (s *Store) SetAttentionEnabled(enabled bool) error {
+	v := "false"
+	if enabled {
+		v = "true"
+	}
+	return s.Set(KeyAttentionEnabled, v)
+}
+
+// attentionTypeKey maps an attention type to its per-type toggle key.
+func attentionTypeKey(attentionType string) (string, error) {
+	switch attentionType {
+	case "verification_code":
+		return KeyAttentionTypeCode, nil
+	case "flight_changed":
+		return KeyAttentionTypeFlight, nil
+	case "payment_failed":
+		return KeyAttentionTypePayment, nil
+	case "delivery_problem":
+		return KeyAttentionTypeDelivery, nil
+	default:
+		return "", fmt.Errorf("unknown attention type: %s", attentionType)
+	}
+}
+
+// GetAttentionTypeEnabled returns whether one attention type is on.
+// Default: true for every type.
+func (s *Store) GetAttentionTypeEnabled(attentionType string) (bool, error) {
+	key, err := attentionTypeKey(attentionType)
+	if err != nil {
+		return false, err
+	}
+	value, err := s.Get(key)
+	if err != nil {
+		return true, err
+	}
+	return value != "false", nil
+}
+
+// SetAttentionTypeEnabled enables or disables one attention type.
+func (s *Store) SetAttentionTypeEnabled(attentionType string, enabled bool) error {
+	key, err := attentionTypeKey(attentionType)
+	if err != nil {
+		return err
+	}
+	v := "false"
+	if enabled {
+		v = "true"
+	}
+	return s.Set(key, v)
+}
+
+// GetOtpClipboardClearSeconds returns how long Daak waits before clearing
+// a copied one-time code from the clipboard (0 = never). Default 60.
+func (s *Store) GetOtpClipboardClearSeconds() (int, error) {
+	value, err := s.Get(KeyOtpClipboardClearSeconds)
+	if err != nil {
+		return DefaultOtpClipboardClearSeconds, err
+	}
+	if value == "" {
+		return DefaultOtpClipboardClearSeconds, nil
+	}
+	secs, err := strconv.Atoi(value)
+	if err != nil || secs < 0 {
+		return DefaultOtpClipboardClearSeconds, nil
+	}
+	return secs, nil
+}
+
+// SetOtpClipboardClearSeconds sets the clipboard-clear delay (0 = never).
+func (s *Store) SetOtpClipboardClearSeconds(seconds int) error {
+	if seconds < 0 || seconds > 3600 {
+		return fmt.Errorf("invalid clipboard clear delay: %d (must be 0-3600)", seconds)
+	}
+	return s.Set(KeyOtpClipboardClearSeconds, strconv.Itoa(seconds))
 }
 
 // GetLanguage returns the saved language preference (locale code)

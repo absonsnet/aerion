@@ -62,6 +62,10 @@ export function AddSpellcheckCustomWord(arg1) {
   return window['go']['app']['App']['AddSpellcheckCustomWord'](arg1);
 }
 
+export function ApplyCodeChipAction(arg1, arg2) {
+  return window['go']['app']['App']['ApplyCodeChipAction'](arg1, arg2);
+}
+
 export function Archive(arg1) {
   return window['go']['app']['App']['Archive'](arg1);
 }
@@ -362,6 +366,10 @@ export function DiscoverOAuthProvider(arg1) {
   return window['go']['app']['App']['DiscoverOAuthProvider'](arg1);
 }
 
+export function DismissAttention(arg1) {
+  return window['go']['app']['App']['DismissAttention'](arg1);
+}
+
 export function DownloadAttachment(arg1, arg2) {
   return window['go']['app']['App']['DownloadAttachment'](arg1, arg2);
 }
@@ -442,12 +450,32 @@ export function GetAttachments(arg1) {
   return window['go']['app']['App']['GetAttachments'](arg1);
 }
 
+export function GetAttentionCount() {
+  return window['go']['app']['App']['GetAttentionCount']();
+}
+
+export function GetAttentionEnabled() {
+  return window['go']['app']['App']['GetAttentionEnabled']();
+}
+
+export function GetAttentionItems(arg1, arg2) {
+  return window['go']['app']['App']['GetAttentionItems'](arg1, arg2);
+}
+
+export function GetAttentionTypeEnabled(arg1) {
+  return window['go']['app']['App']['GetAttentionTypeEnabled'](arg1);
+}
+
 export function GetAutoDetectedFolders(arg1) {
   return window['go']['app']['App']['GetAutoDetectedFolders'](arg1);
 }
 
 export function GetAutostart() {
   return window['go']['app']['App']['GetAutostart']();
+}
+
+export function GetCodeChipClickMode() {
+  return window['go']['app']['App']['GetCodeChipClickMode']();
 }
 
 export function GetComposerFormat() {
@@ -652,6 +680,10 @@ export function GetOAuthStatus(arg1) {
 
 export function GetOAuthWarningDisabled() {
   return window['go']['app']['App']['GetOAuthWarningDisabled']();
+}
+
+export function GetOtpClipboardClearSeconds() {
+  return window['go']['app']['App']['GetOtpClipboardClearSeconds']();
 }
 
 export function GetPGPEncryptPolicy(arg1) {
@@ -1210,6 +1242,14 @@ export function ReorderAccounts(arg1) {
   return window['go']['app']['App']['ReorderAccounts'](arg1);
 }
 
+export function ResolveMessageUID(arg1) {
+  return window['go']['app']['App']['ResolveMessageUID'](arg1);
+}
+
+export function RunEnrichmentBackfill() {
+  return window['go']['app']['App']['RunEnrichmentBackfill']();
+}
+
 export function SaveAllAttachments(arg1) {
   return window['go']['app']['App']['SaveAllAttachments'](arg1);
 }
@@ -1286,8 +1326,20 @@ export function SetAlwaysShowMessageCheckbox(arg1) {
   return window['go']['app']['App']['SetAlwaysShowMessageCheckbox'](arg1);
 }
 
+export function SetAttentionEnabled(arg1) {
+  return window['go']['app']['App']['SetAttentionEnabled'](arg1);
+}
+
+export function SetAttentionTypeEnabled(arg1, arg2) {
+  return window['go']['app']['App']['SetAttentionTypeEnabled'](arg1, arg2);
+}
+
 export function SetAutostart(arg1) {
   return window['go']['app']['App']['SetAutostart'](arg1);
+}
+
+export function SetCodeChipClickMode(arg1) {
+  return window['go']['app']['App']['SetCodeChipClickMode'](arg1);
 }
 
 export function SetComposerFormat(arg1) {
@@ -1376,6 +1428,10 @@ export function SetOAuthCredsChoice(arg1, arg2) {
 
 export function SetOAuthWarningDisabled(arg1) {
   return window['go']['app']['App']['SetOAuthWarningDisabled'](arg1);
+}
+
+export function SetOtpClipboardClearSeconds(arg1) {
+  return window['go']['app']['App']['SetOtpClipboardClearSeconds'](arg1);
 }
 
 export function SetPGPEncryptPolicy(arg1, arg2) {

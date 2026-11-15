@@ -6,6 +6,8 @@ import {app} from '../models';
 
 export function AddImageAllowlist(arg1:string,arg2:string):Promise<void>;
 
+export function ApplyCodeChipAction(arg1:string,arg2:string):Promise<boolean>;
+
 export function Archive(arg1:Array<string>):Promise<void>;
 
 export function BeforeClose(arg1:context.Context):Promise<boolean>;
@@ -26,6 +28,8 @@ export function GetAttachment(arg1:string):Promise<message.Attachment>;
 
 export function GetAttachments(arg1:string):Promise<Array<message.Attachment>>;
 
+export function GetCodeChipClickMode():Promise<string>;
+
 export function GetConversation(arg1:string,arg2:string):Promise<message.Conversation>;
 
 export function GetInlineAttachments(arg1:string):Promise<Record<string, string>>;
@@ -37,6 +41,8 @@ export function GetMessage(arg1:string):Promise<message.Message>;
 export function GetMessageReactions(arg1:string):Promise<Array<app.MessageReaction>>;
 
 export function GetMessageSource(arg1:string):Promise<string>;
+
+export function GetOtpClipboardClearSeconds():Promise<number>;
 
 export function GetReadReceiptResponsePolicy():Promise<string>;
 

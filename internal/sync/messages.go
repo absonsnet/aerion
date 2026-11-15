@@ -772,6 +772,14 @@ func (e *Engine) fetchMessageHeaders(ctx context.Context, client *imapclient.Cli
 
 	fetchCmd := client.Fetch(uidSet, fetchOptions)
 
+	// Sender overrides are loaded once per batch: the header-time
+	// enrichment consults them without a query per message.
+	overrides, err := e.messageStore.ListSenderCategoryOverrides()
+	if err != nil {
+		e.log.Warn().Err(err).Msg("Failed to load sender category overrides, continuing without them")
+		overrides = make(map[string]string)
+	}
+
 	// Stream messages one at a time instead of blocking on Collect()
 	// This allows cancellation between messages and prevents indefinite blocking
 	var savedMessages []*message.Message
@@ -871,6 +879,25 @@ func (e *Engine) fetchMessageHeaders(ctx context.Context, client *imapclient.Cli
 
 		// Parse flags using shared helper
 		applyFlagsToMessage(m, flags)
+
+		// Header-time enrichment: category + List-Unsubscribe. The body
+		// pass re-enriches fully (extraction needs the body head).
+		if len(headerBytes) > 0 {
+			e.enrichHeader(m, headerBytes, overrides)
+		}
+		// A re-sync must not clobber body-time enrichment: a row that
+		// already carries a category keeps its stored enrichment (the
+		// body pass only runs for messages without bodies, so without
+		// this a force resync would silently drop every chip).
+		if stored, err := e.messageStore.GetStoredEnrichment(folderID, m.UID); err == nil && stored != nil && stored.Category != "" {
+			m.ListUnsubscribe = stored.ListUnsubscribe
+			m.ListUnsubscribePost = stored.ListUnsubscribePost
+			m.Category = stored.Category
+			m.SubCategory = stored.SubCategory
+			m.ExtractKind = stored.ExtractKind
+			m.ExtractValue = stored.ExtractValue
+			m.ExtractRule = stored.ExtractRule
+		}
 
 		// Save to store immediately (don't wait for all messages)
 		if err := e.messageStore.Upsert(m); err != nil {

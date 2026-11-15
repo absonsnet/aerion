@@ -321,6 +321,59 @@ export namespace app {
 	        this.license = source["license"];
 	    }
 	}
+	export class AttentionItem {
+	    messageId: string;
+	    threadId: string;
+	    folderId: string;
+	    accountId: string;
+	    accountName: string;
+	    accountColor: string;
+	    subject: string;
+	    type: string;
+	    typeLabel: string;
+	    // Go type: time
+	    date: any;
+	    extractKind?: string;
+	    extractValue?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AttentionItem(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.messageId = source["messageId"];
+	        this.threadId = source["threadId"];
+	        this.folderId = source["folderId"];
+	        this.accountId = source["accountId"];
+	        this.accountName = source["accountName"];
+	        this.accountColor = source["accountColor"];
+	        this.subject = source["subject"];
+	        this.type = source["type"];
+	        this.typeLabel = source["typeLabel"];
+	        this.date = this.convertValues(source["date"], null);
+	        this.extractKind = source["extractKind"];
+	        this.extractValue = source["extractValue"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class AuthContextInfo {
 	    kind: string;
 	    identifier: string;
@@ -2747,6 +2800,13 @@ export namespace message {
 	    bodyText?: string;
 	    bodyHtml?: string;
 	    bodyFetched: boolean;
+	    listUnsubscribe?: string;
+	    listUnsubscribePost?: boolean;
+	    category?: string;
+	    subCategory?: string;
+	    extractKind?: string;
+	    extractValue?: string;
+	    extractRule?: string;
 	    readReceiptTo?: string;
 	    readReceiptHandled: boolean;
 	    smimeStatus?: string;
@@ -2796,6 +2856,13 @@ export namespace message {
 	        this.bodyText = source["bodyText"];
 	        this.bodyHtml = source["bodyHtml"];
 	        this.bodyFetched = source["bodyFetched"];
+	        this.listUnsubscribe = source["listUnsubscribe"];
+	        this.listUnsubscribePost = source["listUnsubscribePost"];
+	        this.category = source["category"];
+	        this.subCategory = source["subCategory"];
+	        this.extractKind = source["extractKind"];
+	        this.extractValue = source["extractValue"];
+	        this.extractRule = source["extractRule"];
 	        this.readReceiptTo = source["readReceiptTo"];
 	        this.readReceiptHandled = source["readReceiptHandled"];
 	        this.smimeStatus = source["smimeStatus"];
@@ -2843,6 +2910,10 @@ export namespace message {
 	    messageIds: string[];
 	    isEncrypted: boolean;
 	    messages?: Message[];
+	    extractKind?: string;
+	    extractValue?: string;
+	    extractRule?: string;
+	    extractMessageId?: string;
 	    accountId?: string;
 	    accountName?: string;
 	    accountColor?: string;
@@ -2866,6 +2937,10 @@ export namespace message {
 	        this.messageIds = source["messageIds"];
 	        this.isEncrypted = source["isEncrypted"];
 	        this.messages = this.convertValues(source["messages"], Message);
+	        this.extractKind = source["extractKind"];
+	        this.extractValue = source["extractValue"];
+	        this.extractRule = source["extractRule"];
+	        this.extractMessageId = source["extractMessageId"];
 	        this.accountId = source["accountId"];
 	        this.accountName = source["accountName"];
 	        this.accountColor = source["accountColor"];
@@ -2904,6 +2979,10 @@ export namespace message {
 	    messageIds: string[];
 	    isEncrypted: boolean;
 	    messages?: Message[];
+	    extractKind?: string;
+	    extractValue?: string;
+	    extractRule?: string;
+	    extractMessageId?: string;
 	    accountId?: string;
 	    accountName?: string;
 	    accountColor?: string;
@@ -2932,6 +3011,10 @@ export namespace message {
 	        this.messageIds = source["messageIds"];
 	        this.isEncrypted = source["isEncrypted"];
 	        this.messages = this.convertValues(source["messages"], Message);
+	        this.extractKind = source["extractKind"];
+	        this.extractValue = source["extractValue"];
+	        this.extractRule = source["extractRule"];
+	        this.extractMessageId = source["extractMessageId"];
 	        this.accountId = source["accountId"];
 	        this.accountName = source["accountName"];
 	        this.accountColor = source["accountColor"];
@@ -2996,6 +3079,9 @@ export namespace message {
 	    isRead: boolean;
 	    isStarred: boolean;
 	    hasAttachments: boolean;
+	    extractKind?: string;
+	    extractValue?: string;
+	    extractRule?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new MessageHeader(source);
@@ -3015,6 +3101,9 @@ export namespace message {
 	        this.isRead = source["isRead"];
 	        this.isStarred = source["isStarred"];
 	        this.hasAttachments = source["hasAttachments"];
+	        this.extractKind = source["extractKind"];
+	        this.extractValue = source["extractValue"];
+	        this.extractRule = source["extractRule"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

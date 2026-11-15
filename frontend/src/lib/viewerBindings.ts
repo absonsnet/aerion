@@ -77,6 +77,15 @@ export const MarkAsNotSpam = (messageIds: string[]): Promise<void> =>
 export const DeletePermanently = (messageIds: string[]): Promise<void> =>
   call('DeletePermanently', messageIds)
 export const Undo = (): Promise<string> => call('Undo')
+// — Code chips (Phase A) —
+export const ApplyCodeChipAction = (
+  messageId: string,
+  mode: string
+): Promise<boolean> => call('ApplyCodeChipAction', messageId, mode)
+export const GetCodeChipClickMode = (): Promise<string> =>
+  call('GetCodeChipClickMode')
+export const GetOtpClipboardClearSeconds = (): Promise<number> =>
+  call('GetOtpClipboardClearSeconds')
 export const GetMessageReactions = (
   messageId: string
 ): Promise<Array<app.MessageReaction>> => call('GetMessageReactions', messageId)

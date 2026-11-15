@@ -6,6 +6,10 @@ export function AddImageAllowlist(arg1, arg2) {
   return window['go']['app']['ViewerApp']['AddImageAllowlist'](arg1, arg2);
 }
 
+export function ApplyCodeChipAction(arg1, arg2) {
+  return window['go']['app']['ViewerApp']['ApplyCodeChipAction'](arg1, arg2);
+}
+
 export function Archive(arg1) {
   return window['go']['app']['ViewerApp']['Archive'](arg1);
 }
@@ -46,6 +50,10 @@ export function GetAttachments(arg1) {
   return window['go']['app']['ViewerApp']['GetAttachments'](arg1);
 }
 
+export function GetCodeChipClickMode() {
+  return window['go']['app']['ViewerApp']['GetCodeChipClickMode']();
+}
+
 export function GetConversation(arg1, arg2) {
   return window['go']['app']['ViewerApp']['GetConversation'](arg1, arg2);
 }
@@ -68,6 +76,10 @@ export function GetMessageReactions(arg1) {
 
 export function GetMessageSource(arg1) {
   return window['go']['app']['ViewerApp']['GetMessageSource'](arg1);
+}
+
+export function GetOtpClipboardClearSeconds() {
+  return window['go']['app']['ViewerApp']['GetOtpClipboardClearSeconds']();
 }
 
 export function GetReadReceiptResponsePolicy() {
