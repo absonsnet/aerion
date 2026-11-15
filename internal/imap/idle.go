@@ -12,7 +12,7 @@ import (
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
 	"github.com/emersion/go-sasl"
-	"github.com/hkdb/aerion/internal/logging"
+	"github.com/absonsnet/daak/internal/logging"
 	"github.com/rs/zerolog"
 )
 

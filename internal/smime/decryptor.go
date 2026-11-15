@@ -9,7 +9,7 @@ import (
 	"mime"
 	"strings"
 
-	"github.com/hkdb/aerion/internal/credentials"
+	"github.com/absonsnet/daak/internal/credentials"
 	"github.com/rs/zerolog"
 	"go.mozilla.org/pkcs7"
 )

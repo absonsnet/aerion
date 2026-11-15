@@ -1,5 +1,10 @@
 # CHANGELOG
 
+**v0.6.0 - 15-11-2026**
+---
+
+- Renamed the app to Daak, with the new app ID net.absons.daak and repository github.com/absonsnet/daak; existing data and settings move to the new location automatically
+
 **v0.5.2 - 14-11-2026**
 ---
 

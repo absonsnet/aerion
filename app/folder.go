@@ -3,8 +3,8 @@ package app
 import (
 	"fmt"
 
-	"github.com/hkdb/aerion/internal/folder"
-	"github.com/hkdb/aerion/internal/logging"
+	"github.com/absonsnet/daak/internal/folder"
+	"github.com/absonsnet/daak/internal/logging"
 )
 
 // ============================================================================

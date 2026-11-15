@@ -5,8 +5,8 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/hkdb/aerion/internal/crypto"
-	"github.com/hkdb/aerion/internal/logging"
+	"github.com/absonsnet/daak/internal/crypto"
+	"github.com/absonsnet/daak/internal/logging"
 	"github.com/rs/zerolog"
 	gokeyring "github.com/zalando/go-keyring"
 )

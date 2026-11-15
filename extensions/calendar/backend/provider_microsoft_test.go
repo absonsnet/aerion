@@ -18,7 +18,7 @@ import (
 	"testing"
 	"time"
 
-	coreapi "github.com/hkdb/aerion/internal/core/api/v1"
+	coreapi "github.com/absonsnet/daak/internal/core/api/v1"
 )
 
 // fakeMSAuth — same shape as fakeAuth in provider_google_test.go but

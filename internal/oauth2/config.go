@@ -11,7 +11,7 @@ import (
 // Build-time variables injected via ldflags
 // These are set during compilation using:
 //
-//	go build -ldflags "-X 'github.com/hkdb/aerion/internal/oauth2.GoogleClientID=xxx'"
+//	go build -ldflags "-X 'github.com/absonsnet/daak/internal/oauth2.GoogleClientID=xxx'"
 //
 // See Makefile for the complete build command.
 // If ldflags are not set, credentials are loaded from the aerion-creds shim binary.

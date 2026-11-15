@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/hkdb/aerion/internal/logging"
+	"github.com/absonsnet/daak/internal/logging"
 )
 
 // LinuxPowerMonitor monitors power state on Linux

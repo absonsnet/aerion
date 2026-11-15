@@ -9,10 +9,10 @@ import (
 	"sync"
 	"time"
 
+	coreapi "github.com/absonsnet/daak/internal/core/api/v1"
+	hostmm "github.com/absonsnet/daak/internal/mailmerge"
+	"github.com/absonsnet/daak/internal/platform"
 	"github.com/google/uuid"
-	coreapi "github.com/hkdb/aerion/internal/core/api/v1"
-	hostmm "github.com/hkdb/aerion/internal/mailmerge"
-	"github.com/hkdb/aerion/internal/platform"
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 

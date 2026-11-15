@@ -3,8 +3,8 @@ package backend
 import (
 	"fmt"
 
-	"github.com/hkdb/aerion/extensions/contacts"
-	coreapi "github.com/hkdb/aerion/internal/core/api/v1"
+	"github.com/absonsnet/daak/extensions/contacts"
+	coreapi "github.com/absonsnet/daak/internal/core/api/v1"
 )
 
 // Extension is the Contacts extension's lifecycle handle. It's intentionally

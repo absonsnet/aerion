@@ -10,11 +10,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/absonsnet/daak/internal/folder"
+	imapPkg "github.com/absonsnet/daak/internal/imap"
+	"github.com/absonsnet/daak/internal/message"
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
-	"github.com/hkdb/aerion/internal/folder"
-	imapPkg "github.com/hkdb/aerion/internal/imap"
-	"github.com/hkdb/aerion/internal/message"
 )
 
 // SyncMessages synchronizes messages for a folder with incremental sync support.

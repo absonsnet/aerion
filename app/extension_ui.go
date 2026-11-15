@@ -1,8 +1,8 @@
 package app
 
 import (
-	coreapi "github.com/hkdb/aerion/internal/core/api/v1"
-	"github.com/hkdb/aerion/internal/settings"
+	coreapi "github.com/absonsnet/daak/internal/core/api/v1"
+	"github.com/absonsnet/daak/internal/settings"
 )
 
 // ListEnabledExtensions returns the names of all enabled first-party

@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hkdb/aerion/internal/logging"
-	"github.com/hkdb/aerion/internal/smtp"
+	"github.com/absonsnet/daak/internal/logging"
+	"github.com/absonsnet/daak/internal/smtp"
 )
 
 // DraftSaver is the narrow host-injected draft path: one SaveDraft call

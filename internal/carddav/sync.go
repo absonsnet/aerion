@@ -5,10 +5,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hkdb/aerion/internal/contact"
-	"github.com/hkdb/aerion/internal/credentials"
-	"github.com/hkdb/aerion/internal/kit/davutil"
-	"github.com/hkdb/aerion/internal/logging"
+	"github.com/absonsnet/daak/internal/contact"
+	"github.com/absonsnet/daak/internal/credentials"
+	"github.com/absonsnet/daak/internal/kit/davutil"
+	"github.com/absonsnet/daak/internal/logging"
 	"github.com/rs/zerolog"
 )
 

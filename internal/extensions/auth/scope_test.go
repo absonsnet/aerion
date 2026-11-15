@@ -3,7 +3,7 @@ package auth
 import (
 	"testing"
 
-	coreapi "github.com/hkdb/aerion/internal/core/api/v1"
+	coreapi "github.com/absonsnet/daak/internal/core/api/v1"
 )
 
 func TestMissingScopes(t *testing.T) {

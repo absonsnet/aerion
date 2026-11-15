@@ -5,8 +5,8 @@ package main
 import (
 	"os"
 
-	"github.com/hkdb/aerion/app"
-	"github.com/hkdb/aerion/internal/platform"
+	"github.com/absonsnet/daak/app"
+	"github.com/absonsnet/daak/internal/platform"
 )
 
 // runPreflight performs pre-Wails startup checks (paths, DB open, migrations,

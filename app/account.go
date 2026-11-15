@@ -4,10 +4,10 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/hkdb/aerion/internal/account"
-	"github.com/hkdb/aerion/internal/certificate"
-	"github.com/hkdb/aerion/internal/imap"
-	"github.com/hkdb/aerion/internal/logging"
+	"github.com/absonsnet/daak/internal/account"
+	"github.com/absonsnet/daak/internal/certificate"
+	"github.com/absonsnet/daak/internal/imap"
+	"github.com/absonsnet/daak/internal/logging"
 )
 
 // ============================================================================

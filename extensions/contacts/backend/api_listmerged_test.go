@@ -3,8 +3,8 @@ package backend
 import (
 	"testing"
 
-	"github.com/hkdb/aerion/internal/contact"
-	coreapi "github.com/hkdb/aerion/internal/core/api/v1"
+	"github.com/absonsnet/daak/internal/contact"
+	coreapi "github.com/absonsnet/daak/internal/core/api/v1"
 )
 
 // Regression for issue #278: the "All" view (SourceID == "") must include

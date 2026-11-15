@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/hkdb/aerion/internal/carddav"
-	"github.com/hkdb/aerion/internal/contact"
-	"github.com/hkdb/aerion/internal/database"
-	coreapi "github.com/hkdb/aerion/internal/core/api/v1"
-	"github.com/hkdb/aerion/internal/platform"
+	"github.com/absonsnet/daak/internal/carddav"
+	"github.com/absonsnet/daak/internal/contact"
+	"github.com/absonsnet/daak/internal/database"
+	coreapi "github.com/absonsnet/daak/internal/core/api/v1"
+	"github.com/absonsnet/daak/internal/platform"
 )
 
 // ContactsBridge is the Wails-bindable surface for the Contacts extension. It's

@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/hkdb/aerion/internal/reaction"
+	"github.com/absonsnet/daak/internal/reaction"
 )
 
 // handleReaction records a detected reaction for the message with the given

@@ -11,8 +11,8 @@ import (
 	"strings"
 	"testing"
 
-	coreapi "github.com/hkdb/aerion/internal/core/api/v1"
-	"github.com/hkdb/aerion/internal/platform"
+	coreapi "github.com/absonsnet/daak/internal/core/api/v1"
+	"github.com/absonsnet/daak/internal/platform"
 )
 
 // --- stubs (same package, so the bridge's unexported fields are reachable) --

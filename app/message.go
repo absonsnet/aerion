@@ -7,10 +7,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hkdb/aerion/internal/logging"
-	"github.com/hkdb/aerion/internal/message"
-	"github.com/hkdb/aerion/internal/pgp"
-	"github.com/hkdb/aerion/internal/smime"
+	"github.com/absonsnet/daak/internal/logging"
+	"github.com/absonsnet/daak/internal/message"
+	"github.com/absonsnet/daak/internal/pgp"
+	"github.com/absonsnet/daak/internal/smime"
 )
 
 // ============================================================================

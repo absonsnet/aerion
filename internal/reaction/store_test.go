@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hkdb/aerion/internal/database"
+	"github.com/absonsnet/daak/internal/database"
 )
 
 func openTestDB(t *testing.T) *database.DB {

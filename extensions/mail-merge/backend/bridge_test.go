@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	hostmm "github.com/hkdb/aerion/internal/mailmerge"
-	"github.com/hkdb/aerion/internal/platform"
-	"github.com/hkdb/aerion/internal/smtp"
+	hostmm "github.com/absonsnet/daak/internal/mailmerge"
+	"github.com/absonsnet/daak/internal/platform"
+	"github.com/absonsnet/daak/internal/smtp"
 )
 
 type fakeSettingsStore struct{ enabled bool }

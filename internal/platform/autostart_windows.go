@@ -6,12 +6,12 @@ import (
 
 	"golang.org/x/sys/windows/registry"
 
-	"github.com/hkdb/aerion/internal/logging"
+	"github.com/absonsnet/daak/internal/logging"
 )
 
 const (
 	registryKeyPath = `Software\Microsoft\Windows\CurrentVersion\Run`
-	registryValue   = "Aerion"
+	registryValue   = AppName
 )
 
 // windowsAutostartManager manages Windows autostart via the registry.

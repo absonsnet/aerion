@@ -26,8 +26,8 @@
 
   let agreed = $state(false)
 
-  const PRIVACY_URL = 'https://github.com/hkdb/aerion/blob/main/docs/PRIVACY.md'
-  const TERMS_URL = 'https://github.com/hkdb/aerion/blob/main/docs/TERMS.md'
+  const PRIVACY_URL = 'https://github.com/absonsnet/daak/blob/main/docs/PRIVACY.md'
+  const TERMS_URL = 'https://github.com/absonsnet/daak/blob/main/docs/TERMS.md'
 
   function openPrivacyPolicy() {
     BrowserOpenURL(PRIVACY_URL)

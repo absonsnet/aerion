@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/hkdb/aerion/internal/logging"
+	"github.com/absonsnet/daak/internal/logging"
 	"github.com/rs/zerolog"
 )
 

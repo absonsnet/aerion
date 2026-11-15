@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/hkdb/aerion/internal/database"
-	"github.com/hkdb/aerion/internal/logging"
+	"github.com/absonsnet/daak/internal/database"
+	"github.com/absonsnet/daak/internal/logging"
 	"github.com/rs/zerolog"
 	_ "modernc.org/sqlite"
 )

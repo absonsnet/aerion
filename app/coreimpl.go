@@ -8,14 +8,14 @@ import (
 
 	"github.com/rs/zerolog"
 
-	coreapi "github.com/hkdb/aerion/internal/core/api/v1"
-	"github.com/hkdb/aerion/internal/credentials"
-	"github.com/hkdb/aerion/internal/email"
-	extui "github.com/hkdb/aerion/internal/extensions/ui"
-	"github.com/hkdb/aerion/internal/logging"
-	"github.com/hkdb/aerion/internal/notification"
-	"github.com/hkdb/aerion/internal/oauth2"
-	"github.com/hkdb/aerion/internal/platform"
+	coreapi "github.com/absonsnet/daak/internal/core/api/v1"
+	"github.com/absonsnet/daak/internal/credentials"
+	"github.com/absonsnet/daak/internal/email"
+	extui "github.com/absonsnet/daak/internal/extensions/ui"
+	"github.com/absonsnet/daak/internal/logging"
+	"github.com/absonsnet/daak/internal/notification"
+	"github.com/absonsnet/daak/internal/oauth2"
+	"github.com/absonsnet/daak/internal/platform"
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 

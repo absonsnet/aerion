@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/hkdb/aerion/internal/account"
-	"github.com/hkdb/aerion/internal/certificate"
-	"github.com/hkdb/aerion/internal/logging"
-	"github.com/hkdb/aerion/internal/platform"
-	"github.com/hkdb/aerion/internal/settings"
-	"github.com/hkdb/aerion/internal/smtp"
+	"github.com/absonsnet/daak/internal/account"
+	"github.com/absonsnet/daak/internal/certificate"
+	"github.com/absonsnet/daak/internal/logging"
+	"github.com/absonsnet/daak/internal/platform"
+	"github.com/absonsnet/daak/internal/settings"
+	"github.com/absonsnet/daak/internal/smtp"
 )
 
 // ============================================================================

@@ -3,7 +3,7 @@ package app
 import (
 	"runtime/debug"
 
-	"github.com/hkdb/aerion/internal/logging"
+	"github.com/absonsnet/daak/internal/logging"
 )
 
 // recoverPanic is a deferred helper that catches panics in background goroutines

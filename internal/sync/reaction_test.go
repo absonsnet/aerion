@@ -3,7 +3,7 @@ package sync
 import (
 	"testing"
 
-	"github.com/hkdb/aerion/internal/reaction"
+	"github.com/absonsnet/daak/internal/reaction"
 )
 
 // Reaction-format detection tests. The parser is exercised through

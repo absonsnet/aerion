@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	extmailmergebe "github.com/hkdb/aerion/extensions/mail-merge/backend"
-	"github.com/hkdb/aerion/internal/contact"
-	hostmm "github.com/hkdb/aerion/internal/mailmerge"
-	"github.com/hkdb/aerion/internal/smtp"
+	extmailmergebe "github.com/absonsnet/daak/extensions/mail-merge/backend"
+	"github.com/absonsnet/daak/internal/contact"
+	hostmm "github.com/absonsnet/daak/internal/mailmerge"
+	"github.com/absonsnet/daak/internal/smtp"
 )
 
 // initMailMergeExtension wires the Mail Merge extension's Bridge into App

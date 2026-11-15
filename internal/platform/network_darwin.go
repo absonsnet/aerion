@@ -49,7 +49,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hkdb/aerion/internal/logging"
+	"github.com/absonsnet/daak/internal/logging"
 )
 
 // DarwinNetworkMonitor monitors network connectivity on macOS using NWPathMonitor

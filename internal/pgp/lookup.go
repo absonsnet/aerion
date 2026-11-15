@@ -1,7 +1,7 @@
 package pgp
 
 import (
-	"github.com/hkdb/aerion/internal/logging"
+	"github.com/absonsnet/daak/internal/logging"
 )
 
 // LookupKeyResult contains the result of a unified key lookup.

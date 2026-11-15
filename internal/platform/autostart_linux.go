@@ -7,23 +7,27 @@ import (
 	"strings"
 	"time"
 
+	"github.com/absonsnet/daak/internal/logging"
 	"github.com/godbus/dbus/v5"
-	"github.com/hkdb/aerion/internal/logging"
 )
 
 const (
 	autostartFilename = "io.github.hkdb.Aerion.desktop"
-	desktopEntryTmpl  = `[Desktop Entry]
+)
+
+// desktopEntryTmpl is the XDG autostart .desktop file content. Name and
+// Comment use the brand name; the filename and Icon keep the Flatpak app ID
+// (renamed separately).
+var desktopEntryTmpl = `[Desktop Entry]
 Type=Application
-Name=Aerion
-Comment=Aerion Email Client
+Name=` + AppName + `
+Comment=` + AppName + ` Email Client
 Exec=%s
 Icon=io.github.hkdb.Aerion
 Terminal=false
 Categories=Network;Email;
 X-GNOME-Autostart-enabled=true
 `
-)
 
 // linuxAutostartManager manages autostart on Linux.
 // Non-Flatpak: XDG autostart .desktop files.
@@ -115,7 +119,7 @@ func (m *linuxAutostartManager) portalRequestBackground(autostart bool) error {
 		"handle_token": dbus.MakeVariant(handleToken),
 		"reason":       dbus.MakeVariant("Start automatically on login and sync email in the background"),
 		"autostart":    dbus.MakeVariant(autostart),
-		"commandline":  dbus.MakeVariant([]string{"aerion"}),
+		"commandline":  dbus.MakeVariant([]string{"daak"}),
 	}
 
 	obj := conn.Object("org.freedesktop.portal.Desktop", "/org/freedesktop/portal/desktop")
@@ -232,7 +236,7 @@ func (m *linuxAutostartManager) autostartDir() (string, error) {
 func (m *linuxAutostartManager) execCommand() string {
 	exe, err := os.Executable()
 	if err != nil {
-		return "aerion"
+		return "daak"
 	}
 	return exe
 }

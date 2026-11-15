@@ -8,9 +8,9 @@ import (
 	"sync"
 	"time"
 
-	coreapi "github.com/hkdb/aerion/internal/core/api/v1"
-	"github.com/hkdb/aerion/internal/database"
-	"github.com/hkdb/aerion/internal/platform"
+	coreapi "github.com/absonsnet/daak/internal/core/api/v1"
+	"github.com/absonsnet/daak/internal/database"
+	"github.com/absonsnet/daak/internal/platform"
 )
 
 // CalendarBridge is the Wails-bindable surface for the Calendar extension.

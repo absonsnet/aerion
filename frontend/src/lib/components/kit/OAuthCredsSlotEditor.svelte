@@ -42,6 +42,7 @@
   import { Label } from '$lib/components/ui/label'
   import * as Select from '$lib/components/ui/select'
   import { toasts } from '$lib/stores/toast'
+  import { APP_NAME } from '$lib/config/brand'
   // @ts-ignore - wailsjs bindings
   import { GetOAuthCredsChoices, SetOAuthCreds, SetOAuthCredsChoice, ClearOAuthCreds } from '$wailsjs/go/app/App'
   // @ts-ignore - wailsjs bindings
@@ -207,7 +208,7 @@
         {:else if statusBadgeKind() === 'custom'}
           <span class="text-xs px-2 py-0.5 rounded bg-primary/15 text-primary">Custom</span>
         {:else if statusBadgeKind() === 'aerion'}
-          <span class="text-xs px-2 py-0.5 rounded bg-muted text-muted-foreground">Aerion</span>
+          <span class="text-xs px-2 py-0.5 rounded bg-muted text-muted-foreground">{APP_NAME}</span>
         {:else}
           <span class="text-xs px-2 py-0.5 rounded bg-destructive/15 text-destructive">Not configured</span>
         {/if}

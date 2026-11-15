@@ -375,6 +375,13 @@
   </provides>
 
   <releases>
+    <release version="0.6.0" date="2026-11-15">
+      <description>
+        <ul>
+          <li>Renamed the app to Daak, with the new app ID net.absons.daak and repository github.com/absonsnet/daak; existing data and settings move to the new location automatically</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.5.2" date="2026-11-14">
       <description>
         <ul>

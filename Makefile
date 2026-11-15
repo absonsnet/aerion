@@ -20,7 +20,7 @@
 export
 
 # Go module path
-MODULE := github.com/hkdb/aerion
+MODULE := github.com/absonsnet/daak
 
 # Build flags for injecting OAuth credentials at compile time.
 #

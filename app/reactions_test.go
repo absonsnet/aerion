@@ -10,10 +10,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hkdb/aerion/internal/account"
-	"github.com/hkdb/aerion/internal/database"
-	"github.com/hkdb/aerion/internal/message"
-	"github.com/hkdb/aerion/internal/reaction"
+	"github.com/absonsnet/daak/internal/account"
+	"github.com/absonsnet/daak/internal/database"
+	"github.com/absonsnet/daak/internal/message"
+	"github.com/absonsnet/daak/internal/reaction"
 )
 
 // --- SendReaction tests ----------------------------------------------------

@@ -1,8 +1,8 @@
 package app
 
 import (
-	"github.com/hkdb/aerion/internal/logging"
-	"github.com/hkdb/aerion/internal/message"
+	"github.com/absonsnet/daak/internal/logging"
+	"github.com/absonsnet/daak/internal/message"
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 

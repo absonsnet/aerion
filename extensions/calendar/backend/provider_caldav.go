@@ -15,8 +15,8 @@ import (
 
 	"github.com/emersion/go-webdav"
 
-	coreapi "github.com/hkdb/aerion/internal/core/api/v1"
-	"github.com/hkdb/aerion/internal/kit/davutil"
+	coreapi "github.com/absonsnet/daak/internal/core/api/v1"
+	"github.com/absonsnet/daak/internal/kit/davutil"
 )
 
 // caldavProvider — Provider impl for SourceTypeCalDAV.

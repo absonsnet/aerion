@@ -8,11 +8,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hkdb/aerion/internal/carddav"
-	"github.com/hkdb/aerion/internal/contact"
-	coreapi "github.com/hkdb/aerion/internal/core/api/v1"
-	"github.com/hkdb/aerion/internal/credentials"
-	"github.com/hkdb/aerion/internal/database"
+	"github.com/absonsnet/daak/internal/carddav"
+	"github.com/absonsnet/daak/internal/contact"
+	coreapi "github.com/absonsnet/daak/internal/core/api/v1"
+	"github.com/absonsnet/daak/internal/credentials"
+	"github.com/absonsnet/daak/internal/database"
 )
 
 // fakeCore is the minimal coreapi.Core fake the contacts tests need: it

@@ -9,9 +9,9 @@ import (
 
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
-	imapPkg "github.com/hkdb/aerion/internal/imap"
-	"github.com/hkdb/aerion/internal/message"
-	"github.com/hkdb/aerion/internal/smime"
+	imapPkg "github.com/absonsnet/daak/internal/imap"
+	"github.com/absonsnet/daak/internal/message"
+	"github.com/absonsnet/daak/internal/smime"
 )
 
 // ProcessedBody holds the parsed body content and attachments for a message

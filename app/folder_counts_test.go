@@ -3,7 +3,7 @@ package app
 import (
 	"testing"
 
-	"github.com/hkdb/aerion/internal/message"
+	"github.com/absonsnet/daak/internal/message"
 )
 
 func TestUnreadIn(t *testing.T) {

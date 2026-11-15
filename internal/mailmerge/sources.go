@@ -10,7 +10,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/hkdb/aerion/internal/contact"
+	"github.com/absonsnet/daak/internal/contact"
 	"github.com/xuri/excelize/v2"
 	"golang.org/x/text/encoding/charmap"
 	"golang.org/x/text/transform"

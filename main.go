@@ -10,11 +10,11 @@ import (
 	"os"
 	"strings"
 
-	"github.com/hkdb/aerion/app"
-	"github.com/hkdb/aerion/internal/appstate"
-	"github.com/hkdb/aerion/internal/logging"
-	"github.com/hkdb/aerion/internal/platform"
-	"github.com/hkdb/aerion/internal/settings"
+	"github.com/absonsnet/daak/app"
+	"github.com/absonsnet/daak/internal/appstate"
+	"github.com/absonsnet/daak/internal/logging"
+	"github.com/absonsnet/daak/internal/platform"
+	"github.com/absonsnet/daak/internal/settings"
 	"github.com/rs/zerolog"
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
@@ -67,7 +67,7 @@ func resolveLogConfig() logging.Config {
 		level = "debug"
 	}
 	if _, err := zerolog.ParseLevel(level); err != nil {
-		fmt.Fprintf(os.Stderr, "aerion: invalid --log-level %q (want fatal, error, warn, info or debug)\n", level)
+		fmt.Fprintf(os.Stderr, "daak: invalid --log-level %q (want fatal, error, warn, info or debug)\n", level)
 		os.Exit(2)
 	}
 
@@ -98,7 +98,7 @@ func main() {
 	}
 	if err := logging.Init(logCfg); err != nil {
 		// A bad --log-file must not block startup; stderr logging still works.
-		fmt.Fprintf(os.Stderr, "aerion: logging init failed: %v\n", err)
+		fmt.Fprintf(os.Stderr, "daak: logging init failed: %v\n", err)
 	}
 
 	// Check for mailto: URL in non-flag arguments
@@ -195,7 +195,7 @@ func runMainMode(mailtoData *app.MailtoData, rawMailtoArg string) {
 
 	// Create application with options
 	err = wails.Run(&options.App{
-		Title:                    "Aerion",
+		Title:                    platform.AppName,
 		Width:                    windowWidth,
 		Height:                   windowHeight,
 		MinWidth:                 360,
@@ -358,7 +358,7 @@ func runViewerMode() {
 	// the detached composer: standard resize/drag, and BeforeClose keeps
 	// the close confirmation path when the OS close button is used.
 	err := wails.Run(&options.App{
-		Title:                    "Aerion - Message",
+		Title:                    platform.AppName + " - Message",
 		Width:                    900,
 		Height:                   650,
 		MinWidth:                 500,

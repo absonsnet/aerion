@@ -35,7 +35,7 @@ import (
 
 	"github.com/google/uuid"
 
-	coreapi "github.com/hkdb/aerion/internal/core/api/v1"
+	coreapi "github.com/absonsnet/daak/internal/core/api/v1"
 )
 
 // PendingOpKind enumerates queueable operations.

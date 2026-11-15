@@ -8,10 +8,10 @@ import (
 	gosync "sync"
 	"time"
 
-	"github.com/hkdb/aerion/internal/certificate"
-	"github.com/hkdb/aerion/internal/folder"
-	"github.com/hkdb/aerion/internal/logging"
-	"github.com/hkdb/aerion/internal/sync"
+	"github.com/absonsnet/daak/internal/certificate"
+	"github.com/absonsnet/daak/internal/folder"
+	"github.com/absonsnet/daak/internal/logging"
+	"github.com/absonsnet/daak/internal/sync"
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 

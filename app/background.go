@@ -6,12 +6,12 @@ import (
 	goSync "sync"
 	"time"
 
-	"github.com/hkdb/aerion/internal/folder"
-	"github.com/hkdb/aerion/internal/imap"
-	"github.com/hkdb/aerion/internal/logging"
-	"github.com/hkdb/aerion/internal/notification"
-	"github.com/hkdb/aerion/internal/platform"
-	"github.com/hkdb/aerion/internal/sync"
+	"github.com/absonsnet/daak/internal/folder"
+	"github.com/absonsnet/daak/internal/imap"
+	"github.com/absonsnet/daak/internal/logging"
+	"github.com/absonsnet/daak/internal/notification"
+	"github.com/absonsnet/daak/internal/platform"
+	"github.com/absonsnet/daak/internal/sync"
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
@@ -635,7 +635,7 @@ func (a *App) sendSystemNotification(info sync.NewMailInfo, subject, fromName, f
 func (a *App) initNotifications(ctx context.Context) {
 	log := logging.WithComponent("app.notify")
 
-	a.notifier = notification.New("Aerion", a.useDirectDBus)
+	a.notifier = notification.New(platform.AppName, a.useDirectDBus)
 
 	// Set click handler. Dispatcher routes based on which NotificationData
 	// fields are populated: ExtensionID set → extension click (raise window

@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/hkdb/aerion/internal/account"
-	"github.com/hkdb/aerion/internal/credentials"
-	"github.com/hkdb/aerion/internal/imap"
-	"github.com/hkdb/aerion/internal/logging"
-	"github.com/hkdb/aerion/internal/oauth2"
-	"github.com/hkdb/aerion/internal/platform"
+	"github.com/absonsnet/daak/internal/account"
+	"github.com/absonsnet/daak/internal/credentials"
+	"github.com/absonsnet/daak/internal/imap"
+	"github.com/absonsnet/daak/internal/logging"
+	"github.com/absonsnet/daak/internal/oauth2"
+	"github.com/absonsnet/daak/internal/platform"
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 

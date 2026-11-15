@@ -1,4 +1,4 @@
-module github.com/hkdb/aerion
+module github.com/absonsnet/daak
 
 go 1.25.0
 

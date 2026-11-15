@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/hkdb/aerion/internal/logging"
-	hostmm "github.com/hkdb/aerion/internal/mailmerge"
+	"github.com/absonsnet/daak/internal/logging"
+	hostmm "github.com/absonsnet/daak/internal/mailmerge"
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 

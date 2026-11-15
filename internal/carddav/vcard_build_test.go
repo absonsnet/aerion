@@ -6,7 +6,7 @@ import (
 
 	"github.com/emersion/go-vcard"
 	"github.com/emersion/go-webdav/carddav"
-	"github.com/hkdb/aerion/internal/contact"
+	"github.com/absonsnet/daak/internal/contact"
 )
 
 func TestBuildVCard_RoundTripPreservesUnknownProperties(t *testing.T) {

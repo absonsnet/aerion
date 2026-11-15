@@ -3,9 +3,9 @@ package mail
 import (
 	"fmt"
 
-	coreapi "github.com/hkdb/aerion/internal/core/api/v1"
-	"github.com/hkdb/aerion/internal/folder"
-	"github.com/hkdb/aerion/internal/message"
+	coreapi "github.com/absonsnet/daak/internal/core/api/v1"
+	"github.com/absonsnet/daak/internal/folder"
+	"github.com/absonsnet/daak/internal/message"
 )
 
 // API implements coreapi.Mail by wrapping Aerion's existing message and folder

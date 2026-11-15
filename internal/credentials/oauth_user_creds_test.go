@@ -4,7 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/hkdb/aerion/internal/database"
+	"github.com/absonsnet/daak/internal/database"
 )
 
 func openTestStore(t *testing.T) *Store {

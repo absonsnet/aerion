@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/hkdb/aerion/internal/contact"
+	"github.com/absonsnet/daak/internal/contact"
 	"github.com/rs/zerolog"
 )
 

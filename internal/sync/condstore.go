@@ -25,9 +25,9 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/absonsnet/daak/internal/message"
 	"github.com/emersion/go-imap/v2"
 	imapclient "github.com/emersion/go-imap/v2/imapclient"
-	"github.com/hkdb/aerion/internal/message"
 )
 
 // shouldUseCondStore returns true when the current sync cycle can use the

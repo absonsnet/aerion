@@ -3,8 +3,8 @@ package backend
 import (
 	"fmt"
 
-	mailmerge "github.com/hkdb/aerion/extensions/mail-merge"
-	coreapi "github.com/hkdb/aerion/internal/core/api/v1"
+	mailmerge "github.com/absonsnet/daak/extensions/mail-merge"
+	coreapi "github.com/absonsnet/daak/internal/core/api/v1"
 )
 
 // Extension is the Mail Merge extension's lifecycle handle. Tiny — just the

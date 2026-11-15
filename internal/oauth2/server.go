@@ -8,7 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hkdb/aerion/internal/logging"
+	"github.com/absonsnet/daak/internal/logging"
+	"github.com/absonsnet/daak/internal/platform"
 	"github.com/rs/zerolog"
 )
 
@@ -186,10 +187,10 @@ func (s *CallbackServer) handleRoot(w http.ResponseWriter, r *http.Request) {
 }
 
 // HTML templates for callback responses
-const successPageHTML = `<!DOCTYPE html>
+var successPageHTML = `<!DOCTYPE html>
 <html>
 <head>
-    <title>Aerion - Authentication Successful</title>
+    <title>` + platform.AppName + ` - Authentication Successful</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -242,15 +243,15 @@ const successPageHTML = `<!DOCTYPE html>
             </svg>
         </div>
         <h1>Authentication Successful</h1>
-        <p>You can close this window and return to Aerion.</p>
+        <p>You can close this window and return to ` + platform.AppName + `.</p>
     </div>
 </body>
 </html>`
 
-const errorPageHTML = `<!DOCTYPE html>
+var errorPageHTML = `<!DOCTYPE html>
 <html>
 <head>
-    <title>Aerion - Authentication Failed</title>
+    <title>` + platform.AppName + ` - Authentication Failed</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -317,7 +318,7 @@ const errorPageHTML = `<!DOCTYPE html>
             </svg>
         </div>
         <h1>Authentication Failed</h1>
-        <p>Please close this window and try again in Aerion.</p>
+        <p>Please close this window and try again in ` + platform.AppName + `.</p>
         <div class="error-details">
             <span class="error-code">%s</span>: %s
         </div>
@@ -325,10 +326,10 @@ const errorPageHTML = `<!DOCTYPE html>
 </body>
 </html>`
 
-const waitingPageHTML = `<!DOCTYPE html>
+var waitingPageHTML = `<!DOCTYPE html>
 <html>
 <head>
-    <title>Aerion - OAuth Callback</title>
+    <title>` + platform.AppName + ` - OAuth Callback</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -345,7 +346,7 @@ const waitingPageHTML = `<!DOCTYPE html>
 </head>
 <body>
     <div class="container">
-        <h1>Aerion OAuth</h1>
+        <h1>` + platform.AppName + ` OAuth</h1>
         <p>Waiting for authentication...</p>
     </div>
 </body>

@@ -1,8 +1,8 @@
 package backend
 
 import (
-	"github.com/hkdb/aerion/internal/contact"
-	coreapi "github.com/hkdb/aerion/internal/core/api/v1"
+	"github.com/absonsnet/daak/internal/contact"
+	coreapi "github.com/absonsnet/daak/internal/core/api/v1"
 )
 
 // fromLocal converts a core contact.Contact into the API-surface Contact.

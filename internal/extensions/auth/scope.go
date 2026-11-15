@@ -1,7 +1,7 @@
 package auth
 
 import (
-	coreapi "github.com/hkdb/aerion/internal/core/api/v1"
+	coreapi "github.com/absonsnet/daak/internal/core/api/v1"
 )
 
 // missingScopes returns the subset of requested scopes that aren't already

@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hkdb/aerion/internal/extensions"
-	hostmm "github.com/hkdb/aerion/internal/mailmerge"
+	"github.com/absonsnet/daak/internal/extensions"
+	hostmm "github.com/absonsnet/daak/internal/mailmerge"
 )
 
 // migrations is the per-extension migration sequence for the Mail Merge

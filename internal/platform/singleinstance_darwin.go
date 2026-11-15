@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hkdb/aerion/internal/logging"
+	"github.com/absonsnet/daak/internal/logging"
 )
 
 // darwinSingleInstanceLock uses a Unix socket for single-instance detection.

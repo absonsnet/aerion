@@ -5,8 +5,8 @@ import (
 	"encoding/base64"
 	"fmt"
 
-	"github.com/hkdb/aerion/internal/database"
-	"github.com/hkdb/aerion/internal/logging"
+	"github.com/absonsnet/daak/internal/database"
+	"github.com/absonsnet/daak/internal/logging"
 )
 
 // AttachmentStore handles attachment metadata persistence

@@ -3,8 +3,8 @@ package backend
 import (
 	"fmt"
 
-	"github.com/hkdb/aerion/extensions/calendar"
-	coreapi "github.com/hkdb/aerion/internal/core/api/v1"
+	"github.com/absonsnet/daak/extensions/calendar"
+	coreapi "github.com/absonsnet/daak/internal/core/api/v1"
 )
 
 // Extension is the Calendar extension's lifecycle handle. Tiny — just the

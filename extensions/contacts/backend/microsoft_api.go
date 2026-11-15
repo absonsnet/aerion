@@ -7,11 +7,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/absonsnet/daak/internal/carddav"
+	"github.com/absonsnet/daak/internal/contact"
+	coreapi "github.com/absonsnet/daak/internal/core/api/v1"
+	"github.com/absonsnet/daak/internal/logging"
 	"github.com/google/uuid"
-	"github.com/hkdb/aerion/internal/carddav"
-	"github.com/hkdb/aerion/internal/contact"
-	coreapi "github.com/hkdb/aerion/internal/core/api/v1"
-	"github.com/hkdb/aerion/internal/logging"
 )
 
 // microsoft_api.go: Phase 2b.3 Track C. Fills the createMicrosoftContact /

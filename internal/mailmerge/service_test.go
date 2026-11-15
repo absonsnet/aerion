@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hkdb/aerion/internal/smtp"
+	"github.com/absonsnet/daak/internal/smtp"
 )
 
 // --- fakes ---------------------------------------------------------------

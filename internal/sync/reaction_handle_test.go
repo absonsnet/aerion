@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hkdb/aerion/internal/database"
-	"github.com/hkdb/aerion/internal/message"
-	"github.com/hkdb/aerion/internal/reaction"
+	"github.com/absonsnet/daak/internal/database"
+	"github.com/absonsnet/daak/internal/message"
+	"github.com/absonsnet/daak/internal/reaction"
 )
 
 // Engine-level reaction handling tests: handleReaction (linked + pending)

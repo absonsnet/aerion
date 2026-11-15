@@ -13,6 +13,7 @@
   // component exists in the kit.
 
   import Icon from '@iconify/svelte'
+  import { APP_NAME } from '$lib/config/brand'
   import OAuthCredsSlotEditor from '$lib/components/kit/OAuthCredsSlotEditor.svelte'
 
   let isExpanded = $state(false)
@@ -39,7 +40,7 @@
         Override the OAuth Client ID and Secret used for adding Google and Microsoft
         email accounts. Most users should leave these on the shipped defaults.
         Use your own credentials if your organization requires it, or to bypass
-        Aerion's quota / verification status.
+        {APP_NAME}'s quota / verification status.
       </p>
       <OAuthCredsSlotEditor
         configID="google-mail"

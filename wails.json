@@ -1,15 +1,15 @@
 {
   "$schema": "https://wails.io/schemas/config.v2.json",
-  "name": "aerion",
-  "outputfilename": "aerion",
+  "name": "daak",
+  "outputfilename": "daak",
   "frontend:install": "npm install",
   "frontend:build": "npm run build",
   "frontend:dev:watcher": "npm run dev",
   "frontend:dev:serverUrl": "auto",
   "info": {
-    "companyName": "Aerion",
-    "productName": "Aerion",
-    "productVersion": "0.5.2",
+    "companyName": "Daak",
+    "productName": "Daak",
+    "productVersion": "0.6.0",
     "copyright": "Copyright 2024-2025",
     "comments": "A modern, cross-platform email client",
     "protocols": [
@@ -20,7 +20,7 @@
     ]
   },
   "author": {
-    "name": "hkdb",
+    "name": "absonsnet",
     "email": "hkdb@3df.io"
   }
 }

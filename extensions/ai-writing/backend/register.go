@@ -3,8 +3,8 @@ package backend
 import (
 	"fmt"
 
-	aiwriting "github.com/hkdb/aerion/extensions/ai-writing"
-	coreapi "github.com/hkdb/aerion/internal/core/api/v1"
+	aiwriting "github.com/absonsnet/daak/extensions/ai-writing"
+	coreapi "github.com/absonsnet/daak/internal/core/api/v1"
 )
 
 // Extension is the AI Writing Assistant extension's lifecycle handle. Tiny — just the

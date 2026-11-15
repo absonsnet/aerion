@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/absonsnet/daak/internal/platform"
 	"github.com/google/uuid"
 )
 
@@ -241,7 +242,7 @@ func buildMixedBody(opts BuildOptions, oneLiner, messageID, inReplyTo string, re
 	writeHeader(&buf, "Date", time.Now().Format(time.RFC1123Z))
 	writeHeader(&buf, "Message-ID", messageID)
 	writeHeader(&buf, "MIME-Version", "1.0")
-	writeHeader(&buf, "User-Agent", "Aerion Email Client")
+	writeHeader(&buf, "User-Agent", platform.AppName+" Email Client")
 	writeHeader(&buf, "In-Reply-To", inReplyTo)
 	writeHeader(&buf, "References", strings.Join(refs, " "))
 	// Outer multipart/mixed: the alternative block first, then the RFC 9078

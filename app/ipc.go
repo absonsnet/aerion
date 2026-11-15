@@ -7,9 +7,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/hkdb/aerion/internal/folder"
-	"github.com/hkdb/aerion/internal/ipc"
-	"github.com/hkdb/aerion/internal/logging"
+	"github.com/absonsnet/daak/internal/folder"
+	"github.com/absonsnet/daak/internal/ipc"
+	"github.com/absonsnet/daak/internal/logging"
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 

@@ -1,7 +1,7 @@
 package app
 
 import (
-	extaiwritingbe "github.com/hkdb/aerion/extensions/ai-writing/backend"
+	extaiwritingbe "github.com/absonsnet/daak/extensions/ai-writing/backend"
 )
 
 // initAIWritingExtension wires the AI Writing extension's Bridge into App

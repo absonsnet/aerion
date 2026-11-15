@@ -4,8 +4,8 @@ import (
 	"errors"
 	"testing"
 
-	aiwriting "github.com/hkdb/aerion/extensions/ai-writing"
-	coreapi "github.com/hkdb/aerion/internal/core/api/v1"
+	aiwriting "github.com/absonsnet/daak/extensions/ai-writing"
+	coreapi "github.com/absonsnet/daak/internal/core/api/v1"
 )
 
 type stubUI struct {

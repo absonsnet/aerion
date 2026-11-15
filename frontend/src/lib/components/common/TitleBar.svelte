@@ -1,6 +1,7 @@
 <script lang="ts">
   import Icon from '@iconify/svelte'
   import { _ } from '$lib/i18n'
+  import { APP_NAME } from '$lib/config/brand'
   import { WindowMinimise, WindowToggleMaximise, Quit } from '../../../../wailsjs/runtime/runtime'
   import { getEffectiveWindowControls, type WindowControlButton } from '$lib/stores/windowControls.svelte'
 
@@ -70,7 +71,7 @@
   <!-- Drag region with app title -->
   <div class="flex-1 flex items-center gap-2 px-3 h-full" style="--wails-draggable: drag">
     <Icon icon="mdi:email-fast-outline" class="w-5 h-5 text-primary" />
-    <span class="text-sm font-medium text-foreground">Aerion</span>
+    <span class="text-sm font-medium text-foreground">{APP_NAME}</span>
   </div>
 {/snippet}
 

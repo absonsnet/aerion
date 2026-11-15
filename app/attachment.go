@@ -8,12 +8,12 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/hkdb/aerion/internal/email"
-	"github.com/hkdb/aerion/internal/logging"
-	"github.com/hkdb/aerion/internal/message"
-	"github.com/hkdb/aerion/internal/pgp"
-	"github.com/hkdb/aerion/internal/platform"
-	"github.com/hkdb/aerion/internal/smime"
+	"github.com/absonsnet/daak/internal/email"
+	"github.com/absonsnet/daak/internal/logging"
+	"github.com/absonsnet/daak/internal/message"
+	"github.com/absonsnet/daak/internal/pgp"
+	"github.com/absonsnet/daak/internal/platform"
+	"github.com/absonsnet/daak/internal/smime"
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 

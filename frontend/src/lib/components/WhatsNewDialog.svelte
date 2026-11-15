@@ -13,6 +13,7 @@
   // @ts-ignore - wailsjs path
   import { OpenURL } from '../../../wailsjs/go/app/App.js'
   import { _ } from '$lib/i18n'
+  import { APP_NAME } from '$lib/config/brand'
   import { dialogGuardOpen, dialogGuardClose } from '$lib/stores/dialogGuard'
 
   interface Props {
@@ -31,7 +32,7 @@
     return () => dialogGuardClose()
   })
 
-  const CHANGELOG_URL = 'https://github.com/hkdb/aerion/blob/main/CHANGELOG.md'
+  const CHANGELOG_URL = 'https://github.com/absonsnet/daak/blob/main/CHANGELOG.md'
 
   // Open external links via the backend OpenURL: on Linux it tries the OpenURI
   // portal first, so links work inside the Flatpak sandbox (where xdg-open —
@@ -59,7 +60,7 @@
       </div>
 
       <div class="space-y-4 max-h-[60vh] overflow-y-auto text-sm">
-        <p>🚀 Welcome to Aerion v0.3.6!</p>
+        <p>🚀 Welcome to {APP_NAME} v0.3.6!</p>
 
         <p>v0.3.6 is mostly a maintenance release. Here are the highlights of the release:</p>
 
@@ -79,7 +80,7 @@
             class="text-primary hover:underline break-all focus:outline-none focus-visible:outline-none focus:ring-0"
             onclick={() => openExternal(CHANGELOG_URL)}
           >
-            https://github.com/hkdb/aerion/blob/main/CHANGELOG.md
+            https://github.com/absonsnet/daak/blob/main/CHANGELOG.md
           </button>
         </p>
       </div>

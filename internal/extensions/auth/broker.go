@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"net/http"
 
-	coreapi "github.com/hkdb/aerion/internal/core/api/v1"
-	"github.com/hkdb/aerion/internal/credentials"
-	"github.com/hkdb/aerion/internal/oauth2"
+	coreapi "github.com/absonsnet/daak/internal/core/api/v1"
+	"github.com/absonsnet/daak/internal/credentials"
+	"github.com/absonsnet/daak/internal/oauth2"
 )
 
 // Broker is the concrete implementation of coreapi.Auth. It mediates between

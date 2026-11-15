@@ -3,8 +3,8 @@ package sync
 import (
 	"bytes"
 	"encoding/json"
+	"github.com/absonsnet/daak/internal/reaction"
 	gomessage "github.com/emersion/go-message"
-	"github.com/hkdb/aerion/internal/reaction"
 	"io"
 	"mime"
 	"strings"

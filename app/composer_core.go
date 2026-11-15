@@ -1,9 +1,9 @@
 package app
 
 import (
-	coreapi "github.com/hkdb/aerion/internal/core/api/v1"
-	"github.com/hkdb/aerion/internal/credentials"
-	extui "github.com/hkdb/aerion/internal/extensions/ui"
+	coreapi "github.com/absonsnet/daak/internal/core/api/v1"
+	"github.com/absonsnet/daak/internal/credentials"
+	extui "github.com/absonsnet/daak/internal/extensions/ui"
 )
 
 // composerCore is the coreapi.Core handed to extensions hosted by the

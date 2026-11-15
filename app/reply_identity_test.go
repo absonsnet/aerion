@@ -3,8 +3,8 @@ package app
 import (
 	"testing"
 
-	"github.com/hkdb/aerion/internal/account"
-	"github.com/hkdb/aerion/internal/message"
+	"github.com/absonsnet/daak/internal/account"
+	"github.com/absonsnet/daak/internal/message"
 )
 
 // TestSelectReplyFromIdentity verifies the reply/forward From selection prefers

@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/absonsnet/daak/internal/folder"
+	"github.com/absonsnet/daak/internal/imap"
+	"github.com/absonsnet/daak/internal/logging"
+	"github.com/absonsnet/daak/internal/message"
+	"github.com/absonsnet/daak/internal/undo"
 	goImap "github.com/emersion/go-imap/v2"
-	"github.com/hkdb/aerion/internal/folder"
-	"github.com/hkdb/aerion/internal/imap"
-	"github.com/hkdb/aerion/internal/logging"
-	"github.com/hkdb/aerion/internal/message"
-	"github.com/hkdb/aerion/internal/undo"
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 

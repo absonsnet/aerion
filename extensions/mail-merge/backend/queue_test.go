@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	hostmm "github.com/hkdb/aerion/internal/mailmerge"
+	hostmm "github.com/absonsnet/daak/internal/mailmerge"
 	"github.com/xuri/excelize/v2"
 )
 

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hkdb/aerion/internal/message"
+	"github.com/absonsnet/daak/internal/message"
 )
 
 // MDNDisposition represents the disposition type for an MDN

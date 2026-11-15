@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/hkdb/aerion/internal/carddav"
-	"github.com/hkdb/aerion/internal/oauth2"
+	"github.com/absonsnet/daak/internal/carddav"
+	"github.com/absonsnet/daak/internal/oauth2"
+	"github.com/absonsnet/daak/internal/platform"
 )
 
 // AuthContextInfo describes a single authenticated identity (email account or
@@ -176,7 +177,7 @@ func (a *App) GetOAuthCredsChoices(configID, extensionID string) (OAuthCredsChoi
 		if mailSlot != configID && mailHasShipped {
 			out.Choices = append(out.Choices, OAuthCredsChoice{
 				ID:    "aerion-mail",
-				Label: "Aerion - Google",
+				Label: platform.AppName + " - Google",
 			})
 		}
 	}
@@ -294,13 +295,13 @@ func providerFromConfigID(configID string) string {
 func shippedLabelForSlot(configID string) string {
 	switch configID {
 	case "google-contacts", "google-calendar":
-		return "Aerion - Google (Testing)"
+		return platform.AppName + " - Google (Testing)"
 	case "google-mail":
-		return "Aerion - Google"
+		return platform.AppName + " - Google"
 	case "microsoft-mail", "microsoft-contacts", "microsoft-calendar":
-		return "Aerion - Microsoft"
+		return platform.AppName + " - Microsoft"
 	}
-	return "Aerion - Default"
+	return platform.AppName + " - Default"
 }
 
 // SetOAuthCreds saves user-supplied OAuth client credentials for the given

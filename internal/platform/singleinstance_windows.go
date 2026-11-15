@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hkdb/aerion/internal/logging"
+	"github.com/absonsnet/daak/internal/logging"
 )
 
 // windowsSingleInstanceLock uses a TCP socket on localhost for single-instance detection.

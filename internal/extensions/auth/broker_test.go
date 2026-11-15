@@ -4,10 +4,10 @@ import (
 	"path/filepath"
 	"testing"
 
-	coreapi "github.com/hkdb/aerion/internal/core/api/v1"
-	"github.com/hkdb/aerion/internal/credentials"
-	"github.com/hkdb/aerion/internal/database"
-	"github.com/hkdb/aerion/internal/oauth2"
+	coreapi "github.com/absonsnet/daak/internal/core/api/v1"
+	"github.com/absonsnet/daak/internal/credentials"
+	"github.com/absonsnet/daak/internal/database"
+	"github.com/absonsnet/daak/internal/oauth2"
 )
 
 // newTestBroker spins up a temp DB + credentials store + OAuth manager for

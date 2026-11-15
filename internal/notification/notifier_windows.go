@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"git.sr.ht/~jackmordaunt/go-toast/v2/wintoast"
-	"github.com/hkdb/aerion/internal/logging"
+	"github.com/absonsnet/daak/internal/logging"
 	"github.com/rs/zerolog"
 )
 

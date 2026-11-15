@@ -12,38 +12,38 @@ import (
 	goSync "sync"
 	"time"
 
-	extaiwritingbe "github.com/hkdb/aerion/extensions/ai-writing/backend"
-	extcalendarbe "github.com/hkdb/aerion/extensions/calendar/backend"
-	extcontactsbe "github.com/hkdb/aerion/extensions/contacts/backend"
-	extmailmergebe "github.com/hkdb/aerion/extensions/mail-merge/backend"
-	"github.com/hkdb/aerion/internal/account"
-	"github.com/hkdb/aerion/internal/appstate"
-	"github.com/hkdb/aerion/internal/carddav"
-	"github.com/hkdb/aerion/internal/certificate"
-	"github.com/hkdb/aerion/internal/contact"
-	coreapi "github.com/hkdb/aerion/internal/core/api/v1"
-	"github.com/hkdb/aerion/internal/credentials"
-	"github.com/hkdb/aerion/internal/database"
-	"github.com/hkdb/aerion/internal/draft"
-	extauth "github.com/hkdb/aerion/internal/extensions/auth"
-	extcompose "github.com/hkdb/aerion/internal/extensions/compose"
-	extmail "github.com/hkdb/aerion/internal/extensions/mail"
-	extui "github.com/hkdb/aerion/internal/extensions/ui"
-	"github.com/hkdb/aerion/internal/folder"
-	"github.com/hkdb/aerion/internal/imap"
-	"github.com/hkdb/aerion/internal/ipc"
-	"github.com/hkdb/aerion/internal/kit/davutil"
-	"github.com/hkdb/aerion/internal/logging"
-	"github.com/hkdb/aerion/internal/message"
-	"github.com/hkdb/aerion/internal/notification"
-	"github.com/hkdb/aerion/internal/oauth2"
-	"github.com/hkdb/aerion/internal/pgp"
-	"github.com/hkdb/aerion/internal/platform"
-	"github.com/hkdb/aerion/internal/reaction"
-	"github.com/hkdb/aerion/internal/settings"
-	"github.com/hkdb/aerion/internal/smime"
-	"github.com/hkdb/aerion/internal/sync"
-	"github.com/hkdb/aerion/internal/undo"
+	extaiwritingbe "github.com/absonsnet/daak/extensions/ai-writing/backend"
+	extcalendarbe "github.com/absonsnet/daak/extensions/calendar/backend"
+	extcontactsbe "github.com/absonsnet/daak/extensions/contacts/backend"
+	extmailmergebe "github.com/absonsnet/daak/extensions/mail-merge/backend"
+	"github.com/absonsnet/daak/internal/account"
+	"github.com/absonsnet/daak/internal/appstate"
+	"github.com/absonsnet/daak/internal/carddav"
+	"github.com/absonsnet/daak/internal/certificate"
+	"github.com/absonsnet/daak/internal/contact"
+	coreapi "github.com/absonsnet/daak/internal/core/api/v1"
+	"github.com/absonsnet/daak/internal/credentials"
+	"github.com/absonsnet/daak/internal/database"
+	"github.com/absonsnet/daak/internal/draft"
+	extauth "github.com/absonsnet/daak/internal/extensions/auth"
+	extcompose "github.com/absonsnet/daak/internal/extensions/compose"
+	extmail "github.com/absonsnet/daak/internal/extensions/mail"
+	extui "github.com/absonsnet/daak/internal/extensions/ui"
+	"github.com/absonsnet/daak/internal/folder"
+	"github.com/absonsnet/daak/internal/imap"
+	"github.com/absonsnet/daak/internal/ipc"
+	"github.com/absonsnet/daak/internal/kit/davutil"
+	"github.com/absonsnet/daak/internal/logging"
+	"github.com/absonsnet/daak/internal/message"
+	"github.com/absonsnet/daak/internal/notification"
+	"github.com/absonsnet/daak/internal/oauth2"
+	"github.com/absonsnet/daak/internal/pgp"
+	"github.com/absonsnet/daak/internal/platform"
+	"github.com/absonsnet/daak/internal/reaction"
+	"github.com/absonsnet/daak/internal/settings"
+	"github.com/absonsnet/daak/internal/smime"
+	"github.com/absonsnet/daak/internal/sync"
+	"github.com/absonsnet/daak/internal/undo"
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
@@ -398,14 +398,14 @@ type StartupDialogInfo struct {
 // Other backends show the URL as selectable plain text and use the
 // ActionURL field to drive an "Open Docs" button.
 func StartupDialogInfoFor(err error) StartupDialogInfo {
-	const docsRollbackURL = "https://github.com/hkdb/aerion/blob/main/docs/SQL_ROLLBACK.md"
+	const docsRollbackURL = "https://github.com/absonsnet/daak/blob/main/docs/SQL_ROLLBACK.md"
 
 	var schemaTooNew *database.ErrSchemaTooNew
 	if errors.As(err, &schemaTooNew) {
 		text := fmt.Sprintf(
-			"Aerion cannot open your database because its schema (version %d) is newer "+
-				"than this build of Aerion supports (max version %d).\n\n"+
-				"This usually means you downgraded Aerion. To recover, either reinstall "+
+			platform.AppName+" cannot open your database because its schema (version %d) is newer "+
+				"than this build of "+platform.AppName+" supports (max version %d).\n\n"+
+				"This usually means you downgraded "+platform.AppName+". To recover, either reinstall "+
 				"the newer version, or follow the rollback instructions to bring your "+
 				"database back to version %d:\n\n"+
 				"%s",
@@ -413,15 +413,15 @@ func StartupDialogInfoFor(err error) StartupDialogInfo {
 			docsRollbackURL,
 		)
 		return StartupDialogInfo{
-			Title:       "Aerion could not start",
+			Title:       platform.AppName + " could not start",
 			Text:        text,
 			ActionLabel: "Open Docs",
 			ActionURL:   docsRollbackURL,
 		}
 	}
 	return StartupDialogInfo{
-		Title: "Aerion could not start",
-		Text:  fmt.Sprintf("Aerion could not start.\n\nDetails: %v", err),
+		Title: platform.AppName + " could not start",
+		Text:  fmt.Sprintf(platform.AppName+" could not start.\n\nDetails: %v", err),
 	}
 }
 
@@ -880,7 +880,7 @@ func (a *App) Startup(ctx context.Context) {
 	// Initialize autostart manager
 	a.autostartMgr = platform.NewAutostartManager()
 
-	log.Info().Msg("Aerion started successfully")
+	log.Info().Msg(platform.AppName + " started successfully")
 }
 
 // IsReady reports whether Startup has fully completed. The frontend calls
@@ -1105,7 +1105,7 @@ func (a *App) Shutdown(ctx context.Context) {
 		log.Info().Msg("Database closed")
 	}
 
-	log.Info().Msg("Aerion shutdown complete")
+	log.Info().Msg(platform.AppName + " shutdown complete")
 }
 
 // updateDBConnectionPool scales the database connection pool based on account count.

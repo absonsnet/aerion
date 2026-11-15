@@ -10,21 +10,22 @@ import (
 	"strings"
 	"time"
 
+	"github.com/absonsnet/daak/internal/account"
+	"github.com/absonsnet/daak/internal/certificate"
+	"github.com/absonsnet/daak/internal/contact"
+	"github.com/absonsnet/daak/internal/credentials"
+	"github.com/absonsnet/daak/internal/draft"
+	"github.com/absonsnet/daak/internal/email"
+	"github.com/absonsnet/daak/internal/folder"
+	"github.com/absonsnet/daak/internal/imap"
+	"github.com/absonsnet/daak/internal/logging"
+	"github.com/absonsnet/daak/internal/message"
+	"github.com/absonsnet/daak/internal/oauth2"
+	"github.com/absonsnet/daak/internal/pgp"
+	"github.com/absonsnet/daak/internal/platform"
+	"github.com/absonsnet/daak/internal/smime"
+	"github.com/absonsnet/daak/internal/smtp"
 	goImap "github.com/emersion/go-imap/v2"
-	"github.com/hkdb/aerion/internal/account"
-	"github.com/hkdb/aerion/internal/certificate"
-	"github.com/hkdb/aerion/internal/contact"
-	"github.com/hkdb/aerion/internal/credentials"
-	"github.com/hkdb/aerion/internal/draft"
-	"github.com/hkdb/aerion/internal/email"
-	"github.com/hkdb/aerion/internal/folder"
-	"github.com/hkdb/aerion/internal/imap"
-	"github.com/hkdb/aerion/internal/logging"
-	"github.com/hkdb/aerion/internal/message"
-	"github.com/hkdb/aerion/internal/oauth2"
-	"github.com/hkdb/aerion/internal/pgp"
-	"github.com/hkdb/aerion/internal/smime"
-	"github.com/hkdb/aerion/internal/smtp"
 	"github.com/rs/zerolog"
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
@@ -164,9 +165,9 @@ func (ops *composeOps) getIMAPCredentials(ctx context.Context, accountID string)
 	config.TLSConfig = certificate.BuildTLSConfig(acc.IMAPHost, ops.certStore)
 	// Identify only to servers that have demanded it (learned flag, #457).
 	config.SendID = acc.IMAPRequireID
-	config.ClientName = "Aerion"
+	config.ClientName = platform.AppName
 	config.ClientVersion = Version
-	config.ClientVendor = "github.com/hkdb/aerion"
+	config.ClientVendor = "github.com/absonsnet/daak"
 
 	switch acc.AuthType {
 	case account.AuthOAuth2:

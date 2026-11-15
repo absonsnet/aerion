@@ -6,7 +6,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/hkdb/aerion/internal/logging"
+	"github.com/absonsnet/daak/internal/logging"
 )
 
 // DarwinThemeMonitor is a stub for macOS (frontend uses matchMedia fallback)

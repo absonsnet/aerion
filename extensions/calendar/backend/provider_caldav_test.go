@@ -19,7 +19,7 @@ import (
 	"strings"
 	"testing"
 
-	coreapi "github.com/hkdb/aerion/internal/core/api/v1"
+	coreapi "github.com/absonsnet/daak/internal/core/api/v1"
 )
 
 // fakeSecrets satisfies coreapi.Secrets with a static password. Only Get is

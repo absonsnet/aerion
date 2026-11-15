@@ -3,8 +3,8 @@ package app
 import (
 	"context"
 
-	"github.com/hkdb/aerion/internal/logging"
-	"github.com/hkdb/aerion/internal/platform"
+	"github.com/absonsnet/daak/internal/logging"
+	"github.com/absonsnet/daak/internal/platform"
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 

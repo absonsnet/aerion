@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hkdb/aerion/internal/logging"
-	"github.com/hkdb/aerion/internal/reaction"
-	"github.com/hkdb/aerion/internal/smtp"
+	"github.com/absonsnet/daak/internal/logging"
+	"github.com/absonsnet/daak/internal/reaction"
+	"github.com/absonsnet/daak/internal/smtp"
 )
 
 // ============================================================================

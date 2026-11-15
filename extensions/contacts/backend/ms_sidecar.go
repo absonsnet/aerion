@@ -3,7 +3,7 @@ package backend
 import (
 	"strings"
 
-	"github.com/hkdb/aerion/internal/contact"
+	"github.com/absonsnet/daak/internal/contact"
 )
 
 // sidecarFromRecord extracts the email-type map + full URL list from a

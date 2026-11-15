@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/hkdb/aerion/internal/extensions"
+	"github.com/absonsnet/daak/internal/extensions"
 )
 
 // migrations is the per-extension migration sequence for the AI Writing

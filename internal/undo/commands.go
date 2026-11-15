@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	imapPkg "github.com/absonsnet/daak/internal/imap"
 	"github.com/emersion/go-imap/v2"
-	imapPkg "github.com/hkdb/aerion/internal/imap"
 )
 
 // UndoContext provides dependencies for undo operations
