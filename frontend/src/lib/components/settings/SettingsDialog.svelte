@@ -9,6 +9,7 @@
   import { addToast } from '$lib/stores/toast'
   import { setMessageListDensity as updateDensityStore, setThemeMode as updateThemeStore, setShowTitleBar as updateShowTitleBarStore, setRunBackground as updateRunBackgroundStore, setStartHidden as updateStartHiddenStore, setAutostart as updateAutostartStore, setLanguage as updateLanguageStore, setComposerMode as updateComposerModeStore, setMailtoMode as updateMailtoModeStore, setComposerFormat as updateComposerFormatStore, setNativeTitleBar as updateNativeTitleBarStore, setAlwaysLoadImages as updateAlwaysLoadImagesStore, setDarkMailContent as updateDarkMailContentStore, setDarkComposerBody as updateDarkComposerBodyStore, setAccentBarUnread as updateAccentBarUnreadStore, setAccentUnreadStyle as updateAccentUnreadStyleStore, setShowMessageListCircles as updateShowMessageListCirclesStore, setShowMessageListProfilePics as updateShowMessageListProfilePicsStore, setAlwaysShowMessageCheckbox as updateAlwaysShowMessageCheckboxStore, setShowViewerCircles as updateShowViewerCirclesStore, setShowMessagePreviewPane as updateShowMessagePreviewPaneStore, setMessageOpenMode as updateMessageOpenModeStore, setSpellcheckEnabled as updateSpellcheckEnabledStore, setSpellcheckLanguages as updateSpellcheckLanguagesStore, setWindowControlsSide as updateWindowControlsSideStore, setCodeChipClickMode as updateCodeChipClickModeStore, setAttentionEnabled as updateAttentionEnabledStore, setAttentionTypeEnabled as updateAttentionTypeEnabledStore, setOtpClipboardClearSeconds as updateOtpClipboardClearSecondsStore, type MessageListDensity, type ThemeMode, type ComposerMode, type ComposerFormat, type WindowControlsSide, type MessageOpenMode } from '$lib/stores/settings.svelte'
   import { syncSpellcheckLanguagesIfActive, defaultSpellcheckLanguages } from '$lib/spellcheck/settings'
+  import { getHideUnifiedSingleAccount, setHideUnifiedSingleAccount } from '$lib/stores/sidebarSettings.svelte'
   import { applyThemeFromMode } from '$lib/stores/theme.svelte'
   import { dialogGuardOpen, dialogGuardClose } from '$lib/stores/dialogGuard'
   import { _ } from '$lib/i18n'
@@ -63,6 +64,7 @@
   let showViewerCircles = $state<boolean>(true)
   let showMessagePreviewPane = $state<boolean>(true)
   let messageOpenMode = $state<string>('tab')
+  let hideUnifiedSingleAccount = $state<boolean>(false)
   let codeChipClickMode = $state<string>('copy_mark_read_delete')
   let otpClipboardClearSeconds = $state<number>(60)
   let attentionEnabled = $state<boolean>(true)
@@ -180,6 +182,7 @@
       showViewerCircles = viewerCircles ?? true
       showMessagePreviewPane = previewPane ?? true
       messageOpenMode = openMode || 'tab'
+      hideUnifiedSingleAccount = getHideUnifiedSingleAccount()
       codeChipClickMode = chipMode || 'copy_mark_read_delete'
       otpClipboardClearSeconds = otpClearSecs ?? 60
       attentionEnabled = attnEnabled ?? true
@@ -231,6 +234,7 @@
       await SetShowViewerCircles(showViewerCircles)
       await SetShowMessagePreviewPane(showMessagePreviewPane)
       await SetMessageOpenMode(messageOpenMode)
+      setHideUnifiedSingleAccount(hideUnifiedSingleAccount)
       await SetCodeChipClickMode(codeChipClickMode)
       await SetOtpClipboardClearSeconds(otpClipboardClearSeconds)
       await SetAttentionEnabled(attentionEnabled)
@@ -404,6 +408,7 @@
               bind:showViewerCircles
               bind:showMessagePreviewPane
               bind:messageOpenMode
+              bind:hideUnifiedSingleAccount
               bind:darkMailContent
               bind:darkComposerBody
             />

@@ -78,6 +78,11 @@
   let selectedFolderType = $state<string | null>(null)
   // Track where the selection came from: 'unified' for unified section, 'account' for account tree
   let selectionSource = $state<'unified' | 'account' | null>(null)
+  // True once onMount has restored the persisted folder selection (or
+  // found none). Gates the first-run default below.
+  let uiStateRestored = $state(false)
+  // First-run default selection runs at most once per launch.
+  let didDefaultFolderSelect = false
 
   // Selected conversation state
   let selectedThreadId = $state<string | null>(null)
@@ -664,6 +669,7 @@
         }
       }
     }
+    uiStateRestored = true
 
     // Listen for system theme changes from backend (XDG Settings Portal)
     EventsOn('theme:system-preference', (newTheme: string) => {
@@ -809,6 +815,18 @@
       selectedConversationFolderId: null,
     })
   }
+
+  // First run after the upgrade (or fresh install): no persisted folder
+  // selection, so open the Unified Inbox — the sidebar's first-run
+  // default. Runs once, only after the restore above has run and the
+  // accounts have loaded. An existing valid selection is never overridden.
+  $effect(() => {
+    if (didDefaultFolderSelect || !uiStateRestored) return
+    if (accountStore.loading || accountStore.accounts.length === 0) return
+    if (selectedAccountId !== null) return
+    didDefaultFolderSelect = true
+    handleUnifiedInboxSelect()
+  })
 
   // Handle conversation selection from list — the single dispatch point
   // for opening a message (Phase 5 reuses it for dialog/popup). In tab
@@ -1455,10 +1473,14 @@
       // single residual case.
       switch (e.key) {
         case 'Enter':
-          // Toggle expand/collapse for focused account header or selected folder with children
+          // Toggle expand/collapse for focused account header, focused
+          // unified group, or selected folder with children
           if (sidebarRef?.hasFocusedAccount()) {
             e.preventDefault()
             sidebarRef.toggleFocusedAccount()
+          } else if (sidebarRef?.hasFocusedUnifiedGroup()) {
+            e.preventDefault()
+            sidebarRef.toggleFocusedUnifiedGroup()
           } else if (sidebarRef?.hasSelectedFolderWithChildren()) {
             e.preventDefault()
             sidebarRef.toggleSelectedFolderCollapse()
@@ -1549,6 +1571,24 @@
       return
     }
 
+    // ArrowRight / ArrowLeft in the sidebar — expand / collapse the focused
+    // row (account header, unified folder-type group, or selected folder
+    // with children). Plain arrows only; Alt+arrows cycle panes.
+    if (e.key === 'ArrowRight' && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
+      if (isMailActive() && focusedPane === 'sidebar') {
+        e.preventDefault()
+        sidebarRef?.expandFocusedRow()
+        return
+      }
+    }
+    if (e.key === 'ArrowLeft' && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
+      if (isMailActive() && focusedPane === 'sidebar') {
+        e.preventDefault()
+        sidebarRef?.collapseFocusedRow()
+        return
+      }
+    }
+
     // Enter and Space — domain-specific button-vs-pane disambiguation logic
     // stays as inline switch (kit components handle their own Enter/Space
     // locally so they don't depend on this dispatch).
@@ -1570,7 +1610,10 @@
         }
         if (focusedPane === 'sidebar' && sidebarRef?.hasFocusedAccount()) {
           e.preventDefault()
-          sidebarRef.toggleFocusedAccount()
+          sidebarRef.openFocusedAccountInbox()
+        } else if (focusedPane === 'sidebar' && sidebarRef?.hasFocusedUnifiedGroup()) {
+          e.preventDefault()
+          sidebarRef.toggleFocusedUnifiedGroup()
         } else if (focusedPane === 'sidebar' && sidebarRef?.hasSelectedFolderWithChildren()) {
           e.preventDefault()
           sidebarRef.toggleSelectedFolderCollapse()
@@ -1594,6 +1637,8 @@
         e.preventDefault()
         if (focusedPane === 'sidebar' && sidebarRef?.hasFocusedAccount()) {
           sidebarRef.toggleFocusedAccount()
+        } else if (focusedPane === 'sidebar' && sidebarRef?.hasFocusedUnifiedGroup()) {
+          sidebarRef.toggleFocusedUnifiedGroup()
         } else if (focusedPane === 'sidebar' && sidebarRef?.hasSelectedFolderWithChildren()) {
           sidebarRef.toggleSelectedFolderCollapse()
         } else if (focusedPane === 'messageList') {

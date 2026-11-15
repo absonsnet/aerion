@@ -38,6 +38,7 @@
     darkComposerBody: boolean
     showMessagePreviewPane: boolean
     messageOpenMode: string
+    hideUnifiedSingleAccount: boolean
   }
 
   let {
@@ -70,6 +71,7 @@
     darkComposerBody = $bindable(),
     showMessagePreviewPane = $bindable(),
     messageOpenMode = $bindable(),
+    hideUnifiedSingleAccount = $bindable(),
   }: Props = $props()
 
   // Message list density options
@@ -373,10 +375,25 @@
       </div>
     </div>
 
+    <!-- Hide the Unified sidebar section with a single account -->
+    <div class="space-y-2">
+      <div class="flex items-center justify-between">
+        <div>
+          <Label for="hide-unified-single-account">{$_('settingsGeneral.hideUnifiedSingleAccount')}</Label>
+          <p class="text-xs text-muted-foreground">
+            {$_('settingsGeneral.hideUnifiedSingleAccountHelp')}
+          </p>
+        </div>
+        <Switch
+          id="hide-unified-single-account"
+          bind:checked={hideUnifiedSingleAccount}
+        />
+      </div>
+    </div>
+
     <!-- Message open mode — how a message opens when the preview pane is off -->
     <div class="space-y-2">
-      <Label>{$_('settingsGeneral.messageOpenMode')}</Label>
-      <Select.Root value={messageOpenMode} onValueChange={handleMessageOpenModeChange}>
+      <Label>{$_('settingsGeneral.messageOpenMode')}</Label>      <Select.Root value={messageOpenMode} onValueChange={handleMessageOpenModeChange}>
         <Select.Trigger>
           <Select.Value>
             {getMessageOpenModeLabel(messageOpenMode)}
