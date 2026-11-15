@@ -21,11 +21,11 @@
   //   goes through SetOAuthCredsChoice. Possible IDs today:
   //     - "custom"          — user-pasted client_id/secret. Selecting reveals
   //                           the edit form.
-  //     - "aerion-shipped"  — the slot's own shipped client (compiled in via
+  //     - "daak-shipped"  — the slot's own shipped client (compiled in via
   //                           the extension's .env / Makefile ldflags). Labeled
   //                           by the backend per slot ("Daak - Google",
   //                           "Daak - Microsoft", "Daak testing", etc.).
-  //     - "aerion-mail"     — reuse the core mail OAuth slot for scopes the
+  //     - "daak-mail"     — reuse the core mail OAuth slot for scopes the
   //                           extension manifest declares as core-routable
   //                           (first_party_uses_core_for_scopes).
   //
@@ -284,7 +284,7 @@
       </div>
     </div>
   {:else if choices?.hasUserOverride}
-    <!-- Mode is aerion-shipped or aerion-mail, but the user has Custom
+    <!-- Mode is daak-shipped or daak-mail, but the user has Custom
          credentials saved underneath. Surface that explicitly so the
          user knows their data wasn't wiped by the switch and can route
          back to it cheaply. -->

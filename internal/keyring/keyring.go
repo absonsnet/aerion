@@ -7,7 +7,7 @@ import (
 	gokeyring "github.com/zalando/go-keyring"
 )
 
-const serviceName = "aerion"
+const serviceName = "daak"
 
 // Keyring provides secure credential storage
 type Keyring struct{}
@@ -19,7 +19,7 @@ func New() *Keyring {
 
 // SetPassword stores a password for an account
 func (k *Keyring) SetPassword(accountID, password string) error {
-	err := gokeyring.Set(serviceName, accountID, password)
+	err := keyringSet(accountID, password)
 	if err != nil {
 		return fmt.Errorf("failed to store password: %w", err)
 	}
@@ -28,7 +28,7 @@ func (k *Keyring) SetPassword(accountID, password string) error {
 
 // GetPassword retrieves a password for an account
 func (k *Keyring) GetPassword(accountID string) (string, error) {
-	password, err := gokeyring.Get(serviceName, accountID)
+	password, err := keyringGet(accountID)
 	if err == gokeyring.ErrNotFound {
 		return "", ErrCredentialNotFound
 	}
@@ -40,7 +40,7 @@ func (k *Keyring) GetPassword(accountID string) (string, error) {
 
 // DeletePassword removes a password for an account
 func (k *Keyring) DeletePassword(accountID string) error {
-	err := gokeyring.Delete(serviceName, accountID)
+	err := keyringDelete(accountID)
 	if err == gokeyring.ErrNotFound {
 		return nil // Already deleted, not an error
 	}
@@ -53,11 +53,11 @@ func (k *Keyring) DeletePassword(accountID string) error {
 // SetOAuthTokens stores OAuth2 tokens for an account
 func (k *Keyring) SetOAuthTokens(accountID, accessToken, refreshToken string) error {
 	// Store access token
-	if err := gokeyring.Set(serviceName, accountID+":access_token", accessToken); err != nil {
+	if err := keyringSet(accountID+":access_token", accessToken); err != nil {
 		return fmt.Errorf("failed to store access token: %w", err)
 	}
 	// Store refresh token
-	if err := gokeyring.Set(serviceName, accountID+":refresh_token", refreshToken); err != nil {
+	if err := keyringSet(accountID+":refresh_token", refreshToken); err != nil {
 		return fmt.Errorf("failed to store refresh token: %w", err)
 	}
 	return nil
@@ -65,7 +65,7 @@ func (k *Keyring) SetOAuthTokens(accountID, accessToken, refreshToken string) er
 
 // GetOAuthTokens retrieves OAuth2 tokens for an account
 func (k *Keyring) GetOAuthTokens(accountID string) (accessToken, refreshToken string, err error) {
-	accessToken, err = gokeyring.Get(serviceName, accountID+":access_token")
+	accessToken, err = keyringGet(accountID+":access_token")
 	if err == gokeyring.ErrNotFound {
 		return "", "", ErrCredentialNotFound
 	}
@@ -73,7 +73,7 @@ func (k *Keyring) GetOAuthTokens(accountID string) (accessToken, refreshToken st
 		return "", "", fmt.Errorf("failed to retrieve access token: %w", err)
 	}
 
-	refreshToken, err = gokeyring.Get(serviceName, accountID+":refresh_token")
+	refreshToken, err = keyringGet(accountID+":refresh_token")
 	if err == gokeyring.ErrNotFound {
 		return "", "", ErrCredentialNotFound
 	}
@@ -86,8 +86,8 @@ func (k *Keyring) GetOAuthTokens(accountID string) (accessToken, refreshToken st
 
 // DeleteOAuthTokens removes OAuth2 tokens for an account
 func (k *Keyring) DeleteOAuthTokens(accountID string) error {
-	_ = gokeyring.Delete(serviceName, accountID+":access_token")
-	_ = gokeyring.Delete(serviceName, accountID+":refresh_token")
+	_ = keyringDelete(accountID+":access_token")
+	_ = keyringDelete(accountID+":refresh_token")
 	return nil
 }
 

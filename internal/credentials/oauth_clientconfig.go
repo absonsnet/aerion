@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"time"
-
-	gokeyring "github.com/zalando/go-keyring"
 )
 
 // =============================================================================
@@ -132,8 +130,8 @@ func (s *Store) GetOAuthTokensForClientConfig(accountID, clientConfigID string) 
 // account (e.g., deleting Calendar tokens leaves Mail tokens intact).
 func (s *Store) DeleteOAuthTokensForClientConfig(accountID, clientConfigID string) error {
 	if s.keyringEnabled {
-		_ = gokeyring.Delete(serviceName, accountID+":"+clientConfigID+":access_token")
-		_ = gokeyring.Delete(serviceName, accountID+":"+clientConfigID+":refresh_token")
+		_ = keyringDelete(accountID+":"+clientConfigID+":access_token")
+		_ = keyringDelete(accountID+":"+clientConfigID+":refresh_token")
 	}
 
 	_, err := s.db.Exec(
@@ -228,7 +226,7 @@ func (s *Store) setOAuthAccessTokenForClientConfig(accountID, clientConfigID, to
 		return nil
 	}
 	if s.keyringEnabled {
-		err := gokeyring.Set(serviceName, accountID+":"+clientConfigID+":access_token", token)
+		err := keyringSet(accountID+":"+clientConfigID+":access_token", token)
 		if err == nil {
 			return nil
 		}
@@ -249,7 +247,7 @@ func (s *Store) setOAuthAccessTokenForClientConfig(accountID, clientConfigID, to
 func (s *Store) getOAuthAccessTokenForClientConfig(accountID, clientConfigID string) (string, error) {
 	// New per-(account, client_config) keyring entry — always preferred.
 	if s.keyringEnabled {
-		token, err := gokeyring.Get(serviceName, accountID+":"+clientConfigID+":access_token")
+		token, err := keyringGet(accountID+":"+clientConfigID+":access_token")
 		if err == nil {
 			return token, nil
 		}
@@ -268,7 +266,7 @@ func (s *Store) setOAuthRefreshTokenForClientConfig(accountID, clientConfigID, t
 		return nil
 	}
 	if s.keyringEnabled {
-		err := gokeyring.Set(serviceName, accountID+":"+clientConfigID+":refresh_token", token)
+		err := keyringSet(accountID+":"+clientConfigID+":refresh_token", token)
 		if err == nil {
 			return nil
 		}
@@ -282,7 +280,7 @@ func (s *Store) setOAuthRefreshTokenForClientConfig(accountID, clientConfigID, t
 
 func (s *Store) getOAuthRefreshTokenForClientConfig(accountID, clientConfigID string) (string, error) {
 	if s.keyringEnabled {
-		token, err := gokeyring.Get(serviceName, accountID+":"+clientConfigID+":refresh_token")
+		token, err := keyringGet(accountID+":"+clientConfigID+":refresh_token")
 		if err == nil {
 			return token, nil
 		}

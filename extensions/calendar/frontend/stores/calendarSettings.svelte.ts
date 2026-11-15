@@ -22,9 +22,45 @@ import { calendarSources } from '$extensions/calendar/frontend/stores/calendarSo
 // @ts-ignore - wailsjs bindings
 import { Calendar_SetDisplayTimezone } from '$wailsjs/go/app/App.js'
 
-const STORAGE_KEY_TZ        = 'aerion:calendar:displayTimezone'
-const STORAGE_KEY_GLOBAL    = 'aerion:calendar:globalDefaultCalendarId'
-const STORAGE_KEY_PROVIDER  = 'aerion:calendar:providerDefaults'
+const STORAGE_KEY_TZ        = 'daak:calendar:displayTimezone'
+const STORAGE_KEY_GLOBAL    = 'daak:calendar:globalDefaultCalendarId'
+const STORAGE_KEY_PROVIDER  = 'daak:calendar:providerDefaults'
+
+// TODO: remove these legacy keys in a later version, once installs that
+// predate the Daak rename have had a chance to upgrade. They exist only
+// so migrateLegacyStorageKeys() can copy pre-rename settings to the new
+// keys on first run.
+const LEGACY_STORAGE_KEY_TZ       = 'aerion:calendar:displayTimezone'
+const LEGACY_STORAGE_KEY_GLOBAL   = 'aerion:calendar:globalDefaultCalendarId'
+const LEGACY_STORAGE_KEY_PROVIDER = 'aerion:calendar:providerDefaults'
+
+// One-time migration: copy any value stored under a legacy key to the new
+// key (only when the new key has no value yet), then drop the legacy key.
+// Runs once at module init, before the reads below.
+function migrateLegacyStorageKeys(): void {
+  const pairs: Array<[string, string]> = [
+    [LEGACY_STORAGE_KEY_TZ, STORAGE_KEY_TZ],
+    [LEGACY_STORAGE_KEY_GLOBAL, STORAGE_KEY_GLOBAL],
+    [LEGACY_STORAGE_KEY_PROVIDER, STORAGE_KEY_PROVIDER],
+  ]
+  for (const [legacyKey, newKey] of pairs) {
+    try {
+      if (window.localStorage.getItem(newKey) !== null) {
+        window.localStorage.removeItem(legacyKey)
+        continue
+      }
+      const value = window.localStorage.getItem(legacyKey)
+      if (value !== null) {
+        window.localStorage.setItem(newKey, value)
+        window.localStorage.removeItem(legacyKey)
+      }
+    } catch (err) {
+      logger.warn(`calendarSettings: legacy key migration failed: ${err}`)
+    }
+  }
+}
+
+migrateLegacyStorageKeys()
 
 let displayTimezone = $state<string>('')
 let globalDefault = $state<string>('')

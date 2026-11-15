@@ -28,8 +28,8 @@ var assets embed.FS
 // Command-line flags
 var (
 	debugMode   = flag.Bool("debug", false, "Enable debug logging (same as --log-level debug)")
-	logLevel    = flag.String("log-level", "", "Log level: fatal, error, warn, info, debug (default fatal; env AERION_LOG_LEVEL)")
-	logFile     = flag.String("log-file", "", "Also write logs to this file, 10 MB rollover to <file>.1 (env AERION_LOG_FILE)")
+	logLevel    = flag.String("log-level", "", "Log level: fatal, error, warn, info, debug (default fatal; env DAAK_LOG_LEVEL)")
+	logFile     = flag.String("log-file", "", "Also write logs to this file, 10 MB rollover to <file>.1 (env DAAK_LOG_FILE)")
 	composeMode = flag.Bool("compose", false, "Run in composer mode (detached window)")
 	viewMessage = flag.Bool("view-message", false, "Run in message viewer mode (detached popup window)")
 	accountID   = flag.String("account", "", "Account ID for composer")
@@ -45,20 +45,20 @@ var (
 )
 
 // DebugMode returns whether debug logging is enabled
-// Can be enabled via --debug flag or AERION_DEBUG=1 environment variable
+// Can be enabled via --debug flag or DAAK_DEBUG=1 environment variable
 func DebugMode() bool {
-	return *debugMode || os.Getenv("AERION_DEBUG") == "1"
+	return *debugMode || os.Getenv("DAAK_DEBUG") == "1"
 }
 
 // resolveLogConfig turns the logging flags/env vars into a logging.Config.
-// Precedence: --debug / AERION_DEBUG=1 force debug; otherwise --log-level,
-// then AERION_LOG_LEVEL, then fatal. File: --log-file, then AERION_LOG_FILE.
+// Precedence: --debug / DAAK_DEBUG=1 force debug; otherwise --log-level,
+// then DAAK_LOG_LEVEL, then fatal. File: --log-file, then DAAK_LOG_FILE.
 // An unknown level name is a usage error: fail fast rather than silently
 // logging at the wrong level for a week-long capture.
 func resolveLogConfig() logging.Config {
 	level := *logLevel
 	if level == "" {
-		level = os.Getenv("AERION_LOG_LEVEL")
+		level = os.Getenv("DAAK_LOG_LEVEL")
 	}
 	if level == "" {
 		level = "fatal"
@@ -73,7 +73,7 @@ func resolveLogConfig() logging.Config {
 
 	file := *logFile
 	if file == "" {
-		file = os.Getenv("AERION_LOG_FILE")
+		file = os.Getenv("DAAK_LOG_FILE")
 	}
 	return logging.Config{Level: level, Console: true, File: file}
 }

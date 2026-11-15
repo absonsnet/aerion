@@ -89,7 +89,7 @@ func fingerprintClientID(found bool, id string) string {
 // flow at OAuth time. Choices have stable IDs for persistence; labels are
 // user-visible strings.
 type OAuthCredsChoice struct {
-	// ID is the stable identifier ("custom" | "aerion-shipped" | "aerion-mail").
+	// ID is the stable identifier ("custom" | "daak-shipped" | "daak-mail").
 	// Stored in the credentials store as the user's pick for this slot.
 	ID string `json:"id"`
 	// Label is the user-visible string shown in the dropdown.
@@ -129,13 +129,13 @@ type OAuthCredsChoices struct {
 // slot. The choice set depends on:
 //
 //   - Whether the slot's own shipped creds resolve to non-empty (always
-//     adds an "aerion-shipped" option labeled per provider).
+//     adds an "daak-shipped" option labeled per provider).
 //   - Whether the extension's manifest declares the OAuth provider of this
 //     slot in first_party_uses_core_for_scopes AND the mail slot has
-//     shipped creds (adds "aerion-mail" — reuse mail's verified client).
+//     shipped creds (adds "daak-mail" — reuse mail's verified client).
 //
 // extensionID is the manifest id ("contacts", "calendar"); pass "" when
-// the caller is mail's own settings UI (no manifest, no aerion-mail option).
+// the caller is mail's own settings UI (no manifest, no daak-mail option).
 //
 // Wails-bound.
 func (a *App) GetOAuthCredsChoices(configID, extensionID string) (OAuthCredsChoices, error) {
@@ -151,7 +151,7 @@ func (a *App) GetOAuthCredsChoices(configID, extensionID string) (OAuthCredsChoi
 
 	if hasShipped {
 		out.Choices = append(out.Choices, OAuthCredsChoice{
-			ID:    "aerion-shipped",
+			ID:    "daak-shipped",
 			Label: shippedLabelForSlot(configID),
 		})
 	}
@@ -176,7 +176,7 @@ func (a *App) GetOAuthCredsChoices(configID, extensionID string) (OAuthCredsChoi
 		_, mailHasShipped := oauth2.ShippedClientConfigForID(mailSlot)
 		if mailSlot != configID && mailHasShipped {
 			out.Choices = append(out.Choices, OAuthCredsChoice{
-				ID:    "aerion-mail",
+				ID:    "daak-mail",
 				Label: platform.AppName + " - Google",
 			})
 		}
@@ -203,12 +203,12 @@ func (a *App) GetOAuthCredsChoices(configID, extensionID string) (OAuthCredsChoi
 //   - "custom"          → record marker. Caller invokes SetOAuthCreds
 //                          separately (via the editor's Save button) to
 //                          write or replace the actual credentials.
-//   - "aerion-shipped"  → record marker. The resolver skips override +
+//   - "daak-shipped"  → record marker. The resolver skips override +
 //                          alias and routes to the slot's own shipped
 //                          creds. Any user_oauth_clients / alias rows
 //                          remain in storage so switching back to Custom
 //                          restores the user's saved values.
-//   - "aerion-mail"     → record marker AND ensure the alias row exists.
+//   - "daak-mail"     → record marker AND ensure the alias row exists.
 //                          The user_oauth_clients row is preserved for
 //                          the same round-trip restore reason.
 //
@@ -224,9 +224,9 @@ func (a *App) SetOAuthCredsChoice(configID, choiceID string) error {
 	switch choiceID {
 	case "custom":
 		return a.credStore.SetOAuthActiveChoice(configID, "custom")
-	case "aerion-shipped":
-		return a.credStore.SetOAuthActiveChoice(configID, "aerion-shipped")
-	case "aerion-mail":
+	case "daak-shipped":
+		return a.credStore.SetOAuthActiveChoice(configID, "daak-shipped")
+	case "daak-mail":
 		provider := providerFromConfigID(configID)
 		if provider == "" {
 			return fmt.Errorf("cannot derive provider from config id %q", configID)
@@ -236,7 +236,7 @@ func (a *App) SetOAuthCredsChoice(configID, choiceID string) error {
 		if err := a.credStore.SetOAuthSlotAlias(configID, provider+"-mail"); err != nil {
 			return err
 		}
-		return a.credStore.SetOAuthActiveChoice(configID, "aerion-mail")
+		return a.credStore.SetOAuthActiveChoice(configID, "daak-mail")
 	}
 	return fmt.Errorf("unknown choice id %q", choiceID)
 }
@@ -248,10 +248,10 @@ func (a *App) SetOAuthCredsChoice(configID, choiceID string) error {
 // inference branch will stop running for a slot the first time
 // SetOAuthCredsChoice writes its marker).
 //
-// Returned ID is one of "custom" / "aerion-mail" / "aerion-shipped".
+// Returned ID is one of "custom" / "daak-mail" / "daak-shipped".
 func (a *App) resolveCurrentChoice(configID string) string {
 	if a.credStore == nil {
-		return "aerion-shipped"
+		return "daak-shipped"
 	}
 	if marker, err := a.credStore.GetOAuthActiveChoice(configID); err == nil && marker != "" {
 		return marker
@@ -264,11 +264,11 @@ func (a *App) resolveCurrentChoice(configID string) string {
 	}
 	target, ok, _ := a.credStore.GetOAuthSlotAlias(configID)
 	if ok && target != "" {
-		// Only "aerion-mail" is exposed today; any alias maps to that
+		// Only "daak-mail" is exposed today; any alias maps to that
 		// label. Future alias targets would need their own choice IDs.
-		return "aerion-mail"
+		return "daak-mail"
 	}
-	return "aerion-shipped"
+	return "daak-shipped"
 }
 
 // providerFromConfigID strips the well-known prefix from a slot id.
@@ -291,7 +291,7 @@ func providerFromConfigID(configID string) string {
 // "Daak - Google (Testing)" so users understand they may see Google's
 // unverified-app warning during OAuth consent. Once Google verifies the
 // mail project for the extension scopes, the default switches to
-// "Daak - Google" (the aerion-mail choice — mail's verified client).
+// "Daak - Google" (the daak-mail choice — mail's verified client).
 func shippedLabelForSlot(configID string) string {
 	switch configID {
 	case "google-contacts", "google-calendar":

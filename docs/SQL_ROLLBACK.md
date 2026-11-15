@@ -16,9 +16,9 @@ Each rollback section lists the **data lost on rollback** for that migration. Th
 ## What you need
 
 - The Daak DB file. Default path:
-  - Linux: `~/.local/share/aerion/aerion.db`
-  - macOS: `~/Library/Application Support/Aerion/aerion.db`
-  - Windows: `%LOCALAPPDATA%\aerion\aerion.db`
+  - Linux: `~/.local/share/daak/daak.db`
+  - macOS: `~/Library/Application Support/Daak/daak.db`
+  - Windows: `%LOCALAPPDATA%\daak\daak.db`
 - `sqlite3` command-line tool installed (most Linux/macOS systems have it; Windows users may need to install from sqlite.org).
 - The matching rollback script for your migration, downloaded from the Daak repo's `tools/db/` directory on the branch/tag corresponding to the version that introduced the migration.
 
@@ -26,12 +26,12 @@ Each rollback section lists the **data lost on rollback** for that migration. Th
 
 ### Procedure
 
-1. **Quit Daak completely** (use the menu Quit, or kill the process — make sure nothing is using `aerion.db`).
+1. **Quit Daak completely** (use the menu Quit, or kill the process — make sure nothing is using `daak.db`).
 
 2. **Back up your DB file** as a precaution. This script makes changes that are difficult to reverse cleanly if anything goes wrong, so a real file copy is your safety net:
 
    ```bash
-   cp ~/.local/share/aerion/aerion.db ~/.local/share/aerion/aerion.db.before-rollback
+   cp ~/.local/share/daak/daak.db ~/.local/share/daak/daak.db.before-rollback
    ```
 
    (Adjust the path for your OS — see "What you need" above.)
@@ -47,7 +47,7 @@ Each rollback section lists the **data lost on rollback** for that migration. Th
 4. **Run the script against your DB**:
 
    ```bash
-   sqlite3 ~/.local/share/aerion/aerion.db < rollback-v39-to-v30.sql
+   sqlite3 ~/.local/share/daak/daak.db < rollback-v39-to-v30.sql
    ```
 
    The script runs in a single transaction. If anything fails, no changes are committed and your DB is unchanged.
@@ -55,7 +55,7 @@ Each rollback section lists the **data lost on rollback** for that migration. Th
 5. **Verify the rollback** worked:
 
    ```bash
-   sqlite3 ~/.local/share/aerion/aerion.db \
+   sqlite3 ~/.local/share/daak/daak.db \
      "SELECT COUNT(*) FROM contacts; SELECT COUNT(*) FROM carddav_contacts; SELECT MAX(version) FROM migrations;"
    ```
 
@@ -68,7 +68,7 @@ Each rollback section lists the **data lost on rollback** for that migration. Th
 Restore the backup you made in step 2:
 
 ```bash
-cp ~/.local/share/aerion/aerion.db.before-rollback ~/.local/share/aerion/aerion.db
+cp ~/.local/share/daak/daak.db.before-rollback ~/.local/share/daak/daak.db
 ```
 
 You're back to the v39 state and can run Daak 0.3.0 again.

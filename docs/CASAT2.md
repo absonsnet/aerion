@@ -208,9 +208,9 @@ Daak is a desktop application with no web server or web root. There is no direct
 - **Attachment downloads**: When a user explicitly downloads an attachment, it is saved to a location chosen by the user via the OS file picker. The application does not auto-save or auto-execute attachments.
 - **Email HTML content**: Sanitized server-side by the Go backend (bluemonday) before display. Scripts, event handlers, and dangerous elements are stripped. This content is rendered in the WebView but never written to disk as standalone files.
 - **Data directories**: All application data directories are created with 0700 permissions (owner-only access):
-  - Linux: `~/.local/share/aerion/` (XDG Base Directory spec)
-  - macOS: `~/Library/Application Support/Aerion/`
-  - Windows: `%LOCALAPPDATA%\aerion\`
+  - Linux: `~/.local/share/daak/` (XDG Base Directory spec)
+  - macOS: `~/Library/Application Support/Daak/`
+  - Windows: `%LOCALAPPDATA%\daak\`
 
 ---
 
@@ -387,7 +387,7 @@ There is no remote configuration server, admin panel, or API that could be used 
 Debug mode is **disabled by default** in Daak. It must be explicitly opted into by the user via:
 
 - `--debug` command-line flag
-- `AERION_DEBUG=1` environment variable
+- `DAAK_DEBUG=1` environment variable
 
 Neither of these is set in production builds or Flatpak packages.
 

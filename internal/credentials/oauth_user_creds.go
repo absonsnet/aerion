@@ -61,7 +61,7 @@ func (s *Store) SetUserClientCreds(configID, clientID, clientSecret string) erro
 	}
 
 	if s.keyringEnabled {
-		kerr := gokeyring.Set(serviceName, userOAuthKeyringPrefix+configID, string(payload))
+		kerr := keyringSet(userOAuthKeyringPrefix+configID, string(payload))
 		if kerr == nil {
 			s.log.Debug().Str("config_id", configID).Msg("user OAuth client creds stored in OS keyring")
 			// Keyring is primary — clear any encrypted-DB copy.
@@ -103,7 +103,7 @@ func (s *Store) GetUserClientCreds(configID string) (clientID, clientSecret stri
 	}
 
 	if s.keyringEnabled {
-		payload, kerr := gokeyring.Get(serviceName, userOAuthKeyringPrefix+configID)
+		payload, kerr := keyringGet(userOAuthKeyringPrefix+configID)
 		if kerr == nil {
 			var rec userClientCredsRecord
 			if jerr := json.Unmarshal([]byte(payload), &rec); jerr != nil {
@@ -156,7 +156,7 @@ func (s *Store) HasUserClientCreds(configID string) bool {
 // Idempotent — succeeds even when nothing was stored.
 func (s *Store) ClearUserClientCreds(configID string) error {
 	if s.keyringEnabled {
-		_ = gokeyring.Delete(serviceName, userOAuthKeyringPrefix+configID)
+		_ = keyringDelete(userOAuthKeyringPrefix+configID)
 	}
 	s.clearUserClientCredsDB(configID)
 	return nil

@@ -8,7 +8,10 @@ import (
 	"strings"
 )
 
-const appName = "aerion"
+// linuxFolderName is the lowercase app name used for Linux data folders.
+func linuxFolderName() string {
+	return strings.ToLower(AppName)
+}
 
 // Paths holds the application data paths
 type Paths struct {
@@ -17,23 +20,32 @@ type Paths struct {
 	Cache  string // Cached data (can be deleted)
 }
 
-// GetPaths returns platform-specific paths for the application
+// GetPaths returns platform-specific paths for the application.
+// It also runs the one-time legacy data-folder migration (see legacy.go)
+// before the paths are first used, so an upgraded install keeps its data.
 func GetPaths() (*Paths, error) {
+	var paths *Paths
+	var err error
 	switch runtime.GOOS {
 	case "linux":
-		return getLinuxPaths()
+		paths, err = getLinuxPaths(linuxFolderName())
 	case "darwin":
-		return getDarwinPaths()
+		paths, err = getDarwinPaths(AppName)
 	case "windows":
-		return getWindowsPaths()
+		paths, err = getWindowsPaths(AppName)
 	default:
 		// Fallback to Linux-style paths
-		return getLinuxPaths()
+		paths, err = getLinuxPaths(linuxFolderName())
 	}
+	if err != nil {
+		return nil, err
+	}
+	migrateLegacyDataDirs(paths)
+	return paths, nil
 }
 
 // getLinuxPaths returns XDG-compliant paths for Linux
-func getLinuxPaths() (*Paths, error) {
+func getLinuxPaths(folderName string) (*Paths, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return nil, err
@@ -56,21 +68,21 @@ func getLinuxPaths() (*Paths, error) {
 	}
 
 	return &Paths{
-		Config: filepath.Join(configHome, appName),
-		Data:   filepath.Join(dataHome, appName),
-		Cache:  filepath.Join(cacheHome, appName),
+		Config: filepath.Join(configHome, folderName),
+		Data:   filepath.Join(dataHome, folderName),
+		Cache:  filepath.Join(cacheHome, folderName),
 	}, nil
 }
 
 // getDarwinPaths returns macOS-style paths
-func getDarwinPaths() (*Paths, error) {
+func getDarwinPaths(folderName string) (*Paths, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return nil, err
 	}
 
-	appSupport := filepath.Join(home, "Library", "Application Support", "Aerion")
-	caches := filepath.Join(home, "Library", "Caches", "Aerion")
+	appSupport := filepath.Join(home, "Library", "Application Support", folderName)
+	caches := filepath.Join(home, "Library", "Caches", folderName)
 
 	return &Paths{
 		Config: appSupport,
@@ -80,7 +92,7 @@ func getDarwinPaths() (*Paths, error) {
 }
 
 // getWindowsPaths returns Windows-style paths
-func getWindowsPaths() (*Paths, error) {
+func getWindowsPaths(folderName string) (*Paths, error) {
 	// APPDATA is for roaming data (synced across machines)
 	appData := os.Getenv("APPDATA")
 	if appData == "" {
@@ -102,9 +114,9 @@ func getWindowsPaths() (*Paths, error) {
 	}
 
 	return &Paths{
-		Config: filepath.Join(appData, "Aerion"),
-		Data:   filepath.Join(appData, "Aerion"),
-		Cache:  filepath.Join(localAppData, "Aerion", "Cache"),
+		Config: filepath.Join(appData, folderName),
+		Data:   filepath.Join(appData, folderName),
+		Cache:  filepath.Join(localAppData, folderName, "Cache"),
 	}, nil
 }
 
@@ -174,7 +186,7 @@ func (p *Paths) EnsureDirectories() error {
 
 // DatabasePath returns the path to the main database
 func (p *Paths) DatabasePath() string {
-	return filepath.Join(p.Data, "aerion.db")
+	return filepath.Join(p.Data, linuxFolderName()+".db")
 }
 
 // ContactsDatabasePath returns the path to the contacts database

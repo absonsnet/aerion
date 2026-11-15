@@ -65,7 +65,7 @@ func (s *Store) SetCustomOAuthProvider(accountID string, cfg CustomOAuthProvider
 	}
 
 	if s.keyringEnabled {
-		kerr := gokeyring.Set(serviceName, customOAuthProviderKeyringPrefix+accountID, string(payload))
+		kerr := keyringSet(customOAuthProviderKeyringPrefix+accountID, string(payload))
 		if kerr == nil {
 			s.log.Debug().Str("account_id", accountID).Msg("custom OAuth provider stored in OS keyring")
 			// Keyring is primary — clear any encrypted-DB copy.
@@ -104,7 +104,7 @@ func (s *Store) GetCustomOAuthProvider(accountID string) (CustomOAuthProvider, b
 	}
 
 	if s.keyringEnabled {
-		payload, kerr := gokeyring.Get(serviceName, customOAuthProviderKeyringPrefix+accountID)
+		payload, kerr := keyringGet(customOAuthProviderKeyringPrefix+accountID)
 		if kerr == nil {
 			var cfg CustomOAuthProvider
 			if jerr := json.Unmarshal([]byte(payload), &cfg); jerr != nil {
@@ -145,7 +145,7 @@ func (s *Store) GetCustomOAuthProvider(accountID string) (CustomOAuthProvider, b
 // DeleteCustomOAuthProvider removes any stored custom provider config. Idempotent.
 func (s *Store) DeleteCustomOAuthProvider(accountID string) error {
 	if s.keyringEnabled {
-		_ = gokeyring.Delete(serviceName, customOAuthProviderKeyringPrefix+accountID)
+		_ = keyringDelete(customOAuthProviderKeyringPrefix+accountID)
 	}
 	s.clearCustomOAuthProviderDB(accountID)
 	return nil

@@ -18,7 +18,7 @@ import (
 // client_secret pairs); these aliases just redirect lookups between
 // existing slot IDs. Both states are exclusive: either the user picked
 // "Custom" (and we keep credentials in user_oauth_clients) or the user
-// picked an aerion-shipped option (and we keep an alias entry here, or
+// picked an daak-shipped option (and we keep an alias entry here, or
 // neither if the choice is the slot's own default).
 //
 // Storage: OS keyring primary (one entry per source config id, plaintext
@@ -50,7 +50,7 @@ func (s *Store) SetOAuthSlotAlias(configID, targetSlot string) error {
 	}
 
 	if s.keyringEnabled {
-		kerr := gokeyring.Set(serviceName, oauthSlotAliasKeyringPrefix+configID, targetSlot)
+		kerr := keyringSet(oauthSlotAliasKeyringPrefix+configID, targetSlot)
 		if kerr == nil {
 			s.log.Debug().Str("config_id", configID).Str("target", targetSlot).Msg("OAuth slot alias stored in OS keyring")
 			s.clearSlotAliasDB(configID)
@@ -83,7 +83,7 @@ func (s *Store) GetOAuthSlotAlias(configID string) (string, bool, error) {
 	}
 
 	if s.keyringEnabled {
-		target, kerr := gokeyring.Get(serviceName, oauthSlotAliasKeyringPrefix+configID)
+		target, kerr := keyringGet(oauthSlotAliasKeyringPrefix+configID)
 		if kerr == nil {
 			return target, true, nil
 		}
@@ -112,7 +112,7 @@ func (s *Store) GetOAuthSlotAlias(configID string) (string, bool, error) {
 // ClearOAuthSlotAlias removes any alias set for configID. Idempotent.
 func (s *Store) ClearOAuthSlotAlias(configID string) error {
 	if s.keyringEnabled {
-		_ = gokeyring.Delete(serviceName, oauthSlotAliasKeyringPrefix+configID)
+		_ = keyringDelete(oauthSlotAliasKeyringPrefix+configID)
 	}
 	s.clearSlotAliasDB(configID)
 	return nil

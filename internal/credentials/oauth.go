@@ -152,8 +152,8 @@ func (s *Store) GetOAuthTokens(accountID string) (*OAuthTokens, error) {
 func (s *Store) DeleteOAuthTokens(accountID string) error {
 	// Delete from keyring
 	if s.keyringEnabled {
-		_ = gokeyring.Delete(serviceName, accountID+":access_token")
-		_ = gokeyring.Delete(serviceName, accountID+":refresh_token")
+		_ = keyringDelete(accountID+":access_token")
+		_ = keyringDelete(accountID+":refresh_token")
 	}
 
 	// Clear encrypted fallback storage
@@ -245,7 +245,7 @@ func (s *Store) setOAuthAccessToken(accountID, token string) error {
 
 	// Try OS keyring first
 	if s.keyringEnabled {
-		err := gokeyring.Set(serviceName, accountID+":access_token", token)
+		err := keyringSet(accountID+":access_token", token)
 		if err == nil {
 			// Clear fallback storage
 			_, _ = s.db.Exec("UPDATE accounts SET encrypted_access_token = NULL WHERE id = ?", accountID)
@@ -271,7 +271,7 @@ func (s *Store) setOAuthAccessToken(accountID, token string) error {
 func (s *Store) getOAuthAccessToken(accountID string) (string, error) {
 	// Try OS keyring first
 	if s.keyringEnabled {
-		token, err := gokeyring.Get(serviceName, accountID+":access_token")
+		token, err := keyringGet(accountID+":access_token")
 		if err == nil {
 			return token, nil
 		}
@@ -305,7 +305,7 @@ func (s *Store) setOAuthRefreshToken(accountID, token string) error {
 
 	// Try OS keyring first
 	if s.keyringEnabled {
-		err := gokeyring.Set(serviceName, accountID+":refresh_token", token)
+		err := keyringSet(accountID+":refresh_token", token)
 		if err == nil {
 			// Clear fallback storage
 			_, _ = s.db.Exec("UPDATE accounts SET encrypted_refresh_token = NULL WHERE id = ?", accountID)
@@ -331,7 +331,7 @@ func (s *Store) setOAuthRefreshToken(accountID, token string) error {
 func (s *Store) getOAuthRefreshToken(accountID string) (string, error) {
 	// Try OS keyring first
 	if s.keyringEnabled {
-		token, err := gokeyring.Get(serviceName, accountID+":refresh_token")
+		token, err := keyringGet(accountID+":refresh_token")
 		if err == nil {
 			return token, nil
 		}
@@ -474,8 +474,8 @@ func (s *Store) GetContactSourceOAuthTokens(sourceID string) (*OAuthTokens, erro
 func (s *Store) DeleteContactSourceOAuthTokens(sourceID string) error {
 	// Delete from keyring
 	if s.keyringEnabled {
-		_ = gokeyring.Delete(serviceName, "contact_source:"+sourceID+":access_token")
-		_ = gokeyring.Delete(serviceName, "contact_source:"+sourceID+":refresh_token")
+		_ = keyringDelete("contact_source:"+sourceID+":access_token")
+		_ = keyringDelete("contact_source:"+sourceID+":refresh_token")
 	}
 
 	// Clear encrypted fallback storage
@@ -540,7 +540,7 @@ func (s *Store) setContactSourceAccessToken(sourceID, token string) error {
 
 	// Try OS keyring first
 	if s.keyringEnabled {
-		err := gokeyring.Set(serviceName, "contact_source:"+sourceID+":access_token", token)
+		err := keyringSet("contact_source:"+sourceID+":access_token", token)
 		if err == nil {
 			// Clear fallback storage
 			_, _ = s.db.Exec("UPDATE contact_sources SET encrypted_access_token = NULL WHERE id = ?", sourceID)
@@ -566,7 +566,7 @@ func (s *Store) setContactSourceAccessToken(sourceID, token string) error {
 func (s *Store) getContactSourceAccessToken(sourceID string) (string, error) {
 	// Try OS keyring first
 	if s.keyringEnabled {
-		token, err := gokeyring.Get(serviceName, "contact_source:"+sourceID+":access_token")
+		token, err := keyringGet("contact_source:"+sourceID+":access_token")
 		if err == nil {
 			return token, nil
 		}
@@ -600,7 +600,7 @@ func (s *Store) setContactSourceRefreshToken(sourceID, token string) error {
 
 	// Try OS keyring first
 	if s.keyringEnabled {
-		err := gokeyring.Set(serviceName, "contact_source:"+sourceID+":refresh_token", token)
+		err := keyringSet("contact_source:"+sourceID+":refresh_token", token)
 		if err == nil {
 			// Clear fallback storage
 			_, _ = s.db.Exec("UPDATE contact_sources SET encrypted_refresh_token = NULL WHERE id = ?", sourceID)
@@ -626,7 +626,7 @@ func (s *Store) setContactSourceRefreshToken(sourceID, token string) error {
 func (s *Store) getContactSourceRefreshToken(sourceID string) (string, error) {
 	// Try OS keyring first
 	if s.keyringEnabled {
-		token, err := gokeyring.Get(serviceName, "contact_source:"+sourceID+":refresh_token")
+		token, err := keyringGet("contact_source:"+sourceID+":refresh_token")
 		if err == nil {
 			return token, nil
 		}

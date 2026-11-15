@@ -82,13 +82,13 @@
 
   // Title bar options
   const titleBarOptions = $derived([
-    { value: 'aerion', label: $_('settingsGeneral.titleBarDaak'), description: $_('settingsGeneral.titleBarDaakDesc') },
+    { value: 'daak', label: $_('settingsGeneral.titleBarDaak'), description: $_('settingsGeneral.titleBarDaakDesc') },
     { value: 'native', label: $_('settingsGeneral.titleBarNative'), description: $_('settingsGeneral.titleBarNativeDesc') },
     { value: 'disable', label: $_('settingsGeneral.titleBarDisable'), description: $_('settingsGeneral.titleBarDisableDesc') },
   ])
 
   const titleBarValue = $derived(
-    nativeTitleBar ? 'native' : showTitleBar ? 'aerion' : 'disable'
+    nativeTitleBar ? 'native' : showTitleBar ? 'daak' : 'disable'
   )
 
   // Theme mode options
@@ -149,7 +149,7 @@
 
   function handleTitleBarChange(value: string) {
     switch (value) {
-      case 'aerion':
+      case 'daak':
         nativeTitleBar = false
         showTitleBar = true
         break
@@ -266,7 +266,7 @@
       </p>
     </div>
 
-    {#if titleBarValue === 'aerion'}
+    {#if titleBarValue === 'daak'}
       <div class="space-y-2">
         <Label>{$_('settingsGeneral.windowControls')}</Label>
         <Select.Root value={windowControlsSide} onValueChange={handleWindowControlsSideChange}>

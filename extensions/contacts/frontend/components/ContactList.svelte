@@ -61,7 +61,7 @@
     const found = contactsView.contacts.find(c => c.id === id)
     if (!found) return
     const writable =
-      found.sourceId === 'aerion' || contactSourcesStore.isSourceWritable(found.sourceId)
+      found.sourceId === 'daak' || contactSourcesStore.isSourceWritable(found.sourceId)
     if (!writable) return
     pendingDelete = found
     showDeleteConfirm = true
@@ -293,7 +293,7 @@
   title={$_('contacts.delete.title')}
   description={pendingDelete
     ? $_(
-        pendingDelete.sourceId === 'aerion'
+        pendingDelete.sourceId === 'daak'
           ? 'contacts.delete.descriptionLocal'
           : 'contacts.delete.descriptionCardDAV',
         {

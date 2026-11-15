@@ -6,12 +6,12 @@
 
 ## 2026-10-20 — §17 Debug Mode: additional logging opt-ins
 
-**Change.** Two command-line flags and two environment variables were added alongside the existing `--debug` / `AERION_DEBUG=1`:
+**Change.** Two command-line flags and two environment variables were added alongside the existing `--debug` / `DAAK_DEBUG=1`:
 
 | Option | Effect |
 |---|---|
-| `--log-level <fatal\|error\|warn\|info\|debug>` / `AERION_LOG_LEVEL` | Selects the log level. Default remains `fatal`. `--debug` / `AERION_DEBUG=1` still force `debug` and take precedence. |
-| `--log-file <path>` / `AERION_LOG_FILE` | Additionally writes log lines to the given file. Off by default. |
+| `--log-level <fatal\|error\|warn\|info\|debug>` / `DAAK_LOG_LEVEL` | Selects the log level. Default remains `fatal`. `--debug` / `DAAK_DEBUG=1` still force `debug` and take precedence. |
+| `--log-file <path>` / `DAAK_LOG_FILE` | Additionally writes log lines to the given file. Off by default. |
 
 **Defaults unchanged.** With no flags or variables set, behaviour is identical to the audited state: fatal-only output to stderr, no file. Production and Flatpak builds set none of these.
 

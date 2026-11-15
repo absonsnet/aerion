@@ -30,8 +30,8 @@ func TestDatabasePath(t *testing.T) {
 		t.Fatalf("GetPaths() returned error: %v", err)
 	}
 	dbPath := paths.DatabasePath()
-	if !strings.HasSuffix(dbPath, "aerion.db") {
-		t.Errorf("DatabasePath() = %q, want suffix 'aerion.db'", dbPath)
+	if !strings.HasSuffix(dbPath, "daak.db") {
+		t.Errorf("DatabasePath() = %q, want suffix 'daak.db'", dbPath)
 	}
 }
 

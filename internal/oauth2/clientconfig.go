@@ -44,8 +44,8 @@ var UserOverrideLookup func(configID string) (ClientCredentials, bool)
 var SlotAliasLookup func(configID string) (target string, ok bool)
 
 // ActiveChoiceLookup is an optional pluggable hook that returns the user's
-// explicit picker selection for the slot ("custom" / "aerion-shipped" /
-// "aerion-mail"). When set AND the user has recorded a choice, the resolver
+// explicit picker selection for the slot ("custom" / "daak-shipped" /
+// "daak-mail"). When set AND the user has recorded a choice, the resolver
 // routes by choice — independent of which underlying rows exist — so picker
 // switches no longer have to destroy stored values to take effect. When the
 // hook is nil OR returns ok=false (no choice recorded), the resolver falls
@@ -79,8 +79,8 @@ func RegisterCredentialsProvider(p CredentialsProvider) {
 //  1. ActiveChoiceLookup — the user's explicit picker selection. When
 //     present, routes:
 //       - "custom"          → UserOverrideLookup only
-//       - "aerion-mail"     → SlotAliasLookup only (recursive)
-//       - "aerion-shipped"  → straight to provider chain
+//       - "daak-mail"     → SlotAliasLookup only (recursive)
+//       - "daak-shipped"  → straight to provider chain
 //     If the routed source returns nothing (e.g., choice="custom" but no
 //     creds saved yet), falls through to the provider chain so OAuth
 //     doesn't error out — the UI still shows "Custom" so the user knows
@@ -118,7 +118,7 @@ func ClientConfigForID(id string) (ClientCredentials, bool) {
 // and survives future refactors.
 func clientConfigForIDDepth(id string, depth int) (ClientCredentials, bool) {
 	// 1. Explicit active-choice routing. Bypasses the row-presence
-	//    inference entirely — if the user has picked "aerion-shipped",
+	//    inference entirely — if the user has picked "daak-shipped",
 	//    their saved Custom row is still in storage but the resolver
 	//    deliberately skips it.
 	if choiceHook := ActiveChoiceLookup; choiceHook != nil {
@@ -133,7 +133,7 @@ func clientConfigForIDDepth(id string, depth int) (ClientCredentials, bool) {
 				// Fall through to provider chain — Custom selected but
 				// no creds saved yet.
 				return providerChainLookup(id)
-			case "aerion-mail":
+			case "daak-mail":
 				if depth == 0 {
 					if alias := SlotAliasLookup; alias != nil {
 						if target, found := alias(id); found && target != "" && target != id {
@@ -143,7 +143,7 @@ func clientConfigForIDDepth(id string, depth int) (ClientCredentials, bool) {
 				}
 				// Fall through to provider chain — alias row missing.
 				return providerChainLookup(id)
-			case "aerion-shipped":
+			case "daak-shipped":
 				// Skip override + alias entirely.
 				return providerChainLookup(id)
 			}

@@ -945,7 +945,7 @@ kv := store.KV()           // coreapi.KVStore backed by ext_kv table
 
 **Migrations** start at version 1, increment monotonically. Each runs inside a transaction. Already-applied versions are skipped on every startup. Each extension's migration sequence is INDEPENDENT — no global migration namespace.
 
-**File location:** Linux `~/.local/share/aerion/extensions/<name>/data.db`, macOS `~/Library/Application Support/Aerion/extensions/<name>/data.db`, Windows `%LOCALAPPDATA%\aerion\extensions\<name>\data.db`. The `extensions/` parent is created by [`internal/platform/paths.go EnsureDirectories`](../internal/platform/paths.go).
+**File location:** Linux `~/.local/share/daak/extensions/<name>/data.db`, macOS `~/Library/Application Support/Daak/extensions/<name>/data.db`, Windows `%LOCALAPPDATA%\daak\extensions\<name>\data.db`. The `extensions/` parent is created by [`internal/platform/paths.go EnsureDirectories`](../internal/platform/paths.go).
 
 **Lifecycle:** Per the architecture doc, stores open EAGERLY at `App.Startup`, regardless of whether the extension is currently enabled. This keeps schemas valid across enable/disable cycles — users can disable, the migrations stay applied, re-enabling is instantaneous.
 
@@ -1238,7 +1238,7 @@ Extension-relevant subset. Many other `App.*` methods exist for mail-side concer
 | `App.SetContactSourceWritable(sourceID string, writable bool) error` | Flip a contact source's writable flag. Used by the Contacts extension's settings UI to enable/disable write access on CardDAV sources (a pure flag flip) and to disable previously-enabled OAuth sources. Enabling OAuth sources goes through `<Extension>_StartIncrementalConsent` (which calls `SetSourceWritable` server-side after consent). |
 | `App.GetOAuthCredsStatus(configID string) (app.OAuthCredsStatus, error)` | Reports per-slot config presence (`hasUserOverride`, `hasShipped`, last-4-char fingerprint of the active client_id). Never returns secret values. Used by the OAuth Credentials editor in each extension's settings dialog. |
 | `App.SetOAuthCreds(configID, clientID, clientSecret string) error` | Persist user-supplied client_id + secret for a slot (overrides any shipped defaults). |
-| `App.ClearOAuthCreds(configID string) error` | Remove a user override for a slot (reverts to shipped values, if any). Used both by the editor's "Clear" action and when the slot dropdown switches from Custom back to the Aerion-shipped option. |
+| `App.ClearOAuthCreds(configID string) error` | Remove a user override for a slot (reverts to shipped values, if any). Used both by the editor's "Clear" action and when the slot dropdown switches from Custom back to the Daak-shipped option. |
 | `App.ListAuthContextsForProvider(provider string) ([]app.AuthContextInfo, error)` | Enumerates existing matching-provider auth identities: mail accounts (from `accountStore`) + standalone contact sources (`carddavStore.ListSources()` where `AccountID IS NULL` and `Type == provider`). Drives the `WriteAccessAccountPicker` dialog's radio list. Result entries carry `kind` (`"mail"` or `"standalone-contacts"`), `identifier` (account_id or source_id), `email`, and a pre-built display `label`. |
 | `App.CancelOAuthFlow()` | Cancel any in-progress OAuth flow (account add, write-access grant, etc.). Stops the OAuth manager's callback server; in-flight backend code returns with a cancellation error. |
 
@@ -2027,15 +2027,15 @@ Users can paste their own Client ID + Secret per slot via Daak's settings:
 Both UIs use the same shared primitive [`kit/OAuthCredsSlotEditor.svelte`](../frontend/src/lib/components/kit/OAuthCredsSlotEditor.svelte) (composed from existing `ui/input`, `ui/button`, `ui/select`, `ui/confirm-dialog` — no new low-level inputs). The picker shows an enumerated set of choices returned by `App.GetOAuthCredsChoices(configID, extensionID)`. The choice IDs are stable and persisted via `App.SetOAuthCredsChoice(configID, choiceID)`:
 
 - **`custom`** — user-supplied Client ID + Secret. Always available. Selecting reveals the edit form; saving writes to the `user_oauth_clients` table.
-- **`aerion-shipped`** — the slot's own built-in client (compiled in via the extension's `.env` ldflags). Only listed when the slot's shipped creds are populated. Label is per-slot:
+- **`daak-shipped`** — the slot's own built-in client (compiled in via the extension's `.env` ldflags). Only listed when the slot's shipped creds are populated. Label is per-slot:
   - `google-contacts` / `google-calendar` → **"Daak testing"** (un-Google-verified).
   - `microsoft-*` slots → **"Daak - Microsoft"** (backed by mail's client after the core consolidation).
   - `<provider>-mail` → **"Daak - Google"** / **"Daak - Microsoft"** (mail's own settings UI).
-- **`aerion-mail`** — reuse the core `<provider>-mail` slot's client for this extension. Only listed when the extension's manifest declares the provider's scopes in `first_party_uses_core_for_scopes` AND the mail slot has shipped creds. Today only Google contacts qualifies (mail's verified client carries `contacts.readonly`).
+- **`daak-mail`** — reuse the core `<provider>-mail` slot's client for this extension. Only listed when the extension's manifest declares the provider's scopes in `first_party_uses_core_for_scopes` AND the mail slot has shipped creds. Today only Google contacts qualifies (mail's verified client carries `contacts.readonly`).
 
 Resolution order in `oauth2.ClientConfigForID(configID)`:
 1. User override (`oauth2.UserOverrideLookup`) — Settings UI `custom` choice.
-2. User-set slot alias (`oauth2.SlotAliasLookup`) — Settings UI `aerion-mail` choice. Recursive lookup on the target slot id, capped at one hop.
+2. User-set slot alias (`oauth2.SlotAliasLookup`) — Settings UI `daak-mail` choice. Recursive lookup on the target slot id, capped at one hop.
 3. Registered `CredentialsProvider` chain (Daak core's, then each extension's).
 4. `(zero, false)` → triggers `ErrAdditionalConsentRequired` or "no creds available" UX.
 
@@ -2169,10 +2169,10 @@ Extensions interact with Daak exclusively through the `coreapi.Core` surfaces li
 
 - DO NOT import any package from `internal/` outside `internal/extensions/` (and only the store/kv helpers there) and `internal/core/api/v1/`.
 - DO NOT call functions in `app/`, `internal/account/`, `internal/folder/`, `internal/message/`, `internal/draft/`, `internal/contact/`, `internal/carddav/`, `internal/imap/`, `internal/smtp/`, `internal/oauth2/`, `internal/credentials/`, etc., directly.
-- DO NOT query, read, or write any table in Daak's main database (`aerion.db`). The accounts/folders/messages/contacts/drafts tables are core-owned and off-limits.
+- DO NOT query, read, or write any table in Daak's main database (`daak.db`). The accounts/folders/messages/contacts/drafts tables are core-owned and off-limits.
 - DO NOT shell out, monkey-patch, or use `reflect`/build-tag tricks to do any of the above indirectly.
 
-The Contacts extension *is allowed* to receive a `*database.DB` handle to Daak's main DB because it's a first-party special case: it grew out of code that already lived in Daak core, owns the lifecycle of the `contact_records` + `contact_sources` + related tables, and is explicitly the canonical owner of that data. **This special case is not extended to new extensions.** A new extension never gets a handle to `aerion.db`.
+The Contacts extension *is allowed* to receive a `*database.DB` handle to Daak's main DB because it's a first-party special case: it grew out of code that already lived in Daak core, owns the lifecycle of the `contact_records` + `contact_sources` + related tables, and is explicitly the canonical owner of that data. **This special case is not extended to new extensions.** A new extension never gets a handle to `daak.db`.
 
 **2. If the extension needs persistence, it brings its own database.**
 
@@ -2248,7 +2248,7 @@ Every Wails-bound method on the Bridge MUST be named `<Extension>_<Method>` (e.g
 
 Whether the extension is first-party or third-party (if an intake opens), the review covers:
 
-1. **The two hard rules above hold.** No imports from `internal/` outside the small allowed surface. No queries against `aerion.db`. Own SQLite via `extensions.OpenStore` if persistence is needed.
+1. **The two hard rules above hold.** No imports from `internal/` outside the small allowed surface. No queries against `daak.db`. Own SQLite via `extensions.OpenStore` if persistence is needed.
 2. **No `internal/core/api/v1/` changes in this PR.** If the extension needed a new API method, that landed in a separate, prior PR (gated by a Feature Request issue).
 3. **Lightweight invariant intact.** Trace every line that runs at startup (`NewBridge`, `NewExtension`, `Register`, `registerExtensionI18n`). None of it can open SQLite, spawn goroutines, or do network I/O. `ensureInit()` is the ONLY place those happen.
 4. **All Wails-bound methods are gated.** Every method on `*Bridge` calls `b.gateEnabled()` and short-circuits if false. Disabled state returns `nil`/empty, never an error.

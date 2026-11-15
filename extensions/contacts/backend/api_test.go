@@ -126,8 +126,8 @@ func TestAPI_SearchContacts_LocalOnly(t *testing.T) {
 	if got[0].Name != "Alice" {
 		t.Fatalf("expected name=Alice, got %q", got[0].Name)
 	}
-	if got[0].SourceID != "aerion" {
-		t.Fatalf("expected source=aerion, got %q", got[0].SourceID)
+	if got[0].SourceID != "daak" {
+		t.Fatalf("expected source=daak, got %q", got[0].SourceID)
 	}
 }
 

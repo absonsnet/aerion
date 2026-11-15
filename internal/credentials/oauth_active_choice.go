@@ -17,10 +17,14 @@ import (
 //
 // Stored in the existing `settings` key/value table (no schema
 // migration). Key shape: `oauth_active_choice:<slot_id>`. Value is one
-// of "custom" | "aerion-shipped" | "aerion-mail". Empty / missing means
+// of "custom" | "daak-shipped" | "daak-mail". Empty / missing means
 // "no explicit choice recorded yet" — the resolver falls back to
 // inferring the active choice from row presence, preserving pre-marker
 // behavior for installs upgrading from v0.3.0-build1.
+//
+// Values stored by pre-rename builds are translated to the new IDs
+// on read (see legacy.go) and rewritten in place, so the rename is
+// invisible to the resolver.
 
 const oauthActiveChoicePrefix = "oauth_active_choice:"
 
@@ -29,9 +33,10 @@ func oauthActiveChoiceKey(configID string) string {
 }
 
 // SetOAuthActiveChoice records the user's explicit picker selection
-// for the slot. Choice must be one of "custom" / "aerion-shipped" /
-// "aerion-mail" — caller (the Wails-bound SetOAuthCredsChoice handler)
-// already validates the value.
+// for the slot. Choice must be one of "custom" / "daak-shipped" /
+// "daak-mail" — caller (the Wails-bound SetOAuthCredsChoice handler)
+// already validates the value. A pre-rename value is translated to its
+// new equivalent before storing (see legacy.go).
 func (s *Store) SetOAuthActiveChoice(configID, choice string) error {
 	if configID == "" {
 		return fmt.Errorf("credentials: config id is required")
@@ -39,6 +44,7 @@ func (s *Store) SetOAuthActiveChoice(configID, choice string) error {
 	if choice == "" {
 		return fmt.Errorf("credentials: choice is required")
 	}
+	choice = normalizeOAuthChoice(choice)
 	if _, err := s.db.Exec(`
 		INSERT INTO settings (key, value) VALUES (?, ?)
 		ON CONFLICT(key) DO UPDATE SET value = excluded.value
@@ -51,7 +57,9 @@ func (s *Store) SetOAuthActiveChoice(configID, choice string) error {
 // GetOAuthActiveChoice returns the recorded choice for the slot, or
 // empty string when no explicit choice has been recorded (in which case
 // the resolver falls back to row-presence inference). Errors are
-// returned only for real failures.
+// returned only for real failures. A stored pre-rename value is
+// translated to its new equivalent and rewritten in place (see
+// legacy.go), so callers only ever see the new IDs.
 func (s *Store) GetOAuthActiveChoice(configID string) (string, error) {
 	if configID == "" {
 		return "", nil
@@ -66,6 +74,16 @@ func (s *Store) GetOAuthActiveChoice(configID string) (string, error) {
 	}
 	if err != nil {
 		return "", fmt.Errorf("query oauth active choice: %w", err)
+	}
+	if migrated := normalizeOAuthChoice(value); migrated != value {
+		// Best-effort rewrite; the translated return value is what
+		// matters, the stored row catches up on the next write at
+		// the latest.
+		_, _ = s.db.Exec(
+			`UPDATE settings SET value = ? WHERE key = ?`,
+			migrated, oauthActiveChoiceKey(configID),
+		)
+		value = migrated
 	}
 	return value, nil
 }

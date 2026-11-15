@@ -92,12 +92,12 @@
 --
 -- USAGE
 --   1. Quit Daak completely.
---   2. Back up your aerion.db file just in case:
---        cp ~/.local/share/aerion/aerion.db ~/.local/share/aerion/aerion.db.bak
---      (or whatever your DB path is — `~/Library/Application Support/Aerion/`
---       on macOS, `%LOCALAPPDATA%\aerion\` on Windows).
+--   2. Back up your daak.db file just in case:
+--        cp ~/.local/share/daak/daak.db ~/.local/share/daak/daak.db.bak
+--      (or whatever your DB path is — `~/Library/Application Support/Daak/`
+--       on macOS, `%LOCALAPPDATA%\daak\` on Windows).
 --   3. Run this script against your DB:
---        sqlite3 ~/.local/share/aerion/aerion.db < rollback-v39-to-v30.sql
+--        sqlite3 ~/.local/share/daak/daak.db < rollback-v39-to-v30.sql
 --   4. Launch the older Daak (v0.2.5). It should start normally and your
 --      contacts autocomplete should work.
 --
@@ -247,4 +247,4 @@ DELETE FROM migrations WHERE version >= 31;
 COMMIT;
 
 -- Verify (optional, run separately to confirm):
---   sqlite3 aerion.db "SELECT COUNT(*) FROM contacts; SELECT COUNT(*) FROM carddav_contacts; SELECT MAX(version) FROM migrations;"
+--   sqlite3 daak.db "SELECT COUNT(*) FROM contacts; SELECT COUNT(*) FROM carddav_contacts; SELECT MAX(version) FROM migrations;"
