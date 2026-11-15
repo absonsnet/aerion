@@ -90,12 +90,20 @@ export function GetShowTitleBar() {
   return window['go']['app']['ViewerApp']['GetShowTitleBar']();
 }
 
+export function GetSubscriptions() {
+  return window['go']['app']['ViewerApp']['GetSubscriptions']();
+}
+
 export function GetSystemTheme() {
   return window['go']['app']['ViewerApp']['GetSystemTheme']();
 }
 
 export function GetThemeMode() {
   return window['go']['app']['ViewerApp']['GetThemeMode']();
+}
+
+export function GetUnsubscribeStatuses(arg1) {
+  return window['go']['app']['ViewerApp']['GetUnsubscribeStatuses'](arg1);
 }
 
 export function GetViewMode() {
@@ -202,6 +210,10 @@ export function SendReadReceipt(arg1, arg2) {
   return window['go']['app']['ViewerApp']['SendReadReceipt'](arg1, arg2);
 }
 
+export function SetSenderAutoDelete(arg1, arg2, arg3) {
+  return window['go']['app']['ViewerApp']['SetSenderAutoDelete'](arg1, arg2, arg3);
+}
+
 export function Shutdown(arg1) {
   return window['go']['app']['ViewerApp']['Shutdown'](arg1);
 }
@@ -228,4 +240,16 @@ export function Undo() {
 
 export function Unstar(arg1) {
   return window['go']['app']['ViewerApp']['Unstar'](arg1);
+}
+
+export function UnsubscribeFollowUp(arg1, arg2, arg3) {
+  return window['go']['app']['ViewerApp']['UnsubscribeFollowUp'](arg1, arg2, arg3);
+}
+
+export function UnsubscribeFromMessage(arg1) {
+  return window['go']['app']['ViewerApp']['UnsubscribeFromMessage'](arg1);
+}
+
+export function UnsubscribeFromSubscription(arg1, arg2) {
+  return window['go']['app']['ViewerApp']['UnsubscribeFromSubscription'](arg1, arg2);
 }

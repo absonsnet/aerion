@@ -48,9 +48,13 @@ export function GetReadReceiptResponsePolicy():Promise<string>;
 
 export function GetShowTitleBar():Promise<boolean>;
 
+export function GetSubscriptions():Promise<Array<app.SubscriptionSender>>;
+
 export function GetSystemTheme():Promise<string>;
 
 export function GetThemeMode():Promise<string>;
+
+export function GetUnsubscribeStatuses(arg1:Array<string>):Promise<Array<app.UnsubscribeStatus>>;
 
 export function GetViewMode():Promise<app.ViewMode>;
 
@@ -104,6 +108,8 @@ export function SendReaction(arg1:string,arg2:string):Promise<void>;
 
 export function SendReadReceipt(arg1:string,arg2:string):Promise<void>;
 
+export function SetSenderAutoDelete(arg1:string,arg2:string,arg3:boolean):Promise<void>;
+
 export function Shutdown(arg1:context.Context):Promise<void>;
 
 export function Star(arg1:Array<string>):Promise<void>;
@@ -117,3 +123,9 @@ export function Trash(arg1:Array<string>):Promise<boolean>;
 export function Undo():Promise<string>;
 
 export function Unstar(arg1:Array<string>):Promise<void>;
+
+export function UnsubscribeFollowUp(arg1:string,arg2:boolean,arg3:boolean):Promise<void>;
+
+export function UnsubscribeFromMessage(arg1:string):Promise<app.UnsubscribeResult>;
+
+export function UnsubscribeFromSubscription(arg1:string,arg2:string):Promise<app.UnsubscribeResult>;

@@ -20,9 +20,11 @@
     MoveToFolder,
     CopyToFolder,
     Undo,
+    GetUnsubscribeStatuses,
   } from '../../../../wailsjs/go/app/App'
   // @ts-ignore - wailsjs path
-  import { account } from '../../../../wailsjs/go/models'
+  import { account, app as appModels } from '../../../../wailsjs/go/models'
+  import { runUnsubscribeFlow } from '$lib/unsubscribe'
   import { toasts } from '$lib/stores/toast'
   import { ConfirmDialog } from '$lib/components/ui/confirm-dialog'
   import FolderPickerDialog from './FolderPickerDialog.svelte'
@@ -61,6 +63,25 @@
   let accounts = $state<account.Account[]>([])
   let accountsLoaded = $state(false)
   let accountsLoading = $state(false)
+
+  // Unsubscribe (Phase C): loaded lazily when the menu opens, single
+  // message in Inbox/Spam only. Null = not offered for this message.
+  let unsubscribeStatus = $state<appModels.UnsubscribeStatus | null>(null)
+  let unsubscribeLoaded = $state(false)
+
+  // Reset the per-message unsubscribe state when the menu's target
+  // changes (a row component can be reused for another conversation).
+  // Compare the id, not the array: callers pass a fresh array literal
+  // on every render.
+  let lastUnsubMessageId: string | null = null
+  $effect(() => {
+    const id = messageIds[0] ?? null
+    if (id !== lastUnsubMessageId) {
+      lastUnsubMessageId = id
+      unsubscribeStatus = null
+      unsubscribeLoaded = false
+    }
+  })
 
   // Permanent delete confirmation
   let showDeleteConfirm = $state(false)
@@ -105,10 +126,26 @@
     }
   }
 
+  // Load unsubscribe status when the context menu opens (used by the
+  // Unsubscribe item). Single message in Inbox/Spam only.
+  async function loadUnsubscribeStatus() {
+    if (unsubscribeLoaded || !isSingleMessage) return
+    if (folderType !== 'inbox' && folderType !== 'spam') return
+    unsubscribeLoaded = true
+    try {
+      const statuses = await GetUnsubscribeStatuses(messageIds)
+      const st = statuses?.[0] ?? null
+      unsubscribeStatus = st?.available ? st : null
+    } catch (err) {
+      console.error('Failed to load unsubscribe status:', err)
+    }
+  }
+
   // Handle menu open
   function handleOpenChange(open: boolean) {
     if (open) {
       loadAccounts()
+      loadUnsubscribeStatus()
     }
     onOpenChange?.(open)
   }
@@ -237,6 +274,16 @@
     }
   }
 
+  async function handleUnsubscribe() {
+    if (!unsubscribeStatus?.available || unsubscribeStatus.alreadyUnsubscribed) return
+    await runUnsubscribeFlow(messageIds[0], {
+      onUnsubscribed: () => {
+        if (unsubscribeStatus) unsubscribeStatus = { ...unsubscribeStatus, alreadyUnsubscribed: true }
+      },
+      onMoved: () => onActionComplete?.(),
+    })
+  }
+
   function openMoveTo() {
     folderPickerMode = 'move'
     showFolderPicker = true
@@ -341,6 +388,17 @@
       <Icon icon={isSpamFolder ? 'mdi:email-check-outline' : 'mdi:alert-octagon-outline'} class="mr-2 h-4 w-4" />
       {$_(isSpamFolder ? 'contextMenu.markAsNotSpam' : 'contextMenu.markAsSpam')}
     </ContextMenuItem>
+
+    {#if unsubscribeStatus}
+      <ContextMenuItem onSelect={handleUnsubscribe} disabled={unsubscribeStatus.alreadyUnsubscribed}>
+        <Icon icon="mdi:email-remove-outline" class="mr-2 h-4 w-4" />
+        {unsubscribeStatus.alreadyUnsubscribed
+          ? $_('contextMenu.unsubscribed')
+          : isSpamFolder
+            ? $_('contextMenu.unsubscribeSpam')
+            : $_('contextMenu.unsubscribe')}
+      </ContextMenuItem>
+    {/if}
 
     <ContextMenuSeparator />
 

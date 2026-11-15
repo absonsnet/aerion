@@ -1308,11 +1308,14 @@ func (s *Store) UpdateEnrichment(id string, r enrich.Result) error {
 // ListUnenriched returns messages whose category has never been computed
 // (category IS NULL), oldest first, for the one-off backfill. The body
 // head is capped at 2000 chars; the caller enriches and calls
-// UpdateEnrichment.
+// UpdateEnrichment. The stored List-Unsubscribe columns ride along so
+// the backfill preserves them (raw headers are not stored, so it cannot
+// recover them for already-synced mail — those fill on next full sync).
 func (s *Store) ListUnenriched(limit int) ([]*Message, error) {
 	rows, err := s.db.Query(`
 		SELECT id, account_id, folder_id, uid, subject, from_name, from_email,
-		       date, snippet, substr(body_text, 1, 2000)
+		       date, snippet, substr(body_text, 1, 2000),
+		       list_unsubscribe, list_unsubscribe_post
 		FROM messages WHERE category IS NULL AND is_hidden = 0
 		ORDER BY date ASC LIMIT ?
 	`, limit)
@@ -1324,9 +1327,11 @@ func (s *Store) ListUnenriched(limit int) ([]*Message, error) {
 	for rows.Next() {
 		m := &Message{}
 		var dateStr, snippet, bodyText sql.NullString
+		var listUnsubscribe sql.NullString
 		var uidI64 int64
 		if err := rows.Scan(&m.ID, &m.AccountID, &m.FolderID, &uidI64,
-			&m.Subject, &m.FromName, &m.FromEmail, &dateStr, &snippet, &bodyText); err != nil {
+			&m.Subject, &m.FromName, &m.FromEmail, &dateStr, &snippet, &bodyText,
+			&listUnsubscribe, &m.ListUnsubscribePost); err != nil {
 			return nil, fmt.Errorf("failed to scan unenriched message: %w", err)
 		}
 		m.UID = uint32(uidI64)
@@ -1338,6 +1343,9 @@ func (s *Store) ListUnenriched(limit int) ([]*Message, error) {
 		}
 		if bodyText.Valid {
 			m.BodyText = bodyText.String
+		}
+		if listUnsubscribe.Valid {
+			m.ListUnsubscribe = listUnsubscribe.String
 		}
 		out = append(out, m)
 	}
@@ -1489,6 +1497,239 @@ func (s *Store) IsKnownPersonalSender(email string) (bool, error) {
 		return false, fmt.Errorf("failed to query known sender: %w", err)
 	}
 	return count > 0, nil
+}
+
+// --- Unsubscribe (Phase C) -------------------------------------------------
+//
+// Sender addresses are normalised to lower-case on write and on read, so
+// "News@Example.com" and "news@example.com" are one sender everywhere.
+
+// completedUnsubscribeMethods are the unsubscribe_actions methods that
+// mean the unsubscribe actually happened. A "browser" action only means
+// the sender's page was opened — the user may or may not have finished
+// there, so the button keeps being offered.
+var completedUnsubscribeMethods = map[string]bool{
+	"one_click": true,
+	"mailto":    true,
+}
+
+// RecordUnsubscribeAction records one unsubscribe the user acted on, so
+// a re-sync never offers it again and the Subscriptions view can show
+// it. Re-recording the same sender+account updates the method and time.
+func (s *Store) RecordUnsubscribeAction(senderAddress, accountID, method string) error {
+	_, err := s.db.Exec(`
+		INSERT INTO unsubscribe_actions (sender_address, account_id, method, acted_at)
+		VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+		ON CONFLICT(sender_address, account_id) DO UPDATE SET
+			method = excluded.method, acted_at = excluded.acted_at
+	`, strings.ToLower(strings.TrimSpace(senderAddress)), accountID, method)
+	if err != nil {
+		return fmt.Errorf("failed to record unsubscribe action: %w", err)
+	}
+	return nil
+}
+
+// UnsubscribeActionMethod returns the recorded method for a sender on an
+// account, if the user has ever acted on that sender.
+func (s *Store) UnsubscribeActionMethod(senderAddress, accountID string) (string, bool, error) {
+	var method string
+	err := s.db.QueryRow(
+		"SELECT method FROM unsubscribe_actions WHERE sender_address = ? AND account_id = ?",
+		strings.ToLower(strings.TrimSpace(senderAddress)), accountID,
+	).Scan(&method)
+	if err == sql.ErrNoRows {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, fmt.Errorf("failed to query unsubscribe action: %w", err)
+	}
+	return method, true, nil
+}
+
+// HasUnsubscribed reports whether the sender was already unsubscribed
+// from by a completed method (one-click POST sent, or unsubscribe email
+// sent). A browser-only action does not count.
+func (s *Store) HasUnsubscribed(senderAddress, accountID string) (bool, error) {
+	method, ok, err := s.UnsubscribeActionMethod(senderAddress, accountID)
+	if err != nil {
+		return false, err
+	}
+	return ok && completedUnsubscribeMethods[method], nil
+}
+
+// SetSenderRule stores a sender rule (Phase C: action "auto_trash" moves
+// future mail from the sender to Trash at sync time). Re-setting the
+// same rule is a no-op.
+func (s *Store) SetSenderRule(senderAddress, accountID, action string) error {
+	_, err := s.db.Exec(`
+		INSERT OR IGNORE INTO sender_rules (sender_address, account_id, action)
+		VALUES (?, ?, ?)
+	`, strings.ToLower(strings.TrimSpace(senderAddress)), accountID, action)
+	if err != nil {
+		return fmt.Errorf("failed to set sender rule: %w", err)
+	}
+	return nil
+}
+
+// DeleteSenderRule removes a sender rule.
+func (s *Store) DeleteSenderRule(senderAddress, accountID, action string) error {
+	_, err := s.db.Exec(`
+		DELETE FROM sender_rules WHERE sender_address = ? AND account_id = ? AND action = ?
+	`, strings.ToLower(strings.TrimSpace(senderAddress)), accountID, action)
+	if err != nil {
+		return fmt.Errorf("failed to delete sender rule: %w", err)
+	}
+	return nil
+}
+
+// HasSenderRule reports whether a sender rule exists.
+func (s *Store) HasSenderRule(senderAddress, accountID, action string) (bool, error) {
+	var count int
+	err := s.db.QueryRow(
+		"SELECT COUNT(*) FROM sender_rules WHERE sender_address = ? AND account_id = ? AND action = ?",
+		strings.ToLower(strings.TrimSpace(senderAddress)), accountID, action,
+	).Scan(&count)
+	if err != nil {
+		return false, fmt.Errorf("failed to query sender rule: %w", err)
+	}
+	return count > 0, nil
+}
+
+// ListSenderRuleSenders returns the lower-cased sender addresses with a
+// given rule action on an account, for sync-time application.
+func (s *Store) ListSenderRuleSenders(accountID, action string) ([]string, error) {
+	rows, err := s.db.Query(
+		"SELECT sender_address FROM sender_rules WHERE account_id = ? AND action = ?",
+		accountID, action,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query sender rules: %w", err)
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var addr string
+		if err := rows.Scan(&addr); err != nil {
+			return nil, fmt.Errorf("failed to scan sender rule: %w", err)
+		}
+		out = append(out, addr)
+	}
+	return out, nil
+}
+
+// SubscriptionSender is one row of the Settings → Subscriptions view:
+// every sender who ever sent List-Unsubscribe headers, with volume.
+type SubscriptionSender struct {
+	AccountID       string
+	SenderEmail     string
+	SenderName      string
+	CountAll        int
+	Count30Days     int
+	LastReceived    time.Time
+	OneClick        bool
+	ListUnsubscribe string // raw header from the newest message, for the mismatch check
+}
+
+// ListSubscriptionSenders returns every sender with List-Unsubscribe
+// headers, most messages first. The 30-day count uses the same stored
+// date format the store writes, so the comparison is chronological.
+func (s *Store) ListSubscriptionSenders() ([]SubscriptionSender, error) {
+	cutoff := time.Now().AddDate(0, 0, -30)
+	rows, err := s.db.Query(`
+		SELECT account_id,
+		       lower(from_email) AS email,
+		       (SELECT m2.from_name FROM messages m2
+		         WHERE m2.account_id = messages.account_id
+		           AND lower(m2.from_email) = lower(messages.from_email)
+		         ORDER BY m2.date DESC LIMIT 1) AS name,
+		       COUNT(*) AS total,
+		       SUM(CASE WHEN date >= ? THEN 1 ELSE 0 END) AS recent,
+		       MAX(date) AS last_received,
+		       MAX(list_unsubscribe_post) AS one_click,
+		       (SELECT m2.list_unsubscribe FROM messages m2
+		         WHERE m2.account_id = messages.account_id
+		           AND lower(m2.from_email) = lower(messages.from_email)
+		         ORDER BY m2.date DESC LIMIT 1) AS lu
+		FROM messages
+		WHERE list_unsubscribe IS NOT NULL AND trim(list_unsubscribe) != ''
+		GROUP BY account_id, lower(from_email)
+		ORDER BY total DESC
+	`, cutoff)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query subscription senders: %w", err)
+	}
+	defer rows.Close()
+	var out []SubscriptionSender
+	for rows.Next() {
+		var row SubscriptionSender
+		var name, lastReceived sql.NullString
+		var lu sql.NullString
+		if err := rows.Scan(&row.AccountID, &row.SenderEmail, &name, &row.CountAll,
+			&row.Count30Days, &lastReceived, &row.OneClick, &lu); err != nil {
+			return nil, fmt.Errorf("failed to scan subscription sender: %w", err)
+		}
+		if name.Valid {
+			row.SenderName = name.String
+		}
+		if lastReceived.Valid && lastReceived.String != "" {
+			row.LastReceived = parseTimeString(lastReceived.String)
+		}
+		if lu.Valid {
+			row.ListUnsubscribe = lu.String
+		}
+		out = append(out, row)
+	}
+	return out, nil
+}
+
+// GetLatestMessageFromSender returns the newest message from one sender
+// (case-insensitive) that carries List-Unsubscribe headers, or nil when
+// the sender has none. Used by the Subscriptions view's Unsubscribe
+// button, which has no message id of its own.
+func (s *Store) GetLatestMessageFromSender(accountID, senderEmail string) (*Message, error) {
+	rows, err := s.db.Query(`
+		SELECT id FROM messages
+		WHERE account_id = ? AND lower(from_email) = ?
+		  AND list_unsubscribe IS NOT NULL AND trim(list_unsubscribe) != ''
+		ORDER BY date DESC LIMIT 1
+	`, accountID, strings.ToLower(strings.TrimSpace(senderEmail)))
+	if err != nil {
+		return nil, fmt.Errorf("failed to query sender messages: %w", err)
+	}
+	defer rows.Close()
+	if !rows.Next() {
+		return nil, nil
+	}
+	var id string
+	if err := rows.Scan(&id); err != nil {
+		return nil, fmt.Errorf("failed to scan sender message: %w", err)
+	}
+	return s.Get(id)
+}
+
+// ListMessageIDsFromSenderInFolder returns the internal ids of messages
+// from one sender (case-insensitive) currently in one folder, oldest
+// first. Used by the unsubscribe follow-up ("move existing mail to
+// Trash") and by sync-time sender rules.
+func (s *Store) ListMessageIDsFromSenderInFolder(accountID, folderID, senderEmail string) ([]string, error) {
+	rows, err := s.db.Query(`
+		SELECT id FROM messages
+		WHERE account_id = ? AND folder_id = ? AND lower(from_email) = ?
+		ORDER BY date ASC
+	`, accountID, folderID, strings.ToLower(strings.TrimSpace(senderEmail)))
+	if err != nil {
+		return nil, fmt.Errorf("failed to query sender messages: %w", err)
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("failed to scan sender message: %w", err)
+		}
+		out = append(out, id)
+	}
+	return out, nil
 }
 
 // AttentionCandidate is one inbox message that may earn a Needs attention

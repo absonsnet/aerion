@@ -1105,6 +1105,58 @@ func (v *ViewerApp) SendReaction(messageID string, emoji string) error {
 	return v.sendReaction(v.ctx, messageID, emoji)
 }
 
+// ============================================================================
+// Unsubscribe (Phase C) - mirrors App; the shared work lives on
+// unsubscribeDeps, so the popup window behaves exactly like the main one.
+// ============================================================================
+
+// GetUnsubscribeStatuses returns the unsubscribe status for each
+// message id.
+func (v *ViewerApp) GetUnsubscribeStatuses(messageIDs []string) ([]*UnsubscribeStatus, error) {
+	return v.unsubscribeDeps().getStatuses(messageIDs), nil
+}
+
+// UnsubscribeFromMessage carries out the unsubscribe for one message
+// (internal id).
+func (v *ViewerApp) UnsubscribeFromMessage(messageID string) (*UnsubscribeResult, error) {
+	return v.unsubscribeDeps().unsubscribeFromMessage(v.ctx, messageID)
+}
+
+// UnsubscribeFollowUp applies the optional extras after an unsubscribe:
+// move the sender's existing inbox mail to Trash, and/or auto-delete
+// future mail from the sender.
+func (v *ViewerApp) UnsubscribeFollowUp(messageID string, moveExisting bool, autoDelete bool) error {
+	return v.unsubscribeDeps().followUp(messageID, moveExisting, autoDelete)
+}
+
+// GetSubscriptions returns every sender who ever sent List-Unsubscribe
+// headers, most messages first, for Settings → Subscriptions.
+func (v *ViewerApp) GetSubscriptions() ([]SubscriptionSender, error) {
+	return v.unsubscribeDeps().listSubscriptions()
+}
+
+// UnsubscribeFromSubscription unsubscribes from a sender listed in the
+// Subscriptions view.
+func (v *ViewerApp) UnsubscribeFromSubscription(senderEmail string, accountID string) (*UnsubscribeResult, error) {
+	return v.unsubscribeDeps().unsubscribeFromSubscription(v.ctx, senderEmail, accountID)
+}
+
+// SetSenderAutoDelete creates or removes the auto-delete rule for a
+// sender: future mail from the sender goes to Trash at sync time.
+func (v *ViewerApp) SetSenderAutoDelete(senderEmail string, accountID string, enabled bool) error {
+	return v.unsubscribeDeps().setSenderAutoDelete(senderEmail, accountID, enabled)
+}
+
+func (v *ViewerApp) unsubscribeDeps() *unsubscribeDeps {
+	return &unsubscribeDeps{
+		messageStore: v.messageStore,
+		accountStore: v.accountStore,
+		folderStore:  v.folderStore,
+		composeOps:   &v.composeOps,
+		trash:        v.Trash,
+	}
+}
+
 func (v *ViewerApp) sendReaction(ctx context.Context, messageID, emoji string) error {
 	log := logging.WithComponent("viewer")
 

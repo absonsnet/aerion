@@ -782,6 +782,10 @@ export function GetStartHiddenActive() {
   return window['go']['app']['App']['GetStartHiddenActive']();
 }
 
+export function GetSubscriptions() {
+  return window['go']['app']['App']['GetSubscriptions']();
+}
+
 export function GetSystemTheme() {
   return window['go']['app']['App']['GetSystemTheme']();
 }
@@ -816,6 +820,10 @@ export function GetUnifiedInboxCount(arg1) {
 
 export function GetUnifiedInboxUnreadCount() {
   return window['go']['app']['App']['GetUnifiedInboxUnreadCount']();
+}
+
+export function GetUnsubscribeStatuses(arg1) {
+  return window['go']['app']['App']['GetUnsubscribeStatuses'](arg1);
 }
 
 export function GetWindowControlsLayout() {
@@ -1458,6 +1466,10 @@ export function SetSMIMESignPolicy(arg1, arg2) {
   return window['go']['app']['App']['SetSMIMESignPolicy'](arg1, arg2);
 }
 
+export function SetSenderAutoDelete(arg1, arg2, arg3) {
+  return window['go']['app']['App']['SetSenderAutoDelete'](arg1, arg2, arg3);
+}
+
 export function SetShowMessageListCircles(arg1) {
   return window['go']['app']['App']['SetShowMessageListCircles'](arg1);
 }
@@ -1592,6 +1604,18 @@ export function Unstar(arg1) {
 
 export function UnsubscribeFolder(arg1, arg2) {
   return window['go']['app']['App']['UnsubscribeFolder'](arg1, arg2);
+}
+
+export function UnsubscribeFollowUp(arg1, arg2, arg3) {
+  return window['go']['app']['App']['UnsubscribeFollowUp'](arg1, arg2, arg3);
+}
+
+export function UnsubscribeFromMessage(arg1) {
+  return window['go']['app']['App']['UnsubscribeFromMessage'](arg1);
+}
+
+export function UnsubscribeFromSubscription(arg1, arg2) {
+  return window['go']['app']['App']['UnsubscribeFromSubscription'](arg1, arg2);
 }
 
 export function UpdateAccount(arg1, arg2) {

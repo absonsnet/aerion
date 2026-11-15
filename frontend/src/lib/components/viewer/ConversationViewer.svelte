@@ -4,7 +4,8 @@
   // Viewer bindings: dispatches to App in the main window and to
   // ViewerApp in a detached popup window (see viewerBindings.ts).
   import { GetConversation, GetReadReceiptResponsePolicy, SendReadReceipt, IgnoreReadReceipt, GetMarkAsReadDelay, GetMessageSource, ProcessSMIMEMessage, ProcessPGPMessage, FetchMessageBody } from '$lib/viewerBindings'
-  import { MarkAsRead, MarkAsUnread, Star, Unstar, Archive, Trash, MarkAsSpam, MarkAsNotSpam, DeletePermanently, Undo, GetMessageReactions, SendReaction, RemoveOwnReaction } from '$lib/viewerBindings'
+  import { MarkAsRead, MarkAsUnread, Star, Unstar, Archive, Trash, MarkAsSpam, MarkAsNotSpam, DeletePermanently, Undo, GetMessageReactions, SendReaction, RemoveOwnReaction, GetUnsubscribeStatuses } from '$lib/viewerBindings'
+  import { runUnsubscribeFlow } from '$lib/unsubscribe'
   // @ts-ignore - wailsjs path
   import { EventsOn } from '../../../../wailsjs/runtime/runtime'
   // @ts-ignore - wailsjs path
@@ -155,6 +156,12 @@
   let reactionPickerMessageId = $state<string | null>(null)
   let sendingReaction = $state(false)
   let removingReactionIds = $state<Set<string>>(new Set())
+
+  // Unsubscribe (Phase C, Gmail behaviour): per-message status loaded
+  // with the conversation; the button only renders when the backend
+  // says the headers exist and the folder is Inbox or Spam.
+  let unsubscribeStatuses = $state<Record<string, appModels.UnsubscribeStatus>>({})
+  let unsubscribingIds = $state<Set<string>>(new Set())
 
   // Auto-mark-as-read state
   let markAsReadDelay = $state(1000) // Default 1 second, loaded from settings
@@ -394,6 +401,7 @@
     reactionPickerOpen = false
     reactionPickerMessageId = null
     reactionsByMessage = {}
+    unsubscribeStatuses = {}
     // Reset focused message on thread change so opening a thread starts fresh.
     // Same-thread refreshes (handled via scheduleRefresh) preserve focus.
     focusedMessageId = null
@@ -529,6 +537,9 @@
 
         // Load reactions for the expanded messages
         loadReactionsForExpanded()
+
+        // Load unsubscribe statuses for all messages in the thread
+        loadUnsubscribeStatuses()
 
         // Fetch bodies for messages that don't have them yet (on-demand)
         fetchUnfetchedBodies(conversation.messages)
@@ -897,6 +908,48 @@
       const next = new Set(removingReactionIds)
       next.delete(messageId)
       removingReactionIds = next
+    }
+  }
+
+  // --- Unsubscribe (Phase C, Gmail behaviour) ---
+  // The click itself is the consent: one-click fires the silent POST
+  // at once, with no confirm dialog. The toast/follow-up flow lives in
+  // $lib/unsubscribe.ts, shared with the context menu.
+  async function loadUnsubscribeStatuses() {
+    if (!conversation?.messages) return
+    try {
+      const statuses = await GetUnsubscribeStatuses(conversation.messages.map(m => m.id))
+      const next: Record<string, appModels.UnsubscribeStatus> = {}
+      for (const s of statuses ?? []) next[s.messageId] = s
+      unsubscribeStatuses = next
+    } catch (err) {
+      console.error('Failed to load unsubscribe statuses:', err)
+    }
+  }
+
+  function markUnsubscribed(messageId: string) {
+    const st = unsubscribeStatuses[messageId]
+    if (st) unsubscribeStatuses = { ...unsubscribeStatuses, [messageId]: { ...st, alreadyUnsubscribed: true } }
+  }
+
+  async function handleUnsubscribe(messageId: string) {
+    if (unsubscribingIds.has(messageId)) return
+    const st = unsubscribeStatuses[messageId]
+    if (!st?.available || st.alreadyUnsubscribed) return
+    unsubscribingIds = new Set([...unsubscribingIds, messageId])
+    try {
+      await runUnsubscribeFlow(messageId, {
+        onUnsubscribed: () => markUnsubscribed(messageId),
+        onMoved: () => {
+          // The message just left this folder: reload, and let the
+          // viewer dismiss itself if the thread is now empty here.
+          if (threadId && folderId) loadConversation(threadId, folderId)
+        },
+      })
+    } finally {
+      const next = new Set(unsubscribingIds)
+      next.delete(messageId)
+      unsubscribingIds = next
     }
   }
 
@@ -1650,6 +1703,31 @@
                       <!-- Unread indicator -->
                       {#if !msg.isRead}
                         <span class="w-2 h-2 rounded-full bg-primary flex-shrink-0"></span>
+                      {/if}
+
+                      <!-- Unsubscribe (Phase C): only when the message carries
+                           List-Unsubscribe headers and sits in Inbox/Spam.
+                           The tooltip names the destination domain before
+                           the click; spam mail gets a warning label. -->
+                      {#if unsubscribeStatuses[msg.id]?.available}
+                        {#if unsubscribeStatuses[msg.id].alreadyUnsubscribed}
+                          <button
+                            class="text-xs px-2 py-0.5 rounded-full border border-border text-muted-foreground cursor-default"
+                            disabled
+                            title={$_('viewer.alreadyUnsubscribedTitle')}
+                            onclick={(e) => e.stopPropagation()}
+                          >{$_('viewer.unsubscribed')}</button>
+                        {:else}
+                          <button
+                            class="text-xs px-2 py-0.5 rounded-full border transition-colors {unsubscribeStatuses[msg.id].isSpam ? 'border-amber-500/60 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10' : 'border-border text-muted-foreground hover:text-primary hover:border-primary/50'}"
+                            title={unsubscribeStatuses[msg.id].isSpam ? $_('viewer.unsubscribeSpamWarning', { values: { domain: unsubscribeStatuses[msg.id].domain } }) : $_('viewer.unsubscribeVia', { values: { domain: unsubscribeStatuses[msg.id].domain } })}
+                            disabled={unsubscribingIds.has(msg.id)}
+                            onclick={(e) => { e.stopPropagation(); handleUnsubscribe(msg.id) }}
+                            onkeydown={(e) => e.stopPropagation()}
+                          >
+                            {unsubscribeStatuses[msg.id].isSpam ? $_('viewer.unsubscribeSpam') : $_('viewer.unsubscribe')}
+                          </button>
+                        {/if}
                       {/if}
                     </div>
 

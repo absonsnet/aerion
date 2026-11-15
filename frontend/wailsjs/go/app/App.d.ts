@@ -411,6 +411,8 @@ export function GetStartHidden():Promise<boolean>;
 
 export function GetStartHiddenActive():Promise<boolean>;
 
+export function GetSubscriptions():Promise<Array<app.SubscriptionSender>>;
+
 export function GetSystemTheme():Promise<string>;
 
 export function GetTermsAccepted():Promise<boolean>;
@@ -428,6 +430,8 @@ export function GetUnifiedInboxConversations(arg1:number,arg2:number,arg3:string
 export function GetUnifiedInboxCount(arg1:string):Promise<number>;
 
 export function GetUnifiedInboxUnreadCount():Promise<number>;
+
+export function GetUnsubscribeStatuses(arg1:Array<string>):Promise<Array<app.UnsubscribeStatus>>;
 
 export function GetWindowControlsLayout():Promise<platform.WindowControlsLayout>;
 
@@ -749,6 +753,8 @@ export function SetSMIMEEncryptPolicy(arg1:string,arg2:string):Promise<void>;
 
 export function SetSMIMESignPolicy(arg1:string,arg2:string):Promise<void>;
 
+export function SetSenderAutoDelete(arg1:string,arg2:string,arg3:boolean):Promise<void>;
+
 export function SetShowMessageListCircles(arg1:boolean):Promise<void>;
 
 export function SetShowMessageListProfilePics(arg1:boolean):Promise<void>;
@@ -816,6 +822,12 @@ export function Undo():Promise<string>;
 export function Unstar(arg1:Array<string>):Promise<void>;
 
 export function UnsubscribeFolder(arg1:string,arg2:string):Promise<void>;
+
+export function UnsubscribeFollowUp(arg1:string,arg2:boolean,arg3:boolean):Promise<void>;
+
+export function UnsubscribeFromMessage(arg1:string):Promise<app.UnsubscribeResult>;
+
+export function UnsubscribeFromSubscription(arg1:string,arg2:string):Promise<app.UnsubscribeResult>;
 
 export function UpdateAccount(arg1:string,arg2:account.AccountConfig):Promise<account.Account>;
 

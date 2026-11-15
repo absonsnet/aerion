@@ -79,6 +79,11 @@ func (e *Engine) enrichBody(messageID, bodyText, snippet string) *enrich.Result 
 		in.KnownPersonalSender = true
 	}
 	res := enrich.Enrich(in)
+	// The one-click flag lives on the stored header row (the Post
+	// header is not re-read here); Enrich never sets it, so carry it
+	// through — otherwise the body pass would silently wipe the flag
+	// the header pass stored and one-click would stop being offered.
+	res.ListUnsubscribePost = h.ListUnsubscribePost
 	fields := enrich.SafeLogFields(res)
 	e.log.Debug().
 		Str("messageID", messageID).
@@ -118,11 +123,12 @@ func (e *Engine) BackfillEnrichment(ctx context.Context) (int, error) {
 		}
 		for _, m := range batch {
 			in := enrich.Input{
-				FromEmail: m.FromEmail,
-				FromName:  m.FromName,
-				Subject:   m.Subject,
-				Snippet:   m.Snippet,
-				BodyHead:  m.BodyText, // ListUnenriched caps this at 2000 chars
+				FromEmail:       m.FromEmail,
+				FromName:        m.FromName,
+				Subject:         m.Subject,
+				Snippet:         m.Snippet,
+				BodyHead:        m.BodyText, // ListUnenriched caps this at 2000 chars
+				ListUnsubscribe: m.ListUnsubscribe,
 			}
 			if cat, ok, err := e.messageStore.GetSenderCategoryOverride(m.FromEmail); err == nil && ok {
 				in.OverrideCategory, in.HasOverride = cat, true
@@ -131,6 +137,10 @@ func (e *Engine) BackfillEnrichment(ctx context.Context) (int, error) {
 				in.KnownPersonalSender = true
 			}
 			res := enrich.Enrich(in)
+			// Preserve any header-time List-Unsubscribe the row already
+			// carries (raw headers are not stored, so the backfill
+			// cannot recover them — it must not wipe them either).
+			res.ListUnsubscribePost = m.ListUnsubscribePost
 			if err := e.messageStore.UpdateEnrichment(m.ID, res); err != nil {
 				e.log.Warn().Err(err).Str("messageID", m.ID).Msg("Backfill enrichment failed for message")
 				continue

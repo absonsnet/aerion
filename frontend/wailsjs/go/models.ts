@@ -852,6 +852,90 @@ export namespace app {
 		    return a;
 		}
 	}
+	export class SubscriptionSender {
+	    senderEmail: string;
+	    senderName: string;
+	    accountId: string;
+	    countAll: number;
+	    count30Days: number;
+	    lastReceived: string;
+	    oneClick: boolean;
+	    unsubscribed: boolean;
+	    unsubscribeMethod: string;
+	    domainMismatch: boolean;
+	    autoDelete: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new SubscriptionSender(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.senderEmail = source["senderEmail"];
+	        this.senderName = source["senderName"];
+	        this.accountId = source["accountId"];
+	        this.countAll = source["countAll"];
+	        this.count30Days = source["count30Days"];
+	        this.lastReceived = source["lastReceived"];
+	        this.oneClick = source["oneClick"];
+	        this.unsubscribed = source["unsubscribed"];
+	        this.unsubscribeMethod = source["unsubscribeMethod"];
+	        this.domainMismatch = source["domainMismatch"];
+	        this.autoDelete = source["autoDelete"];
+	    }
+	}
+	export class UnsubscribeResult {
+	    method: string;
+	    url: string;
+	    domain: string;
+	    domainMismatch: boolean;
+	    isSpam: boolean;
+	    senderEmail: string;
+	    senderName: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new UnsubscribeResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.method = source["method"];
+	        this.url = source["url"];
+	        this.domain = source["domain"];
+	        this.domainMismatch = source["domainMismatch"];
+	        this.isSpam = source["isSpam"];
+	        this.senderEmail = source["senderEmail"];
+	        this.senderName = source["senderName"];
+	    }
+	}
+	export class UnsubscribeStatus {
+	    messageId: string;
+	    available: boolean;
+	    alreadyUnsubscribed: boolean;
+	    method: string;
+	    domain: string;
+	    domainMismatch: boolean;
+	    isSpam: boolean;
+	    senderEmail: string;
+	    senderName: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new UnsubscribeStatus(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.messageId = source["messageId"];
+	        this.available = source["available"];
+	        this.alreadyUnsubscribed = source["alreadyUnsubscribed"];
+	        this.method = source["method"];
+	        this.domain = source["domain"];
+	        this.domainMismatch = source["domainMismatch"];
+	        this.isSpam = source["isSpam"];
+	        this.senderEmail = source["senderEmail"];
+	        this.senderName = source["senderName"];
+	    }
+	}
 	export class ViewMode {
 	    accountId: string;
 	    folderId: string;

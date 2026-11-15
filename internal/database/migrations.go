@@ -1455,4 +1455,22 @@ var migrations = []Migration{
 			);
 		`,
 	},
+	{
+		Version: 48,
+		SQL: `
+			-- Phase C: sender rules. Daak has no general filter-rule
+			-- system yet, so this is the minimal sender-based rule
+			-- table the unsubscribe flow needs: action 'auto_trash'
+			-- moves future mail from the sender to Trash at sync time.
+			-- One row per (sender, account); the address is stored
+			-- lower-cased so matching is case-insensitive.
+			CREATE TABLE IF NOT EXISTS sender_rules (
+				sender_address TEXT NOT NULL,
+				account_id TEXT NOT NULL,
+				action TEXT NOT NULL,
+				created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				PRIMARY KEY (sender_address, account_id, action)
+			);
+		`,
+	},
 }

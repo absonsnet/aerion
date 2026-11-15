@@ -94,6 +94,30 @@ export const SendReaction = (messageId: string, emoji: string): Promise<void> =>
 export const RemoveOwnReaction = (messageId: string): Promise<void> =>
   call('RemoveOwnReaction', messageId)
 
+// — Unsubscribe (Phase C) —
+export const GetUnsubscribeStatuses = (
+  messageIds: Array<string>
+): Promise<Array<app.UnsubscribeStatus>> => call('GetUnsubscribeStatuses', messageIds)
+export const UnsubscribeFromMessage = (
+  messageId: string
+): Promise<app.UnsubscribeResult> => call('UnsubscribeFromMessage', messageId)
+export const UnsubscribeFollowUp = (
+  messageId: string,
+  moveExisting: boolean,
+  autoDelete: boolean
+): Promise<void> => call('UnsubscribeFollowUp', messageId, moveExisting, autoDelete)
+export const GetSubscriptions = (): Promise<Array<app.SubscriptionSender>> =>
+  call('GetSubscriptions')
+export const UnsubscribeFromSubscription = (
+  senderEmail: string,
+  accountId: string
+): Promise<app.UnsubscribeResult> => call('UnsubscribeFromSubscription', senderEmail, accountId)
+export const SetSenderAutoDelete = (
+  senderEmail: string,
+  accountId: string,
+  enabled: boolean
+): Promise<void> => call('SetSenderAutoDelete', senderEmail, accountId, enabled)
+
 // — Email body —
 export const GetInlineAttachments = (
   messageId: string

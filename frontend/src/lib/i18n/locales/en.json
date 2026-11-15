@@ -201,7 +201,27 @@
     "reactionRemoved": "Reaction removed",
     "failedToRemoveReaction": "Failed to remove reaction",
     "removeOwnReaction": "Remove your reaction",
-    "reactionRemoveNote": "Your reaction was already sent — removing it only hides it here, it can't be taken back from the recipient."
+    "reactionRemoveNote": "Your reaction was already sent — removing it only hides it here, it can't be taken back from the recipient.",
+    "unsubscribe": "Unsubscribe",
+    "unsubscribeSpam": "Unsubscribe ⚠",
+    "unsubscribed": "Unsubscribed ✓",
+    "unsubscribeVia": "Unsubscribe via {domain}",
+    "unsubscribeSpamWarning": "Unsubscribing from spam can confirm your address is live. Block sender is recommended instead — unsubscribe goes to {domain}.",
+    "alreadyUnsubscribed": "Already unsubscribed from {sender}",
+    "alreadyUnsubscribedTitle": "Already unsubscribed from this sender",
+    "unsubscribedFrom": "Unsubscribed from {sender}",
+    "unsubscribeEmailSent": "Unsubscribe email sent to {sender}",
+    "unsubscribeOpenedInBrowser": "Opened {domain} in your browser — finish unsubscribing there",
+    "unsubscribeOpenFailed": "Could not open the unsubscribe page in your browser",
+    "unsubscribeDomainMismatch": "Note: the unsubscribe link goes to {domain}, which does not match the sender's domain.",
+    "unsubscribeBlockSender": "Block sender",
+    "unsubscribeMoveExisting": "Move existing mail to Trash",
+    "unsubscribeAutoDelete": "Auto-delete future mail",
+    "unsubscribeBlockedSender": "Sender blocked — existing mail moved to Trash and future mail will be auto-deleted",
+    "unsubscribeMovedExisting": "Existing mail from {sender} moved to Trash",
+    "unsubscribeAutoDeleteOn": "Future mail from {sender} will be auto-deleted",
+    "unsubscribeFailed": "Failed to unsubscribe",
+    "unsubscribeFollowUpFailed": "Failed to apply the follow-up option"
   },
   "composer": {
     "newMessage": "New Message",
@@ -297,6 +317,9 @@
     "removeStar": "Remove Star",
     "markAsRead": "Mark as Read",
     "markAsUnread": "Mark as Unread",
+    "unsubscribe": "Unsubscribe from sender",
+    "unsubscribeSpam": "Unsubscribe from sender ⚠",
+    "unsubscribed": "Unsubscribed ✓",
     "markAllAsRead": "Mark All as Read",
     "markAllAsUnread": "Mark All as Unread",
     "markAllScopeTitleRead": "Mark all as read?",
@@ -417,7 +440,8 @@
     "defaultReplyTo": "Default Reply-To",
     "defaultReplyToHelp": "Sets the Reply-To address for messages composed from an enabled account.",
     "messages": "Messages",
-    "attention": "Attention"
+    "attention": "Attention",
+    "subscriptions": "Subscriptions"
   },
   "settingsGeneral": {
     "display": "Display",
@@ -1094,5 +1118,20 @@
     "typeFlightChangedHelp": "A flight, hotel or booking was cancelled, rescheduled or delayed.",
     "typePaymentFailedHelp": "A payment failed, was declined, or is overdue.",
     "typeDeliveryProblemHelp": "A delivery ran into a problem, such as a failed delivery or customs hold."
+  },
+  "settingsSubscriptions": {
+    "title": "Subscriptions",
+    "description": "Every sender whose mail carries an unsubscribe link, most messages first. Unsubscribing here works the same as the button on a message.",
+    "empty": "No senders with unsubscribe links yet. They appear here once mail carrying a List-Unsubscribe header arrives.",
+    "failedToLoad": "Failed to load subscriptions",
+    "failedToSaveRule": "Failed to save the auto-delete rule",
+    "oneClick": "One-click",
+    "oneClickAvailableTitle": "This sender supports one-click unsubscribe",
+    "domainMismatch": "Link goes elsewhere",
+    "domainMismatchTitle": "The unsubscribe link points to a domain that is neither the sender's domain nor a known email provider",
+    "received": "{recent} in the last 30 days · {total} all time",
+    "lastReceived": "Last received {date}",
+    "autoDelete": "Auto-delete future mail from this sender",
+    "autoDeleteOff": "Auto-delete switched off for {sender}"
   }
 }

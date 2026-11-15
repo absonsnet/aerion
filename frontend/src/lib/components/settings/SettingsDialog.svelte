@@ -23,6 +23,7 @@
   import AboutTab from './AboutTab.svelte'
   import MessagesTab from './MessagesTab.svelte'
   import AttentionTab from './AttentionTab.svelte'
+  import SubscriptionsTab from './SubscriptionsTab.svelte'
 
   interface Props {
     /** Whether the dialog is open */
@@ -339,7 +340,9 @@
       </div>
     {:else}
       <Tabs.Root bind:value={activeTab} class="w-full">
-        <Tabs.List class="grid w-full grid-cols-9">
+        <!-- Two rows of five: ten icon+text tabs no longer fit one row
+             without the labels running into each other. -->
+        <Tabs.List class="grid w-full grid-cols-5">
           <Tabs.Trigger value="general" class="flex items-center gap-2">
             <span class="inline-flex w-4 h-4 items-center justify-center shrink-0"><Icon icon="lucide:settings-2" width="16" height="16" /></span>
             {$_('settings.general')}
@@ -359,6 +362,10 @@
           <Tabs.Trigger value="attention" class="flex items-center gap-2">
             <span class="inline-flex w-4 h-4 items-center justify-center shrink-0"><Icon icon="lucide:bell-ring" width="16" height="16" /></span>
             {$_('settings.attention')}
+          </Tabs.Trigger>
+          <Tabs.Trigger value="subscriptions" class="flex items-center gap-2">
+            <span class="inline-flex w-4 h-4 items-center justify-center shrink-0"><Icon icon="lucide:mail-minus" width="16" height="16" /></span>
+            {$_('settings.subscriptions')}
           </Tabs.Trigger>
           <Tabs.Trigger value="accounts" class="flex items-center gap-2">
             <span class="inline-flex w-4 h-4 items-center justify-center shrink-0"><Icon icon="lucide:mails" width="16" height="16" /></span>
@@ -462,6 +469,10 @@
                 if (type === 'delivery_problem') attentionTypeDeliveryProblem = v
               }}
             />
+          </Tabs.Content>
+
+          <Tabs.Content value="subscriptions" class="mt-0">
+            <SubscriptionsTab />
           </Tabs.Content>
 
           <Tabs.Content value="accounts" class="mt-0">
