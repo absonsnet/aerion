@@ -4,6 +4,9 @@
 ---
 
 - Renamed the app to Daak, with the new app ID net.absons.daak and repository github.com/absonsnet/daak; existing data and settings move to the new location automatically
+- Message list bulk actions: select messages (click, Ctrl/Cmd-click, Shift-click, Space, Ctrl/Cmd-A) and mark read/unread, archive, delete, move, mark as spam or star them from the header
+- Messages can now open in tabs, a dialogue, or a pop-up window, and the preview pane can be turned off in Settings; the folder is the first tab and an open message can switch between Tab, Dialog and Popup window
+- Fixed the Flatpak build: regenerated the vendored Go modules (the excelize dependency was missing, which failed every Flatpak build since v0.5.0); added a regeneration script and a CI check so the vendoring files cannot go stale again
 
 **v0.5.2 - 14-11-2026**
 ---
