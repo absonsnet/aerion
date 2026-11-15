@@ -45,7 +45,7 @@ func (a *App) GetAppInfo() AppInfo {
 		Version:     Version,
 		Description: "An Open Source Lightweight E-Mail Client",
 		Website:     "https://github.com/absonsnet/daak",
-		License:     "Apache 2.0",
+		License:     "AGPLv3",
 	}
 }
 

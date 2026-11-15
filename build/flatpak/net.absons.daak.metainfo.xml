@@ -2,7 +2,7 @@
 <component type="desktop-application">
   <id>net.absons.daak</id>
   <metadata_license>CC0-1.0</metadata_license>
-  <project_license>Apache-2.0</project_license>
+  <project_license>AGPL-3.0-only</project_license>
   <name>Daak</name>
   <summary>Lightweight open-source email client for Linux</summary>
   <summary xml:lang="ja">軽量なオープンソースのLinux向けメールクライアント</summary>
