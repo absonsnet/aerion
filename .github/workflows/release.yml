@@ -31,8 +31,6 @@ jobs:
       GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
       GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
       MICROSOFT_CLIENT_ID: ${{ secrets.MICROSOFT_CLIENT_ID }}
-      GOOGLE_TESTING_CLIENT_ID: ${{ secrets.GOOGLE_TESTING_CLIENT_ID }}
-      GOOGLE_TESTING_CLIENT_SECRET: ${{ secrets.GOOGLE_TESTING_CLIENT_SECRET }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -87,12 +85,12 @@ jobs:
           # Build OAuth credentials shim binary
           if [ "${{ matrix.arch }}" = "amd64" ]; then
             CGO_ENABLED=0 GOARCH=amd64 go build \
-              -ldflags "-X 'main.GoogleClientID=$GOOGLE_CLIENT_ID' -X 'main.GoogleClientSecret=$GOOGLE_CLIENT_SECRET' -X 'main.MicrosoftClientID=$MICROSOFT_CLIENT_ID' -X 'main.GoogleTestingClientID=$GOOGLE_TESTING_CLIENT_ID' -X 'main.GoogleTestingClientSecret=$GOOGLE_TESTING_CLIENT_SECRET'" \
+              -ldflags "-X 'main.GoogleClientID=$GOOGLE_CLIENT_ID' -X 'main.GoogleClientSecret=$GOOGLE_CLIENT_SECRET' -X 'main.MicrosoftClientID=$MICROSOFT_CLIENT_ID'" \
               -o build/bin/flathub-build-env-${{ github.ref_name }}-linux-x86_64 \
               cmd/daak-creds/main.go
           elif [ "${{ matrix.arch }}" = "arm64" ]; then
             CGO_ENABLED=0 GOARCH=arm64 go build \
-              -ldflags "-X 'main.GoogleClientID=$GOOGLE_CLIENT_ID' -X 'main.GoogleClientSecret=$GOOGLE_CLIENT_SECRET' -X 'main.MicrosoftClientID=$MICROSOFT_CLIENT_ID' -X 'main.GoogleTestingClientID=$GOOGLE_TESTING_CLIENT_ID' -X 'main.GoogleTestingClientSecret=$GOOGLE_TESTING_CLIENT_SECRET'" \
+              -ldflags "-X 'main.GoogleClientID=$GOOGLE_CLIENT_ID' -X 'main.GoogleClientSecret=$GOOGLE_CLIENT_SECRET' -X 'main.MicrosoftClientID=$MICROSOFT_CLIENT_ID'" \
               -o build/bin/flathub-build-env-${{ github.ref_name }}-linux-aarch64 \
               cmd/daak-creds/main.go
           fi

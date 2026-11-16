@@ -16,11 +16,12 @@ import (
 // See Makefile for the complete build command.
 // If ldflags are not set, credentials are loaded from the daak-creds shim binary.
 var (
-	// GoogleClientID is the OAuth2 client ID for Google/Gmail (Mail-scoped project).
+	// GoogleClientID is the OAuth2 client ID for Google/Gmail.
 	// Same client also backs first-party extensions' Google flows for any scopes
 	// listed in the extension manifest's first_party_uses_core_for_scopes (today:
-	// contacts.readonly). When that's not enough (write scopes, full Calendar),
-	// the picker UI offers GoogleTestingClientID instead — see below.
+	// contacts.readonly) and the google-contacts / google-calendar slots
+	// (contacts.readwrite, full Calendar). One Google client covers Mail +
+	// Contacts + Calendar.
 	GoogleClientID string
 
 	// GoogleClientSecret is the OAuth2 client secret for Google/Gmail
@@ -31,23 +32,7 @@ var (
 	// microsoft-calendar — Microsoft Graph doesn't gate scopes behind
 	// verification, so one app registration covers all three surfaces.
 	MicrosoftClientID string
-
-	// GoogleTestingClientID is the shared OAuth2 client for first-party
-	// extensions that need broader Google scopes than the mail project is
-	// verified for (e.g., contacts.readwrite, full Calendar). Single un-
-	// Google-verified test client backs both google-contacts and
-	// google-calendar slots. Surfaced in the picker as
-	// "Daak - Google (Testing)" so users understand the verification
-	// status before consenting. When the mail project eventually gets
-	// verified with these scopes, the default in the picker UI switches
-	// to "Daak - Google" (which reuses GoogleClientID via a manifest-
-	// declared scope route) and this slot becomes a fallback.
-	GoogleTestingClientID string
-
-	// GoogleTestingClientSecret pairs with GoogleTestingClientID.
-	GoogleTestingClientSecret string
 )
-
 
 func init() {
 	if GoogleClientID != "" {
@@ -82,11 +67,6 @@ func loadFromShim() {
 		GoogleClientID = creds["google_client_id"]
 		GoogleClientSecret = creds["google_client_secret"]
 		MicrosoftClientID = creds["microsoft_client_id"]
-		// Optional shared testing client for the un-verified Google
-		// project that backs extensions needing broader scopes. Empty
-		// until provisioned — picker simply omits the "(Testing)" option.
-		GoogleTestingClientID = creds["google_testing_client_id"]
-		GoogleTestingClientSecret = creds["google_testing_client_secret"]
 		return
 	}
 }

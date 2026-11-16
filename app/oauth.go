@@ -584,13 +584,12 @@ func (a *App) GetConfiguredOAuthProviders() []string {
 // providers will silently fail otherwise. See OAuthMissingDialog.
 //
 // IsProviderConfigured() only checks the ClientID, but Google is a
-// confidential client (needs Secret too) and so is Google's testing slot
-// (used by extensions). Microsoft is a public client and only needs the
-// ClientID. The fields below honor each provider's actual requirement.
+// confidential client (needs Secret too). Microsoft is a public client
+// and only needs the ClientID. The fields below honor each provider's
+// actual requirement.
 type OAuthBuildStatus struct {
-	Google        bool `json:"google"`
-	Microsoft     bool `json:"microsoft"`
-	GoogleTesting bool `json:"googleTesting"`
+	Google    bool `json:"google"`
+	Microsoft bool `json:"microsoft"`
 }
 
 // GetOAuthBuildStatus reports per-provider OAuth credential availability so the
@@ -598,9 +597,8 @@ type OAuthBuildStatus struct {
 // app start; the result is build-constant for the running process.
 func (a *App) GetOAuthBuildStatus() OAuthBuildStatus {
 	return OAuthBuildStatus{
-		Google:        oauth2.GoogleClientID != "" && oauth2.GoogleClientSecret != "",
-		Microsoft:     oauth2.MicrosoftClientID != "",
-		GoogleTesting: oauth2.GoogleTestingClientID != "" && oauth2.GoogleTestingClientSecret != "",
+		Google:    oauth2.GoogleClientID != "" && oauth2.GoogleClientSecret != "",
+		Microsoft: oauth2.MicrosoftClientID != "",
 	}
 }
 
