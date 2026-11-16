@@ -13,6 +13,7 @@
   import AttachmentList from './AttachmentList.svelte'
   import CodeChip from '$lib/components/list/CodeChip.svelte'
   import EmailBody from './EmailBody.svelte'
+  import MessageTranslation from './MessageTranslation.svelte'
   import { toasts } from '$lib/stores/toast'
   import { setFocusedPane, isInputElement, isComposerOpen } from '$lib/stores/keyboard.svelte'
   import { ConfirmDialog } from '$lib/components/ui/confirm-dialog'
@@ -162,6 +163,26 @@
   // says the headers exist and the folder is Inbox or Spam.
   let unsubscribeStatuses = $state<Record<string, appModels.UnsubscribeStatus>>({})
   let unsubscribingIds = $state<Set<string>>(new Set())
+
+  // Translation (Phase D): per-message translated body HTML, keyed by
+  // message id. Each message keeps its own translated copy in memory
+  // only — the cache lives in the backend — so translating one message
+  // never touches the others. Cleared when the conversation changes.
+  let translatedBodies = $state<Record<string, string>>({})
+
+  function handleTranslationBodyChange(
+    messageId: string,
+    translatedHtml: string | null,
+    _translatedSubject: string | null
+  ) {
+    if (translatedHtml === null) {
+      const next = { ...translatedBodies }
+      delete next[messageId]
+      translatedBodies = next
+    } else {
+      translatedBodies = { ...translatedBodies, [messageId]: translatedHtml }
+    }
+  }
 
   // Auto-mark-as-read state
   let markAsReadDelay = $state(1000) // Default 1 second, loaded from settings
@@ -497,6 +518,8 @@
 
     loading = true
     error = null
+    // A new thread gets fresh per-message translation state.
+    translatedBodies = {}
 
     try {
       const result = await GetConversation(tid, fid)
@@ -1999,6 +2022,19 @@
                         </div>
                       {/if}
 
+                      <!-- Translation (Phase D): per-message banner inside
+                           this message's own block — never one button for
+                           the whole thread. -->
+                      <MessageTranslation
+                        messageId={msg.id}
+                        subject={msg.subject ?? ''}
+                        bodyHtml={msg.bodyHtml ?? ''}
+                        bodyText={msg.bodyText ?? ''}
+                        displayBodyHtml={msg.hasPGP && pgpResults[msg.id] ? pgpResults[msg.id].bodyHtml : msg.hasSMIME && smimeResults[msg.id] ? smimeResults[msg.id].bodyHtml : msg.bodyHtml}
+                        displayBodyText={msg.hasPGP && pgpResults[msg.id] ? pgpResults[msg.id].bodyText : msg.hasSMIME && smimeResults[msg.id] ? smimeResults[msg.id].bodyText : msg.bodyText}
+                        onBodyChange={(html, subj) => handleTranslationBodyChange(msg.id, html, subj)}
+                      />
+
                       <!-- Body (use on-view result for S/MIME or PGP messages) -->
                       <div class="mb-4">
                         {#if (msg as any).bodyFetched === false && !msg.bodyHtml && !msg.bodyText}
@@ -2015,7 +2051,7 @@
                             bind:this={emailBodyRefs[msg.id]}
                             messageId={msg.id}
                             accountId={msg.accountId}
-                            bodyHtml={msg.hasPGP && pgpResults[msg.id] ? pgpResults[msg.id].bodyHtml : msg.hasSMIME && smimeResults[msg.id] ? smimeResults[msg.id].bodyHtml : msg.bodyHtml}
+                            bodyHtml={translatedBodies[msg.id] ?? (msg.hasPGP && pgpResults[msg.id] ? pgpResults[msg.id].bodyHtml : msg.hasSMIME && smimeResults[msg.id] ? smimeResults[msg.id].bodyHtml : msg.bodyHtml)}
                             bodyText={msg.hasPGP && pgpResults[msg.id] ? pgpResults[msg.id].bodyText : msg.hasSMIME && smimeResults[msg.id] ? smimeResults[msg.id].bodyText : msg.bodyText}
                             fromEmail={msg.fromEmail}
                             onCompose={onComposeToAddress}

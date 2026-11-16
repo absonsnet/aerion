@@ -11,7 +11,7 @@
 // so its missing `window.go` namespace is never dereferenced there.
 import * as AppBindings from '../../wailsjs/go/app/App.js'
 import * as ViewerBindings from '../../wailsjs/go/app/ViewerApp.js'
-import type { message, app } from '../../wailsjs/go/models'
+import type { message, app, translate } from '../../wailsjs/go/models'
 
 export function isViewerWindow(): boolean {
   return (
@@ -117,6 +117,79 @@ export const SetSenderAutoDelete = (
   accountId: string,
   enabled: boolean
 ): Promise<void> => call('SetSenderAutoDelete', senderEmail, accountId, enabled)
+
+// — Translation (Phase D) —
+export const GetTranslationSettings = (
+  uiLanguage: string
+): Promise<app.TranslationSettings> => call('GetTranslationSettings', uiLanguage)
+export const GetTranslationTargetLanguages = (): Promise<
+  Array<app.TranslationTargetLanguage>
+> => call('GetTranslationTargetLanguages')
+export const SetTranslationEnabled = (enabled: boolean): Promise<void> =>
+  call('SetTranslationEnabled', enabled)
+export const SetTranslationMode = (mode: string): Promise<void> =>
+  call('SetTranslationMode', mode)
+export const SetTranslationTargetLanguage = (language: string): Promise<void> =>
+  call('SetTranslationTargetLanguage', language)
+export const SetTranslationOnlineProvider = (provider: string): Promise<void> =>
+  call('SetTranslationOnlineProvider', provider)
+export const SetTranslationOnlineConsent = (
+  provider: string,
+  granted: boolean
+): Promise<void> => call('SetTranslationOnlineConsent', provider, granted)
+export const SetDeepLAPIKey = (key: string): Promise<void> =>
+  call('SetDeepLAPIKey', key)
+export const DetectMessageLanguage = (
+  messageId: string,
+  uiLanguage: string
+): Promise<app.MessageDetection> => call('DetectMessageLanguage', messageId, uiLanguage)
+export const GetCachedTranslation = (
+  messageId: string,
+  targetLang: string,
+  engine: string
+): Promise<app.CachedTranslationResult> =>
+  call('GetCachedTranslation', messageId, targetLang, engine)
+export const SaveCachedTranslation = (
+  messageId: string,
+  targetLang: string,
+  engine: string,
+  subject: string,
+  body: string
+): Promise<void> => call('SaveCachedTranslation', messageId, targetLang, engine, subject, body)
+export const TranslateMessageOnline = (
+  messageId: string,
+  texts: Array<string>,
+  sourceLang: string,
+  targetLang: string
+): Promise<Array<string>> =>
+  call('TranslateMessageOnline', messageId, texts, sourceLang, targetLang)
+export const ListBergamotModels = (): Promise<app.BergamotModelsResult> =>
+  call('ListBergamotModels')
+export const GetBergamotPairStatus = (
+  from: string,
+  to: string
+): Promise<Array<app.BergamotLegStatus>> => call('GetBergamotPairStatus', from, to)
+export const GetBergamotSupportedPairs = (): Promise<Array<Array<string>>> =>
+  call('GetBergamotSupportedPairs')
+export const DownloadBergamotModel = (from: string, to: string): Promise<void> =>
+  call('DownloadBergamotModel', from, to)
+export const DeleteBergamotModel = (from: string, to: string): Promise<void> =>
+  call('DeleteBergamotModel', from, to)
+export const CancelBergamotDownload = (): Promise<void> =>
+  call('CancelBergamotDownload')
+export const GetBergamotEngineStatus = (): Promise<translate.EngineStatus> =>
+  call('GetBergamotEngineStatus')
+export const DownloadBergamotEngine = (): Promise<void> =>
+  call('DownloadBergamotEngine')
+export const DeleteBergamotEngine = (): Promise<void> =>
+  call('DeleteBergamotEngine')
+export const GetBergamotLanguages = (): Promise<
+  Array<translate.BergamotLanguage>
+> => call('GetBergamotLanguages')
+export const DownloadBergamotLanguage = (language: string): Promise<void> =>
+  call('DownloadBergamotLanguage', language)
+export const DeleteBergamotLanguage = (language: string): Promise<void> =>
+  call('DeleteBergamotLanguage', language)
 
 // — Email body —
 export const GetInlineAttachments = (

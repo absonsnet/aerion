@@ -218,6 +218,10 @@ export function CancelAllSyncs() {
   return window['go']['app']['App']['CancelAllSyncs']();
 }
 
+export function CancelBergamotDownload() {
+  return window['go']['app']['App']['CancelBergamotDownload']();
+}
+
 export function CancelContactSourceOAuthFlow() {
   return window['go']['app']['App']['CancelContactSourceOAuthFlow']();
 }
@@ -314,6 +318,18 @@ export function CreateIdentity(arg1, arg2) {
   return window['go']['app']['App']['CreateIdentity'](arg1, arg2);
 }
 
+export function DeleteBergamotEngine() {
+  return window['go']['app']['App']['DeleteBergamotEngine']();
+}
+
+export function DeleteBergamotLanguage(arg1) {
+  return window['go']['app']['App']['DeleteBergamotLanguage'](arg1);
+}
+
+export function DeleteBergamotModel(arg1, arg2) {
+  return window['go']['app']['App']['DeleteBergamotModel'](arg1, arg2);
+}
+
 export function DeleteContact(arg1) {
   return window['go']['app']['App']['DeleteContact'](arg1);
 }
@@ -354,6 +370,10 @@ export function DeleteSenderCert(arg1) {
   return window['go']['app']['App']['DeleteSenderCert'](arg1);
 }
 
+export function DetectMessageLanguage(arg1, arg2) {
+  return window['go']['app']['App']['DetectMessageLanguage'](arg1, arg2);
+}
+
 export function DiscoverCardDAVAddressbooks(arg1, arg2, arg3) {
   return window['go']['app']['App']['DiscoverCardDAVAddressbooks'](arg1, arg2, arg3);
 }
@@ -372,6 +392,18 @@ export function DismissAttention(arg1) {
 
 export function DownloadAttachment(arg1, arg2) {
   return window['go']['app']['App']['DownloadAttachment'](arg1, arg2);
+}
+
+export function DownloadBergamotEngine() {
+  return window['go']['app']['App']['DownloadBergamotEngine']();
+}
+
+export function DownloadBergamotLanguage(arg1) {
+  return window['go']['app']['App']['DownloadBergamotLanguage'](arg1);
+}
+
+export function DownloadBergamotModel(arg1, arg2) {
+  return window['go']['app']['App']['DownloadBergamotModel'](arg1, arg2);
 }
 
 export function DownloadEncryptedAttachment(arg1, arg2, arg3) {
@@ -472,6 +504,26 @@ export function GetAutoDetectedFolders(arg1) {
 
 export function GetAutostart() {
   return window['go']['app']['App']['GetAutostart']();
+}
+
+export function GetBergamotEngineStatus() {
+  return window['go']['app']['App']['GetBergamotEngineStatus']();
+}
+
+export function GetBergamotLanguages() {
+  return window['go']['app']['App']['GetBergamotLanguages']();
+}
+
+export function GetBergamotPairStatus(arg1, arg2) {
+  return window['go']['app']['App']['GetBergamotPairStatus'](arg1, arg2);
+}
+
+export function GetBergamotSupportedPairs() {
+  return window['go']['app']['App']['GetBergamotSupportedPairs']();
+}
+
+export function GetCachedTranslation(arg1, arg2, arg3) {
+  return window['go']['app']['App']['GetCachedTranslation'](arg1, arg2, arg3);
 }
 
 export function GetCodeChipClickMode() {
@@ -798,6 +850,14 @@ export function GetThemeMode() {
   return window['go']['app']['App']['GetThemeMode']();
 }
 
+export function GetTranslationSettings(arg1) {
+  return window['go']['app']['App']['GetTranslationSettings'](arg1);
+}
+
+export function GetTranslationTargetLanguages() {
+  return window['go']['app']['App']['GetTranslationTargetLanguages']();
+}
+
 export function GetTrustedCertificates(arg1) {
   return window['go']['app']['App']['GetTrustedCertificates'](arg1);
 }
@@ -912,6 +972,10 @@ export function ListAccountSetupHooksForProvider(arg1) {
 
 export function ListAuthContextsForProvider(arg1) {
   return window['go']['app']['App']['ListAuthContextsForProvider'](arg1);
+}
+
+export function ListBergamotModels() {
+  return window['go']['app']['App']['ListBergamotModels']();
 }
 
 export function ListComposerToolbarItems() {
@@ -1270,6 +1334,10 @@ export function SaveAttachmentAs(arg1) {
   return window['go']['app']['App']['SaveAttachmentAs'](arg1);
 }
 
+export function SaveCachedTranslation(arg1, arg2, arg3, arg4, arg5) {
+  return window['go']['app']['App']['SaveCachedTranslation'](arg1, arg2, arg3, arg4, arg5);
+}
+
 export function SaveDraft(arg1, arg2, arg3) {
   return window['go']['app']['App']['SaveDraft'](arg1, arg2, arg3);
 }
@@ -1368,6 +1436,10 @@ export function SetDarkComposerBody(arg1) {
 
 export function SetDarkMailContent(arg1) {
   return window['go']['app']['App']['SetDarkMailContent'](arg1);
+}
+
+export function SetDeepLAPIKey(arg1) {
+  return window['go']['app']['App']['SetDeepLAPIKey'](arg1);
 }
 
 export function SetDefaultAddress(arg1, arg2, arg3) {
@@ -1510,6 +1582,26 @@ export function SetThemeMode(arg1) {
   return window['go']['app']['App']['SetThemeMode'](arg1);
 }
 
+export function SetTranslationEnabled(arg1) {
+  return window['go']['app']['App']['SetTranslationEnabled'](arg1);
+}
+
+export function SetTranslationMode(arg1) {
+  return window['go']['app']['App']['SetTranslationMode'](arg1);
+}
+
+export function SetTranslationOnlineConsent(arg1, arg2) {
+  return window['go']['app']['App']['SetTranslationOnlineConsent'](arg1, arg2);
+}
+
+export function SetTranslationOnlineProvider(arg1) {
+  return window['go']['app']['App']['SetTranslationOnlineProvider'](arg1);
+}
+
+export function SetTranslationTargetLanguage(arg1) {
+  return window['go']['app']['App']['SetTranslationTargetLanguage'](arg1);
+}
+
 export function SetWindowControlsSide(arg1) {
   return window['go']['app']['App']['SetWindowControlsSide'](arg1);
 }
@@ -1588,6 +1680,10 @@ export function TestOAuthConnection(arg1) {
 
 export function TestSMTPConnection(arg1, arg2, arg3, arg4, arg5, arg6) {
   return window['go']['app']['App']['TestSMTPConnection'](arg1, arg2, arg3, arg4, arg5, arg6);
+}
+
+export function TranslateMessageOnline(arg1, arg2, arg3, arg4) {
+  return window['go']['app']['App']['TranslateMessageOnline'](arg1, arg2, arg3, arg4);
 }
 
 export function Trash(arg1) {

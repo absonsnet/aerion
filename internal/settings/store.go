@@ -10,6 +10,7 @@ import (
 
 	"github.com/absonsnet/daak/internal/database"
 	"github.com/absonsnet/daak/internal/logging"
+	"github.com/absonsnet/daak/internal/translate"
 	"github.com/rs/zerolog"
 	_ "modernc.org/sqlite"
 )
@@ -55,6 +56,15 @@ const (
 	KeyOtpClipboardClearSeconds   = "otp_clipboard_clear_seconds" // seconds until Daak clears a copied code (0 = never)
 	KeySpellcheckLanguages        = "spellcheck_languages"        // JSON array of enabled dictionary codes, e.g. ["en","de"]
 	KeySpellcheckCustomWords      = "spellcheck_custom_words"     // JSON array of user-added dictionary words
+
+	// Translation (Phase D). The mode ladder is: OS engine (Tier 1)
+	// where one exists, Bergamot WASM (Tier 2), online (Tier 3,
+	// consent-gated). The default stays offline.
+	KeyTranslateEnabled         = "translate_enabled"          // master toggle (default on)
+	KeyTranslateMode            = "translate_mode"             // "prefer_offline" | "offline_only" | "online" (default "prefer_offline")
+	KeyTranslateTargetLanguage  = "translate_target_language"  // "system" (default) or an ISO 639-1 code
+	KeyTranslateOnlineProvider  = "translate_online_provider"  // "google" (default) | "deepl"
+	KeyTranslateOnlineConsent   = "translate_online_consent"   // JSON object: provider -> true when the user consented
 )
 
 // Extension enable/disable keys. Format: extension_<name>_enabled.
@@ -966,6 +976,166 @@ func (s *Store) SetOtpClipboardClearSeconds(seconds int) error {
 		return fmt.Errorf("invalid clipboard clear delay: %d (must be 0-3600)", seconds)
 	}
 	return s.Set(KeyOtpClipboardClearSeconds, strconv.Itoa(seconds))
+}
+
+// Translation settings (Phase D).
+
+// Translation mode values.
+const (
+	TranslateModePreferOffline = "prefer_offline" // offline tiers first; online only via an explicit per-message button
+	TranslateModeOfflineOnly   = "offline_only"   // Tiers 1-2 only, ever; text never leaves the machine
+	TranslateModeOnline        = "online"         // straight to the online provider (consent still applies)
+)
+
+// DefaultTranslateMode is the default translation mode.
+const DefaultTranslateMode = TranslateModePreferOffline
+
+// DefaultTranslateTargetLanguage is the default target language.
+const DefaultTranslateTargetLanguage = "system"
+
+// DefaultTranslateOnlineProvider is the default online provider.
+const DefaultTranslateOnlineProvider = "google"
+
+// GetTranslateEnabled returns the translation master toggle.
+// Default: true (only an explicit "false" disables it).
+func (s *Store) GetTranslateEnabled() (bool, error) {
+	value, err := s.Get(KeyTranslateEnabled)
+	if err != nil {
+		return true, err
+	}
+	return value != "false", nil
+}
+
+// SetTranslateEnabled enables or disables translation offers.
+func (s *Store) SetTranslateEnabled(enabled bool) error {
+	v := "false"
+	if enabled {
+		v = "true"
+	}
+	return s.Set(KeyTranslateEnabled, v)
+}
+
+// GetTranslateMode returns the translation mode. Unknown stored values
+// fall back to the default rather than failing the settings load.
+func (s *Store) GetTranslateMode() (string, error) {
+	value, err := s.Get(KeyTranslateMode)
+	if err != nil {
+		return DefaultTranslateMode, err
+	}
+	switch value {
+	case "", DefaultTranslateMode:
+		return DefaultTranslateMode, nil
+	case TranslateModeOfflineOnly, TranslateModeOnline:
+		return value, nil
+	default:
+		return DefaultTranslateMode, nil
+	}
+}
+
+// SetTranslateMode sets the translation mode. It takes effect
+// immediately for the next Translate press; no restart or re-sync.
+func (s *Store) SetTranslateMode(mode string) error {
+	switch mode {
+	case TranslateModePreferOffline, TranslateModeOfflineOnly, TranslateModeOnline:
+		return s.Set(KeyTranslateMode, mode)
+	default:
+		return fmt.Errorf("invalid translation mode: %s (must be 'prefer_offline', 'offline_only' or 'online')", mode)
+	}
+}
+
+// GetTranslateTargetLanguage returns the stored target language:
+// "system" (default) or an ISO 639-1 code.
+func (s *Store) GetTranslateTargetLanguage() (string, error) {
+	value, err := s.Get(KeyTranslateTargetLanguage)
+	if err != nil {
+		return DefaultTranslateTargetLanguage, err
+	}
+	if value == "" {
+		return DefaultTranslateTargetLanguage, nil
+	}
+	return value, nil
+}
+
+// SetTranslateTargetLanguage sets the target language ("system" or a
+// code from the picker list in internal/translate).
+func (s *Store) SetTranslateTargetLanguage(language string) error {
+	if language == DefaultTranslateTargetLanguage || translate.ValidTargetLanguage(language) {
+		return s.Set(KeyTranslateTargetLanguage, language)
+	}
+	return fmt.Errorf("invalid translation target language: %s", language)
+}
+
+// GetTranslateOnlineProvider returns the online provider ("google" or
+// "deepl"). Default: "google".
+func (s *Store) GetTranslateOnlineProvider() (string, error) {
+	value, err := s.Get(KeyTranslateOnlineProvider)
+	if err != nil {
+		return DefaultTranslateOnlineProvider, err
+	}
+	switch value {
+	case "", DefaultTranslateOnlineProvider:
+		return DefaultTranslateOnlineProvider, nil
+	case "deepl":
+		return value, nil
+	default:
+		return DefaultTranslateOnlineProvider, nil
+	}
+}
+
+// SetTranslateOnlineProvider sets the online provider.
+func (s *Store) SetTranslateOnlineProvider(provider string) error {
+	switch provider {
+	case "google", "deepl":
+		return s.Set(KeyTranslateOnlineProvider, provider)
+	default:
+		return fmt.Errorf("invalid online translation provider: %s (must be 'google' or 'deepl')", provider)
+	}
+}
+
+// GetTranslateOnlineConsent returns whether the user consented to
+// sending message text to the given online provider. Consent is
+// per-provider and revocable; never assumed.
+func (s *Store) GetTranslateOnlineConsent(provider string) (bool, error) {
+	value, err := s.Get(KeyTranslateOnlineConsent)
+	if err != nil {
+		return false, err
+	}
+	if value == "" {
+		return false, nil
+	}
+	var consents map[string]bool
+	if err := json.Unmarshal([]byte(value), &consents); err != nil {
+		return false, nil // tolerate a corrupt value rather than fail settings load
+	}
+	return consents[provider], nil
+}
+
+// SetTranslateOnlineConsent records or revokes consent for one online
+// provider. Switching provider clears no cache.
+func (s *Store) SetTranslateOnlineConsent(provider string, granted bool) error {
+	switch provider {
+	case "google", "deepl":
+	default:
+		return fmt.Errorf("invalid online translation provider: %s", provider)
+	}
+	value, err := s.Get(KeyTranslateOnlineConsent)
+	if err != nil {
+		return err
+	}
+	consents := map[string]bool{}
+	if value != "" {
+		_ = json.Unmarshal([]byte(value), &consents)
+	}
+	if granted {
+		consents[provider] = true
+	} else {
+		delete(consents, provider)
+	}
+	data, err := json.Marshal(consents)
+	if err != nil {
+		return err
+	}
+	return s.Set(KeyTranslateOnlineConsent, string(data))
 }
 
 // GetLanguage returns the saved language preference (locale code)

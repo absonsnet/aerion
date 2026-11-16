@@ -392,6 +392,80 @@ export namespace app {
 	        this.label = source["label"];
 	    }
 	}
+	export class BergamotLegStatus {
+	    from: string;
+	    to: string;
+	    available: boolean;
+	    supported: boolean;
+	    version?: string;
+	    sizeBytes: number;
+	    missing?: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new BergamotLegStatus(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.from = source["from"];
+	        this.to = source["to"];
+	        this.available = source["available"];
+	        this.supported = source["supported"];
+	        this.version = source["version"];
+	        this.sizeBytes = source["sizeBytes"];
+	        this.missing = source["missing"];
+	    }
+	}
+	export class BergamotModelsResult {
+	    pairs: translate.DownloadedPair[];
+	    totalSize: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new BergamotModelsResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.pairs = this.convertValues(source["pairs"], translate.DownloadedPair);
+	        this.totalSize = source["totalSize"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class CachedTranslationResult {
+	    found: boolean;
+	    engine?: string;
+	    subject?: string;
+	    body?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new CachedTranslationResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.found = source["found"];
+	        this.engine = source["engine"];
+	        this.subject = source["subject"];
+	        this.body = source["body"];
+	    }
+	}
 	export class ComposeMode {
 	    accountId: string;
 	    mode: string;
@@ -581,6 +655,74 @@ export namespace app {
 	        this.subject = source["subject"];
 	        this.body = source["body"];
 	    }
+	}
+	export class MessageDetection {
+	    enabled: boolean;
+	    language: string;
+	    languageName: string;
+	    confidence: number;
+	    source: string;
+	    showBanner: boolean;
+	    target: string;
+	    targetName: string;
+	    isSecurity: boolean;
+	    mode: string;
+	    offlineAvailable: boolean;
+	    offlineEngine: string;
+	    offlineNeedsDownload: boolean;
+	    offlineDownloadSize: number;
+	    offlineEngineMissing: boolean;
+	    offlineSupported: boolean;
+	    onlineAllowed: boolean;
+	    onlineProvider: string;
+	    onlineConsented: boolean;
+	    cached?: translate.CachedTranslation;
+	
+	    static createFrom(source: any = {}) {
+	        return new MessageDetection(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.enabled = source["enabled"];
+	        this.language = source["language"];
+	        this.languageName = source["languageName"];
+	        this.confidence = source["confidence"];
+	        this.source = source["source"];
+	        this.showBanner = source["showBanner"];
+	        this.target = source["target"];
+	        this.targetName = source["targetName"];
+	        this.isSecurity = source["isSecurity"];
+	        this.mode = source["mode"];
+	        this.offlineAvailable = source["offlineAvailable"];
+	        this.offlineEngine = source["offlineEngine"];
+	        this.offlineNeedsDownload = source["offlineNeedsDownload"];
+	        this.offlineDownloadSize = source["offlineDownloadSize"];
+	        this.offlineEngineMissing = source["offlineEngineMissing"];
+	        this.offlineSupported = source["offlineSupported"];
+	        this.onlineAllowed = source["onlineAllowed"];
+	        this.onlineProvider = source["onlineProvider"];
+	        this.onlineConsented = source["onlineConsented"];
+	        this.cached = this.convertValues(source["cached"], translate.CachedTranslation);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class MessageReaction {
 	    emoji: string;
@@ -882,6 +1024,64 @@ export namespace app {
 	        this.unsubscribeMethod = source["unsubscribeMethod"];
 	        this.domainMismatch = source["domainMismatch"];
 	        this.autoDelete = source["autoDelete"];
+	    }
+	}
+	export class TranslationSettings {
+	    enabled: boolean;
+	    mode: string;
+	    targetLanguage: string;
+	    resolvedTarget: string;
+	    onlineProvider: string;
+	    consents: Record<string, boolean>;
+	    deeplKeySet: boolean;
+	    osEngine: translate.OSEngineStatus;
+	
+	    static createFrom(source: any = {}) {
+	        return new TranslationSettings(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.enabled = source["enabled"];
+	        this.mode = source["mode"];
+	        this.targetLanguage = source["targetLanguage"];
+	        this.resolvedTarget = source["resolvedTarget"];
+	        this.onlineProvider = source["onlineProvider"];
+	        this.consents = source["consents"];
+	        this.deeplKeySet = source["deeplKeySet"];
+	        this.osEngine = this.convertValues(source["osEngine"], translate.OSEngineStatus);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class TranslationTargetLanguage {
+	    code: string;
+	    name: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new TranslationTargetLanguage(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.code = source["code"];
+	        this.name = source["name"];
 	    }
 	}
 	export class UnsubscribeResult {
@@ -3763,6 +3963,105 @@ export namespace sync {
 		    }
 		    return a;
 		}
+	}
+
+}
+
+export namespace translate {
+	
+	export class BergamotLanguage {
+	    code: string;
+	    name: string;
+	    sizeBytes: number;
+	    downloaded: boolean;
+	    downloadedSize: number;
+	    toEnglish: boolean;
+	    fromEnglish: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new BergamotLanguage(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.code = source["code"];
+	        this.name = source["name"];
+	        this.sizeBytes = source["sizeBytes"];
+	        this.downloaded = source["downloaded"];
+	        this.downloadedSize = source["downloadedSize"];
+	        this.toEnglish = source["toEnglish"];
+	        this.fromEnglish = source["fromEnglish"];
+	    }
+	}
+	export class CachedTranslation {
+	    engine: string;
+	    translatedSubject: string;
+	    translatedBody: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new CachedTranslation(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.engine = source["engine"];
+	        this.translatedSubject = source["translatedSubject"];
+	        this.translatedBody = source["translatedBody"];
+	    }
+	}
+	export class DownloadedPair {
+	    fromLang: string;
+	    toLang: string;
+	    version: string;
+	    sizeBytes: number;
+	    files: Record<string, string>;
+	
+	    static createFrom(source: any = {}) {
+	        return new DownloadedPair(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.fromLang = source["fromLang"];
+	        this.toLang = source["toLang"];
+	        this.version = source["version"];
+	        this.sizeBytes = source["sizeBytes"];
+	        this.files = source["files"];
+	    }
+	}
+	export class EngineStatus {
+	    available: boolean;
+	    version?: string;
+	    sizeBytes: number;
+	    downloadedBytes: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new EngineStatus(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.available = source["available"];
+	        this.version = source["version"];
+	        this.sizeBytes = source["sizeBytes"];
+	        this.downloadedBytes = source["downloadedBytes"];
+	    }
+	}
+	export class OSEngineStatus {
+	    available: boolean;
+	    name: string;
+	    reason?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new OSEngineStatus(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.available = source["available"];
+	        this.name = source["name"];
+	        this.reason = source["reason"];
+	    }
 	}
 
 }

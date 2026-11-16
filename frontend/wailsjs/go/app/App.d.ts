@@ -8,6 +8,7 @@ import {v1} from '../models';
 import {app} from '../models';
 import {message} from '../models';
 import {folder} from '../models';
+import {translate} from '../models';
 import {contact} from '../models';
 import {context} from '../models';
 import {smtp} from '../models';
@@ -129,6 +130,8 @@ export function CancelAccountSync(arg1:string):Promise<void>;
 
 export function CancelAllSyncs():Promise<void>;
 
+export function CancelBergamotDownload():Promise<void>;
+
 export function CancelContactSourceOAuthFlow():Promise<void>;
 
 export function CancelFolderSync(arg1:string,arg2:string):Promise<void>;
@@ -177,6 +180,12 @@ export function CopyToFolder(arg1:Array<string>,arg2:string):Promise<void>;
 
 export function CreateIdentity(arg1:string,arg2:account.IdentityConfig):Promise<account.Identity>;
 
+export function DeleteBergamotEngine():Promise<void>;
+
+export function DeleteBergamotLanguage(arg1:string):Promise<void>;
+
+export function DeleteBergamotModel(arg1:string,arg2:string):Promise<void>;
+
 export function DeleteContact(arg1:string):Promise<void>;
 
 export function DeleteContactSource(arg1:string):Promise<void>;
@@ -197,6 +206,8 @@ export function DeleteSMIMECertificate(arg1:string):Promise<void>;
 
 export function DeleteSenderCert(arg1:string):Promise<void>;
 
+export function DetectMessageLanguage(arg1:string,arg2:string):Promise<app.MessageDetection>;
+
 export function DiscoverCardDAVAddressbooks(arg1:string,arg2:string,arg3:string):Promise<Array<carddav.AddressbookInfo>>;
 
 export function DiscoverCardDAVAddressbooksOAuth(arg1:string,arg2:string):Promise<Array<carddav.AddressbookInfo>>;
@@ -206,6 +217,12 @@ export function DiscoverOAuthProvider(arg1:string):Promise<app.OIDCDiscoveryResu
 export function DismissAttention(arg1:string):Promise<void>;
 
 export function DownloadAttachment(arg1:string,arg2:string):Promise<string>;
+
+export function DownloadBergamotEngine():Promise<void>;
+
+export function DownloadBergamotLanguage(arg1:string):Promise<void>;
+
+export function DownloadBergamotModel(arg1:string,arg2:string):Promise<void>;
 
 export function DownloadEncryptedAttachment(arg1:string,arg2:string,arg3:string):Promise<string>;
 
@@ -256,6 +273,16 @@ export function GetAttentionTypeEnabled(arg1:string):Promise<boolean>;
 export function GetAutoDetectedFolders(arg1:string):Promise<Record<string, string>>;
 
 export function GetAutostart():Promise<boolean>;
+
+export function GetBergamotEngineStatus():Promise<translate.EngineStatus>;
+
+export function GetBergamotLanguages():Promise<Array<translate.BergamotLanguage>>;
+
+export function GetBergamotPairStatus(arg1:string,arg2:string):Promise<Array<app.BergamotLegStatus>>;
+
+export function GetBergamotSupportedPairs():Promise<Array<any>>;
+
+export function GetCachedTranslation(arg1:string,arg2:string,arg3:string):Promise<app.CachedTranslationResult>;
 
 export function GetCodeChipClickMode():Promise<string>;
 
@@ -419,6 +446,10 @@ export function GetTermsAccepted():Promise<boolean>;
 
 export function GetThemeMode():Promise<string>;
 
+export function GetTranslationSettings(arg1:string):Promise<app.TranslationSettings>;
+
+export function GetTranslationTargetLanguages():Promise<Array<app.TranslationTargetLanguage>>;
+
 export function GetTrustedCertificates(arg1:Array<string>):Promise<Array<certificate.CertificateInfo>>;
 
 export function GetUIState():Promise<appstate.UIState>;
@@ -476,6 +507,8 @@ export function LinkAccountContactSource(arg1:string,arg2:string,arg3:number):Pr
 export function ListAccountSetupHooksForProvider(arg1:string):Promise<Array<v1.AccountSetupHookRequest>>;
 
 export function ListAuthContextsForProvider(arg1:string):Promise<Array<app.AuthContextInfo>>;
+
+export function ListBergamotModels():Promise<app.BergamotModelsResult>;
 
 export function ListComposerToolbarItems():Promise<Array<v1.ComposerToolbarRequest>>;
 
@@ -655,6 +688,8 @@ export function SaveAllEncryptedAttachments(arg1:string):Promise<string>;
 
 export function SaveAttachmentAs(arg1:string):Promise<string>;
 
+export function SaveCachedTranslation(arg1:string,arg2:string,arg3:string,arg4:string,arg5:string):Promise<void>;
+
 export function SaveDraft(arg1:string,arg2:smtp.ComposeMessage,arg3:string):Promise<app.DraftResult>;
 
 export function SaveEncryptedAttachmentAs(arg1:string,arg2:string):Promise<string>;
@@ -704,6 +739,8 @@ export function SetContactSourceWritable(arg1:string,arg2:boolean):Promise<void>
 export function SetDarkComposerBody(arg1:boolean):Promise<void>;
 
 export function SetDarkMailContent(arg1:boolean):Promise<void>;
+
+export function SetDeepLAPIKey(arg1:string):Promise<void>;
 
 export function SetDefaultAddress(arg1:string,arg2:string,arg3:string):Promise<void>;
 
@@ -775,6 +812,16 @@ export function SetTermsAccepted(arg1:boolean):Promise<void>;
 
 export function SetThemeMode(arg1:string):Promise<void>;
 
+export function SetTranslationEnabled(arg1:boolean):Promise<void>;
+
+export function SetTranslationMode(arg1:string):Promise<void>;
+
+export function SetTranslationOnlineConsent(arg1:string,arg2:boolean):Promise<void>;
+
+export function SetTranslationOnlineProvider(arg1:string):Promise<void>;
+
+export function SetTranslationTargetLanguage(arg1:string):Promise<void>;
+
 export function SetWindowControlsSide(arg1:string):Promise<void>;
 
 export function ShowWindow():Promise<void>;
@@ -814,6 +861,8 @@ export function TestConnection(arg1:account.AccountConfig):Promise<app.Connectio
 export function TestOAuthConnection(arg1:string):Promise<void>;
 
 export function TestSMTPConnection(arg1:string,arg2:number,arg3:string,arg4:string,arg5:string,arg6:string):Promise<void>;
+
+export function TranslateMessageOnline(arg1:string,arg2:Array<string>,arg3:string,arg4:string):Promise<Array<string>>;
 
 export function Trash(arg1:Array<string>):Promise<boolean>;
 

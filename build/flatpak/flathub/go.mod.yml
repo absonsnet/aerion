@@ -17,6 +17,11 @@
   strip-components: 3
   type: archive
   url: https://proxy.golang.org/github.com/!proton!mail/go-crypto/@v/v1.4.1.zip
+- dest: vendor/github.com/abadojack/whatlanggo
+  sha256: 2f7453be1ba1f8f0ff5d46eafb15448d25c47ad712db414d771a8888a97db89a
+  strip-components: 3
+  type: archive
+  url: https://proxy.golang.org/github.com/abadojack/whatlanggo/@v/v1.0.1.zip
 - dest: vendor/github.com/emersion/go-ical
   sha256: 1d7af01ae7588bfffb38b5ec6a0e116df47283347dd996323fa84dea9219e99d
   strip-components: 3

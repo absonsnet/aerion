@@ -1473,4 +1473,24 @@ var migrations = []Migration{
 			);
 		`,
 	},
+	{
+		Version: 49,
+		SQL: `
+			-- Phase D: translation cache invalidation + service
+			-- secrets. body_hash on message_translations records
+			-- the message content a cached translation was made
+			-- from; a changed body invalidates the row.
+			-- service_secrets holds single global secrets (e.g. the
+			-- DeepL API key) as encrypted values; the OS keyring is
+			-- tried first and this table is the fallback (see
+			-- internal/credentials service secrets).
+			ALTER TABLE message_translations ADD COLUMN body_hash TEXT;
+
+			CREATE TABLE IF NOT EXISTS service_secrets (
+				service TEXT PRIMARY KEY,
+				encrypted_value TEXT NOT NULL,
+				updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+			);
+		`,
+	},
 }
