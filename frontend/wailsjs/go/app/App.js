@@ -794,6 +794,10 @@ export function GetSearchCount(arg1, arg2, arg3, arg4) {
   return window['go']['app']['App']['GetSearchCount'](arg1, arg2, arg3, arg4);
 }
 
+export function GetSearchCountUnifiedFolder(arg1, arg2, arg3) {
+  return window['go']['app']['App']['GetSearchCountUnifiedFolder'](arg1, arg2, arg3);
+}
+
 export function GetSearchCountUnifiedInbox(arg1, arg2) {
   return window['go']['app']['App']['GetSearchCountUnifiedInbox'](arg1, arg2);
 }
@@ -884,6 +888,18 @@ export function GetUIState() {
 
 export function GetUndoDescription() {
   return window['go']['app']['App']['GetUndoDescription']();
+}
+
+export function GetUnifiedFolderConversations(arg1, arg2, arg3, arg4, arg5, arg6, arg7) {
+  return window['go']['app']['App']['GetUnifiedFolderConversations'](arg1, arg2, arg3, arg4, arg5, arg6, arg7);
+}
+
+export function GetUnifiedFolderCount(arg1, arg2, arg3, arg4) {
+  return window['go']['app']['App']['GetUnifiedFolderCount'](arg1, arg2, arg3, arg4);
+}
+
+export function GetUnifiedFolderUnreadCounts() {
+  return window['go']['app']['App']['GetUnifiedFolderUnreadCounts']();
 }
 
 export function GetUnifiedInboxConversations(arg1, arg2, arg3, arg4, arg5, arg6) {
@@ -1384,6 +1400,10 @@ export function SearchContacts(arg1, arg2) {
 
 export function SearchConversations(arg1, arg2, arg3, arg4, arg5, arg6) {
   return window['go']['app']['App']['SearchConversations'](arg1, arg2, arg3, arg4, arg5, arg6);
+}
+
+export function SearchUnifiedFolder(arg1, arg2, arg3, arg4, arg5) {
+  return window['go']['app']['App']['SearchUnifiedFolder'](arg1, arg2, arg3, arg4, arg5);
 }
 
 export function SearchUnifiedInbox(arg1, arg2, arg3, arg4) {

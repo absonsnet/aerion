@@ -68,8 +68,24 @@
 </script>
 
 {#snippet dragRegion()}
-  <!-- Drag region with app title -->
-  <div class="flex-1 flex items-center gap-2 px-3 h-full" style="--wails-draggable: drag">
+  <!-- Drag region with app title. Double-click toggles maximize/restore,
+       like a native title bar; the window-control buttons live in the
+       separate controls() snippet, so double-clicking a button does not
+       trigger this. Keyboard: Enter/Space does the same. -->
+  <div
+    class="flex-1 flex items-center gap-2 px-3 h-full"
+    style="--wails-draggable: drag"
+    role="button"
+    tabindex="0"
+    aria-label={isMaximized ? $_('aria.restoreWindow') : $_('aria.maximizeWindow')}
+    ondblclick={toggleMaximize}
+    onkeydown={(e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault()
+        void toggleMaximize()
+      }
+    }}
+  >
     <Icon icon="mdi:email-fast-outline" class="w-5 h-5 text-primary" />
     <span class="text-sm font-medium text-foreground">{APP_NAME}</span>
   </div>

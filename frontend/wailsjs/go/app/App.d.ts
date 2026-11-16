@@ -418,6 +418,8 @@ export function GetSMIMESignPolicy(arg1:string):Promise<string>;
 
 export function GetSearchCount(arg1:string,arg2:string,arg3:string,arg4:string):Promise<number>;
 
+export function GetSearchCountUnifiedFolder(arg1:string,arg2:string,arg3:string):Promise<number>;
+
 export function GetSearchCountUnifiedInbox(arg1:string,arg2:string):Promise<number>;
 
 export function GetSenderCategoryOverrides():Promise<Array<app.SenderCategoryOverride>>;
@@ -463,6 +465,12 @@ export function GetTrustedCertificates(arg1:Array<string>):Promise<Array<certifi
 export function GetUIState():Promise<appstate.UIState>;
 
 export function GetUndoDescription():Promise<string>;
+
+export function GetUnifiedFolderConversations(arg1:string,arg2:number,arg3:number,arg4:string,arg5:string,arg6:string,arg7:string):Promise<Array<message.Conversation>>;
+
+export function GetUnifiedFolderCount(arg1:string,arg2:string,arg3:string,arg4:string):Promise<number>;
+
+export function GetUnifiedFolderUnreadCounts():Promise<Record<string, number>>;
 
 export function GetUnifiedInboxConversations(arg1:number,arg2:number,arg3:string,arg4:string,arg5:string,arg6:string):Promise<Array<message.Conversation>>;
 
@@ -713,6 +721,8 @@ export function SaveUIState(arg1:appstate.UIState):Promise<void>;
 export function SearchContacts(arg1:string,arg2:number):Promise<Array<contact.Contact>>;
 
 export function SearchConversations(arg1:string,arg2:string,arg3:string,arg4:number,arg5:number,arg6:string):Promise<Array<message.ConversationSearchResult>>;
+
+export function SearchUnifiedFolder(arg1:string,arg2:string,arg3:number,arg4:number,arg5:string):Promise<Array<message.ConversationSearchResult>>;
 
 export function SearchUnifiedInbox(arg1:string,arg2:number,arg3:number,arg4:string):Promise<Array<message.ConversationSearchResult>>;
 

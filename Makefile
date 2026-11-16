@@ -35,18 +35,9 @@ MODULE := github.com/absonsnet/daak
 #                               microsoft-calendar (Microsoft Graph
 #                               doesn't gate scopes behind verification).
 #                               Surfaced as "Daak - Microsoft".
-#   GOOGLE_TESTING_CLIENT_ID/SECRET — shared un-Google-verified test
-#                               project for extensions that need broader
-#                               scopes than the mail project carries
-#                               (contacts.readwrite, full Calendar).
-#                               Single client backs google-contacts AND
-#                               google-calendar slots. Surfaced as
-#                               "Daak - Google (Testing)".
 LDFLAGS := -X '$(MODULE)/internal/oauth2.GoogleClientID=$(GOOGLE_CLIENT_ID)' \
            -X '$(MODULE)/internal/oauth2.GoogleClientSecret=$(GOOGLE_CLIENT_SECRET)' \
-           -X '$(MODULE)/internal/oauth2.MicrosoftClientID=$(MICROSOFT_CLIENT_ID)' \
-           -X '$(MODULE)/internal/oauth2.GoogleTestingClientID=$(GOOGLE_TESTING_CLIENT_ID)' \
-           -X '$(MODULE)/internal/oauth2.GoogleTestingClientSecret=$(GOOGLE_TESTING_CLIENT_SECRET)'
+           -X '$(MODULE)/internal/oauth2.MicrosoftClientID=$(MICROSOFT_CLIENT_ID)'
 
 # Wails build tags
 BUILD_TAGS := webkit2_41

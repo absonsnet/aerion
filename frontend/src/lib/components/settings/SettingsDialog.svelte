@@ -381,8 +381,10 @@
     {:else}
       <Tabs.Root bind:value={activeTab} class="w-full">
         <!-- Two rows of six: eleven icon+text tabs no longer fit one row
-             without the labels running into each other. -->
-        <Tabs.List class="grid w-full grid-cols-6">
+             without the labels running into each other. h-auto overrides
+             the shared Tabs.List fixed h-10 so the second row gets its own
+             height instead of overflowing onto the content below. -->
+        <Tabs.List class="grid h-auto w-full grid-cols-6">
           <Tabs.Trigger value="general" class="flex items-center gap-2">
             <span class="inline-flex w-4 h-4 items-center justify-center shrink-0"><Icon icon="lucide:settings-2" width="16" height="16" /></span>
             {$_('settings.general')}

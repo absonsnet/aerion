@@ -2,8 +2,7 @@
   import Icon from '@iconify/svelte'
   import { onMount } from 'svelte'
   import AccountSection from './AccountSection.svelte'
-  import UnifiedSection from './UnifiedSection.svelte'
-  import type { UnifiedFolderGroup, UnifiedFolderEntry } from './UnifiedSection.svelte'
+  import UnifiedSection, { UNIFIED_FOLDER_DEFS } from './UnifiedSection.svelte'
   import AccountDialog from '$lib/components/settings/AccountDialog.svelte'
   import DeleteAccountDialog from '$lib/components/settings/DeleteAccountDialog.svelte'
   import SettingsDialog from '$lib/components/settings/SettingsDialog.svelte'
@@ -12,20 +11,20 @@
   import { accountStore } from '$lib/stores/accounts.svelte'
   import { contactSourcesStore } from '$lib/stores/contactSources.svelte'
   import { setFolderCollapsed, getUIState, getUIStateVersion, saveUIState } from '$lib/stores/uiState.svelte'
-  import { loadSidebarSettings, hasStoredExpandedAccounts, getExpandedAccountIds, setExpandedAccountIds, setSidebarAccountExpanded, getHideUnifiedSingleAccount } from '$lib/stores/sidebarSettings.svelte'
+  import { loadSidebarSettings, hasStoredExpandedAccounts, getExpandedAccountIds, setExpandedAccountIds, setSidebarAccountExpanded, getHideUnifiedSingleAccount, getUnifiedFolderOrder, setUnifiedFolderOrder } from '$lib/stores/sidebarSettings.svelte'
   import { setFocusedPane } from '$lib/stores/keyboard.svelte'
   import { _ } from '$lib/i18n'
   // @ts-ignore - wailsjs path
   import { account, folder } from '../../../../wailsjs/go/models'
   // @ts-ignore - wailsjs path
-  import { GetUnifiedInboxUnreadCount, GetAttentionCount } from '../../../../wailsjs/go/app/App'
+  import { GetUnifiedFolderUnreadCounts, GetAttentionCount, MailMerge_GetQueueStats } from '../../../../wailsjs/go/app/App'
   import { formatDistanceToNow } from 'date-fns'
   import { getCurrentDateFnsLocale } from '$lib/stores/settings.svelte'
   import { EventsOn, EventsEmit } from '../../../../wailsjs/runtime/runtime'
 
   // Folder item type for flat navigation list
   interface FolderNavItem {
-    type: 'unified' | 'attention' | 'unified-group' | 'unified-folder' | 'account-header' | 'folder'
+    type: 'unified-folder' | 'attention' | 'account-header' | 'folder'
     accountId?: string
     folderId?: string
     folderPath?: string
@@ -35,9 +34,6 @@
 
   // Track focused account header for keyboard navigation
   let focusedAccountId = $state<string | null>(null)
-
-  // Track focused unified folder-type group for keyboard navigation
-  let focusedGroupType = $state<string | null>(null)
 
   // Ref to scrollable container for auto-scroll
   let scrollContainer: HTMLDivElement | null = null
@@ -141,7 +137,7 @@
 
   interface Props {
     onFolderSelect?: (accountId: string, folderId: string, folderPath: string, folderName: string, folderType: string) => void
-    onUnifiedFolderSelect?: (accountId: string, folderId: string, folderPath: string, folderName: string, folderType: string) => void
+    onUnifiedFolderSelect?: (folderType: string, label: string) => void
     onUnifiedInboxSelect?: () => void
     onCompose?: () => void
     onMessagesMoved?: () => void
@@ -169,19 +165,22 @@
     onBack,
   }: Props = $props()
 
-  // Unified inbox state
-  let unifiedUnreadCount = $state(0)
+  // Unified folder counts: unread per folder type, for the sidebar badges.
+  let unifiedUnreadCounts = $state<Record<string, number>>({})
+
+  // Outbox badge: Mail Merge items still waiting to be sent.
+  let outboxCount = $state(0)
+
+  // Unified folder display order (drag-to-reorder, persisted).
+  let unifiedFolderOrder = $state<string[]>(getUnifiedFolderOrder())
 
   // Needs attention (Phase A): live count for the shortcut entry in the
   // Unified zone. Hidden when the count is 0.
   let attentionCount = $state(0)
 
-  // Unified folder-type groups (Starred / Sent / Drafts / Spam / Trash)
-  // expand/collapse locally; not persisted.
-  let expandedGroups = $state<Record<string, boolean>>({})
-
-  function toggleUnifiedGroup(type: string) {
-    expandedGroups = { ...expandedGroups, [type]: expandedGroups[type] !== true }
+  function handleUnifiedFolderReorder(order: string[]) {
+    unifiedFolderOrder = order
+    setUnifiedFolderOrder(order)
   }
 
   // Dialog state
@@ -205,12 +204,16 @@
     })
 
     contactSourcesStore.load()
-    loadUnifiedInboxCount()
+    loadUnifiedFolderCounts()
     loadAttentionCount()
 
-    // Listen for folder count changes to update unified inbox count
+    // Listen for folder count changes to update unified folder counts
     const unsubscribe = EventsOn('folders:countsChanged', (_data: Record<string, number>) => {
-      loadUnifiedInboxCount()
+      loadUnifiedFolderCounts()
+    })
+    // The outbox badge follows the Mail Merge queue.
+    const unsubscribeQueue = EventsOn('mailmerge:queue-updated', () => {
+      loadOutboxCount()
     })
     // Chip actions, dismissals and settings changes all emit this.
     const unsubscribeAttention = EventsOn('attention:changed', () => {
@@ -219,17 +222,27 @@
 
     return () => {
       unsubscribe()
+      unsubscribeQueue()
       unsubscribeAttention()
     }
   })
 
-  // Load unified inbox unread count
-  async function loadUnifiedInboxCount() {
+  // Load unified folder unread counts + the outbox badge
+  async function loadUnifiedFolderCounts() {
     try {
-      const count = await GetUnifiedInboxUnreadCount()
-      unifiedUnreadCount = count
+      unifiedUnreadCounts = await GetUnifiedFolderUnreadCounts()
     } catch (err) {
-      console.error('Failed to load unified inbox count:', err)
+      console.error('Failed to load unified folder counts:', err)
+    }
+    await loadOutboxCount()
+  }
+
+  async function loadOutboxCount() {
+    try {
+      const stats = await MailMerge_GetQueueStats()
+      outboxCount = stats?.queued ?? 0
+    } catch (err) {
+      console.error('Failed to load outbox count:', err)
     }
   }
 
@@ -268,42 +281,6 @@
     return findFolderOfType(trees, 'inbox')
   }
 
-  // Unified folder-type groups, in zone-1 order. Only types at least one
-  // account actually has a folder for are shown.
-  const UNIFIED_FOLDER_TYPES = [
-    { type: 'starred', labelKey: 'sidebar.starred', icon: 'mdi:star-outline' },
-    { type: 'sent', labelKey: 'sidebar.sent', icon: 'mdi:send' },
-    { type: 'drafts', labelKey: 'sidebar.drafts', icon: 'mdi:file-document-edit-outline' },
-    { type: 'spam', labelKey: 'sidebar.spam', icon: 'mdi:alert-octagon-outline' },
-    { type: 'trash', labelKey: 'sidebar.trash', icon: 'mdi:delete-outline' },
-  ] as const
-
-  let unifiedGroups = $derived.by<UnifiedFolderGroup[]>(() => {
-    const groups: UnifiedFolderGroup[] = []
-    for (const def of UNIFIED_FOLDER_TYPES) {
-      const entries: UnifiedFolderEntry[] = []
-      let totalUnread = 0
-      for (const acc of accountStore.accounts) {
-        if (!acc.account) continue
-        const found = findFolderOfType(acc.folders || [], def.type)
-        if (found) {
-          entries.push({ account: acc.account, folder: found })
-          totalUnread += found.unreadCount || 0
-        }
-      }
-      if (entries.length > 0) {
-        groups.push({
-          type: def.type,
-          labelKey: def.labelKey,
-          icon: def.icon,
-          totalUnread,
-          entries,
-        })
-      }
-    }
-    return groups
-  })
-
   // The Unified zone still shows with a single account, unless the
   // sidebar_hide_unified_single_account setting hides it.
   let showUnified = $derived(
@@ -315,9 +292,10 @@
     onUnifiedInboxSelect?.()
   }
 
-  // Handle folder selection from a unified group (per-account row)
-  function handleUnifiedFolderSelect(accountId: string, folderId: string, folderPath: string, folderName: string, folderType: string) {
-    onUnifiedFolderSelect?.(accountId, folderId, folderPath, folderName, folderType)
+  // Handle folder selection from the Unified zone (one of the seven
+  // unified folders — the view merges that folder across all accounts).
+  function handleUnifiedFolderSelect(folderType: string, label: string) {
+    onUnifiedFolderSelect?.(folderType, label)
   }
 
   // Sync status: { accountName, label, percentage } — accountName + percentage are populated only when a sync is active
@@ -438,37 +416,20 @@
     const items: FolderNavItem[] = []
 
     if (showUnified && accountStore.accounts.length > 0) {
-      items.push({
-        type: 'unified',
-        folderName: 'Unified Inbox',
-        folderType: 'unified',
-      })
+      // The seven unified folders, in the persisted display order.
+      for (const type of unifiedFolderOrder) {
+        items.push({
+          type: 'unified-folder',
+          folderName: type,
+          folderType: type,
+        })
+      }
 
       if (attentionCount > 0) {
         items.push({
           type: 'attention',
           folderName: 'Needs attention',
         })
-      }
-
-      for (const group of unifiedGroups) {
-        items.push({
-          type: 'unified-group',
-          folderName: group.type,
-          folderType: group.type,
-        })
-        if (expandedGroups[group.type] === true) {
-          for (const entry of group.entries) {
-            items.push({
-              type: 'unified-folder',
-              accountId: entry.account.id,
-              folderId: entry.folder.id,
-              folderPath: entry.folder.path,
-              folderName: entry.folder.name,
-              folderType: entry.folder.type,
-            })
-          }
-        }
       }
     }
 
@@ -522,23 +483,11 @@
       )
     }
 
-    // Check if a unified folder-type group is focused
-    if (focusedGroupType) {
-      return navList.findIndex(item =>
-        item.type === 'unified-group' && item.folderType === focusedGroupType
-      )
-    }
-
-    // Check if Unified Inbox is selected (All Inboxes)
-    if (selectedAccountId === 'unified') {
-      return navList.findIndex(item => item.type === 'unified')
-    }
-
     // Check selectionSource to find the correct item
     if (selectionSource === 'unified') {
-      // Looking for unified-folder item
+      // Looking for a unified folder row (matched by folder type)
       return navList.findIndex(item =>
-        item.type === 'unified-folder' && item.folderId === selectedFolderId
+        item.type === 'unified-folder' && item.folderType === selectedFolderId
       )
     } else {
       // Looking for regular folder item
@@ -591,14 +540,10 @@
 
     // Build selector based on item type
     let selector: string | null = null
-    if (item.type === 'unified') {
-      selector = '[data-sidebar-item="unified"]'
-    } else if (item.type === 'attention') {
+    if (item.type === 'attention') {
       selector = '[data-sidebar-item="attention"]'
-    } else if (item.type === 'unified-group' && item.folderType) {
-      selector = `[data-sidebar-item="unified-group"][data-folder-type="${item.folderType}"]`
-    } else if (item.type === 'unified-folder' && item.folderId) {
-      selector = `[data-sidebar-item="unified-folder"][data-folder-id="${item.folderId}"]`
+    } else if (item.type === 'unified-folder' && item.folderType) {
+      selector = `[data-sidebar-item="unified-folder"][data-folder-type="${item.folderType}"]`
     } else if (item.type === 'account-header' && item.accountId) {
       selector = `[data-sidebar-item="account-header"][data-account-id="${item.accountId}"]`
     } else if (item.type === 'folder' && item.folderId) {
@@ -614,7 +559,6 @@
   // Clear keyboard focus flags (moving to a real folder)
   function clearRowFocus() {
     focusedAccountId = null
-    focusedGroupType = null
   }
 
   // Select folder by index in nav list
@@ -622,24 +566,17 @@
     const item = navList[index]
     if (!item) return
 
-    if (item.type === 'unified') {
-      clearRowFocus()
-      onUnifiedInboxSelect?.()
-    } else if (item.type === 'attention') {
+    if (item.type === 'attention') {
       clearRowFocus()
       handleAttentionSelect()
-    } else if (item.type === 'unified-group' && item.folderType) {
-      // Focus on the group header (Enter/Space/→ will toggle it)
-      focusedAccountId = null
-      focusedGroupType = item.folderType
-    } else if (item.type === 'unified-folder' && item.accountId && item.folderId && item.folderPath) {
-      // Select from unified section - uses onUnifiedFolderSelect
+    } else if (item.type === 'unified-folder' && item.folderType) {
+      // Select a unified folder - merges that folder across all accounts
       clearRowFocus()
-      onUnifiedFolderSelect?.(item.accountId, item.folderId, item.folderPath, item.folderName, item.folderType || 'folder')
+      const def = UNIFIED_FOLDER_DEFS.find((d) => d.type === item.folderType)
+      onUnifiedFolderSelect?.(item.folderType, def ? $_(def.labelKey) : (item.folderType ?? ''))
     } else if (item.type === 'account-header' && item.accountId) {
       // Focus on account header (Enter opens its Inbox, Space/→/← expand/collapse)
       focusedAccountId = item.accountId
-      focusedGroupType = null
     } else if (item.type === 'folder' && item.accountId && item.folderId && item.folderPath) {
       // Select from account tree - uses handleFolderSelect
       clearRowFocus()
@@ -669,27 +606,11 @@
     }
   }
 
-  // Check if a unified folder-type group is focused
-  export function hasFocusedUnifiedGroup(): boolean {
-    return focusedGroupType !== null
-  }
-
-  // Toggle expand/collapse for the focused unified group (Enter/Space/Alt+Enter)
-  export function toggleFocusedUnifiedGroup() {
-    if (focusedGroupType) {
-      toggleUnifiedGroup(focusedGroupType)
-    }
-  }
-
-  // Expand the focused row: account header, unified group, or the selected
+  // Expand the focused row: account header, or the selected
   // folder when it has children (called on ArrowRight)
   export function expandFocusedRow() {
     if (focusedAccountId) {
       setAccountExpandedValue(focusedAccountId, true)
-      return
-    }
-    if (focusedGroupType) {
-      expandedGroups = { ...expandedGroups, [focusedGroupType]: true }
       return
     }
     if (selectedFolderId && selectionSource === 'account' && folderHasChildren(selectedFolderId)) {
@@ -701,10 +622,6 @@
   export function collapseFocusedRow() {
     if (focusedAccountId) {
       setAccountExpandedValue(focusedAccountId, false)
-      return
-    }
-    if (focusedGroupType) {
-      expandedGroups = { ...expandedGroups, [focusedGroupType]: false }
       return
     }
     if (selectedFolderId && selectionSource === 'account' && folderHasChildren(selectedFolderId)) {
@@ -796,23 +713,21 @@
           </Button>
         </div>
       {:else}
-        <!-- Zone 1 — Unified: always at the top, always expanded, never
-             collapsible. Hidden only with a single account when the
+        <!-- Zone 1 — Unified: always at the top. The section collapses
+             via its own chevron (persisted unifiedInboxExpanded). Hidden
+             only with a single account when the
              sidebar_hide_unified_single_account setting is on. -->
         {#if showUnified}
           <UnifiedSection
-            {unifiedUnreadCount}
             {attentionCount}
-            groups={unifiedGroups}
-            {expandedGroups}
-            {focusedGroupType}
-            {selectedAccountId}
-            {selectedFolderId}
+            unreadCounts={unifiedUnreadCounts}
+            {outboxCount}
+            folderOrder={unifiedFolderOrder}
+            selectedFolderType={selectionSource === 'unified' ? selectedFolderId : null}
             {selectionSource}
-            onSelectUnified={handleUnifiedInboxSelect}
             onSelectAttention={handleAttentionSelect}
             onSelectUnifiedFolder={handleUnifiedFolderSelect}
-            onToggleGroup={toggleUnifiedGroup}
+            onReorderFolders={handleUnifiedFolderReorder}
           />
           <div class="border-b border-border mx-3 my-1"></div>
         {/if}

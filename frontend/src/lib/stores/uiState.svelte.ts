@@ -28,7 +28,17 @@ export interface UIState {
 const SIDEBAR_MIN = 180
 const SIDEBAR_MAX = 400
 const LIST_MIN = 280
-const LIST_MAX = 600
+// Minimum width kept for the preview pane while it is on, so the message
+// list cannot be dragged over it entirely.
+const PREVIEW_MIN_WIDTH = 300
+
+// Dynamic cap for the message-list width: the list may grow to whatever
+// space the window has left after the sidebar and a usable preview pane.
+// There is no fixed maximum any more — the cap follows the window size.
+export function getListMaxWidth(sidebarWidth: number): number {
+  const windowWidth = typeof window === 'undefined' ? 1280 : window.innerWidth
+  return Math.max(LIST_MIN, windowWidth - sidebarWidth - PREVIEW_MIN_WIDTH)
+}
 
 // Default state
 const defaultState: UIState = {
@@ -82,7 +92,7 @@ export async function loadUIState(): Promise<UIState> {
         selectedConversationFolderId: state.selectedConversationFolderId || null,
         // Validate and clamp pane widths
         sidebarWidth: clamp(state.sidebarWidth || 240, SIDEBAR_MIN, SIDEBAR_MAX),
-        listWidth: clamp(state.listWidth || 420, LIST_MIN, LIST_MAX),
+        listWidth: clamp(state.listWidth || 420, LIST_MIN, getListMaxWidth(state.sidebarWidth || 240)),
         // Sidebar expand/collapse states
         expandedAccounts: state.expandedAccounts || {},
         unifiedInboxExpanded: state.unifiedInboxExpanded !== false, // default true
@@ -116,7 +126,7 @@ export function saveUIState(updates: Partial<UIState>): void {
     currentState.sidebarWidth = clamp(updates.sidebarWidth, SIDEBAR_MIN, SIDEBAR_MAX)
   }
   if (updates.listWidth !== undefined) {
-    currentState.listWidth = clamp(updates.listWidth, LIST_MIN, LIST_MAX)
+    currentState.listWidth = clamp(updates.listWidth, LIST_MIN, getListMaxWidth(currentState.sidebarWidth))
   }
 
   // Debounce: save at most once per second
@@ -199,8 +209,14 @@ export function setActiveExtension(name: string): void {
   saveUIState({ activeExtension: value })
 }
 
-// Get pane width constraints (for UI components)
+// Get pane width constraints (for UI components). The list maximum is a
+// getter because it follows the window width (see getListMaxWidth).
 export const paneConstraints = {
   sidebar: { min: SIDEBAR_MIN, max: SIDEBAR_MAX },
-  list: { min: LIST_MIN, max: LIST_MAX },
+  list: {
+    min: LIST_MIN,
+    get max() {
+      return getListMaxWidth(currentState.sidebarWidth)
+    },
+  },
 }

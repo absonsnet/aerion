@@ -201,16 +201,16 @@ func (a *App) GetOAuthCredsChoices(configID, extensionID string) (OAuthCredsChoi
 // options is non-destructive.
 //
 //   - "custom"          → record marker. Caller invokes SetOAuthCreds
-//                          separately (via the editor's Save button) to
-//                          write or replace the actual credentials.
+//     separately (via the editor's Save button) to
+//     write or replace the actual credentials.
 //   - "daak-shipped"  → record marker. The resolver skips override +
-//                          alias and routes to the slot's own shipped
-//                          creds. Any user_oauth_clients / alias rows
-//                          remain in storage so switching back to Custom
-//                          restores the user's saved values.
+//     alias and routes to the slot's own shipped
+//     creds. Any user_oauth_clients / alias rows
+//     remain in storage so switching back to Custom
+//     restores the user's saved values.
 //   - "daak-mail"     → record marker AND ensure the alias row exists.
-//                          The user_oauth_clients row is preserved for
-//                          the same round-trip restore reason.
+//     The user_oauth_clients row is preserved for
+//     the same round-trip restore reason.
 //
 // The only path that actually DELETES the user's stored credentials is
 // the explicit ClearOAuthCreds Wails method ("Clear saved Custom
@@ -272,9 +272,10 @@ func (a *App) resolveCurrentChoice(configID string) string {
 }
 
 // providerFromConfigID strips the well-known prefix from a slot id.
-//   "google-contacts"     → "google"
-//   "microsoft-calendar"  → "microsoft"
-//   anything else         → ""
+//
+//	"google-contacts"     → "google"
+//	"microsoft-calendar"  → "microsoft"
+//	anything else         → ""
 func providerFromConfigID(configID string) string {
 	switch {
 	case strings.HasPrefix(configID, "google-"):
@@ -286,17 +287,11 @@ func providerFromConfigID(configID string) string {
 }
 
 // shippedLabelForSlot returns the user-visible label for the slot's own
-// shipped option. Google extension slots are the un-Google-verified test
-// clients (broader scopes than the mail-app's verified client) — labeled
-// "Daak - Google (Testing)" so users understand they may see Google's
-// unverified-app warning during OAuth consent. Once Google verifies the
-// mail project for the extension scopes, the default switches to
-// "Daak - Google" (the daak-mail choice — mail's verified client).
+// shipped option. All Google slots use the single Google client —
+// labeled "Daak - Google" (mail's verified client).
 func shippedLabelForSlot(configID string) string {
 	switch configID {
-	case "google-contacts", "google-calendar":
-		return platform.AppName + " - Google (Testing)"
-	case "google-mail":
+	case "google-contacts", "google-calendar", "google-mail":
 		return platform.AppName + " - Google"
 	case "microsoft-mail", "microsoft-contacts", "microsoft-calendar":
 		return platform.AppName + " - Microsoft"
@@ -415,4 +410,3 @@ func contactSourceEmail(s *carddav.Source) string {
 	}
 	return s.Username
 }
-

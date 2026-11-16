@@ -26,7 +26,7 @@
   import * as AlertDialog from '$lib/components/ui/alert-dialog'
   import { accountStore } from '$lib/stores/accounts.svelte'
   import { addToast } from '$lib/stores/toast'
-  import { loadSettings, getThemeMode, getShowTitleBar, getNativeTitleBar, getComposerMode, getMailtoMode, getShowMessagePreviewPane, getMessageOpenMode, type MessageOpenMode } from '$lib/stores/settings.svelte'
+  import { loadSettings, getThemeMode, getShowTitleBar, getNativeTitleBar, getComposerMode, getMailtoMode, getShowMessagePreviewPane, setShowMessagePreviewPane, getMessageOpenMode, type MessageOpenMode } from '$lib/stores/settings.svelte'
   import { loadWindowControlsLayout } from '$lib/stores/windowControls.svelte'
   import { loadImageAllowlist } from '$lib/stores/imageAllowlist.svelte'
   import { initTheme, applyThemeFromMode, handleSystemThemeEvent, handleMediaQueryChange } from '$lib/stores/theme.svelte'
@@ -47,7 +47,7 @@
   import { dispatchExtensionShortcut } from '$lib/stores/extensionShortcuts.svelte'
   import { initLayout, getLayoutMode, getResponsiveView, showViewer, hideViewer, showSidebar, hideSidebar, isResponsive } from '$lib/stores/layout.svelte'
   // @ts-ignore - wailsjs path
-  import { PrepareReply, GetPendingMailto, GetDraft, MarkAsRead, MarkAsUnread, Star, Unstar, Archive, MarkAsSpam, MarkAsNotSpam, Undo, GetTermsAccepted, SetTermsAccepted, RefreshWindowConstraints, AcceptCertificate, GetStartHiddenActive, CloseWindow, QuitApp, OpenComposerWindow, OpenViewerWindow, GetSystemTheme, NotifyStartupComplete, GetOAuthBuildStatus, GetOAuthWarningDisabled, SetOAuthWarningDisabled, GetLastSeenVersion, SetLastSeenVersion, GetAppInfo } from '../wailsjs/go/app/App.js'
+  import { PrepareReply, GetPendingMailto, GetDraft, MarkAsRead, MarkAsUnread, Star, Unstar, Archive, MarkAsSpam, MarkAsNotSpam, Undo, GetTermsAccepted, SetTermsAccepted, RefreshWindowConstraints, AcceptCertificate, GetStartHiddenActive, CloseWindow, QuitApp, OpenComposerWindow, OpenViewerWindow, GetSystemTheme, NotifyStartupComplete, GetOAuthBuildStatus, GetOAuthWarningDisabled, SetOAuthWarningDisabled, GetLastSeenVersion, SetLastSeenVersion, GetAppInfo, SetShowMessagePreviewPane } from '../wailsjs/go/app/App.js'
   // @ts-ignore - wailsjs path
   import { smtp, folder, certificate } from '../wailsjs/go/models'
   // @ts-ignore - wailsjs runtime
@@ -329,7 +329,7 @@
 
   // Launch-time OAuth credentials warning state
   let showOAuthMissingDialog = $state(false)
-  let oauthBuildStatus = $state({ google: true, microsoft: true, googleTesting: true })
+  let oauthBuildStatus = $state({ google: true, microsoft: true })
   let pendingOAuthWarning = $state(false)
 
   // What's New (per-version) dialog state
@@ -601,12 +601,12 @@
 
     // OAuth credentials warning: surface missing provider creds on every
     // launch unless the user has explicitly opted out. The dialog shows
-    // all three providers with a missing/present indicator, so the
+    // both providers with a missing/present indicator, so the
     // trigger fires when ANY of them is missing. Actual opening is
     // deferred via $effect so Terms can resolve first.
     try {
       const status = await GetOAuthBuildStatus()
-      const anyMissing = !status.google || !status.microsoft || !status.googleTesting
+      const anyMissing = !status.google || !status.microsoft
       if (anyMissing) {
         const disabled = await GetOAuthWarningDisabled()
         if (!disabled) {
@@ -760,17 +760,12 @@
     })
   }
 
-  // Handle folder selection from unified inbox section
-  function handleUnifiedFolderSelect(
-    accountId: string,
-    folderId: string,
-    folderPath: string,
-    folderName: string,
-    folderType: string
-  ) {
-    selectedAccountId = accountId
-    selectedFolderId = folderId
-    selectedFolderName = folderName
+  // Handle folder selection from the Unified zone: one of the seven
+  // unified folders. The view merges that folder across all accounts.
+  function handleUnifiedFolderSelect(folderType: string, label: string) {
+    selectedAccountId = 'unified'
+    selectedFolderId = folderType
+    selectedFolderName = label
     selectedFolderType = folderType
     selectionSource = 'unified'
     closeAllMessageTabs()
@@ -781,9 +776,9 @@
 
     // Persist state
     saveUIState({
-      selectedAccountId: accountId,
-      selectedFolderId: folderId,
-      selectedFolderName: folderName,
+      selectedAccountId: 'unified',
+      selectedFolderId: folderType,
+      selectedFolderName: label,
       selectedFolderType: folderType,
       selectedThreadId: null,
       selectedConversationAccountId: null,
@@ -791,29 +786,9 @@
     })
   }
 
-  // Handle unified inbox selection from sidebar (All Inboxes)
+  // Handle unified inbox selection from sidebar (Inbox)
   function handleUnifiedInboxSelect() {
-    selectedAccountId = 'unified'
-    selectedFolderId = 'inbox'
-    selectedFolderName = 'All Inboxes'
-    selectedFolderType = 'inbox'
-    selectionSource = 'unified'
-    closeAllMessageTabs()
-    selectedThreadId = null
-    selectedConversationFolderId = null
-    selectedConversationAccountId = null
-    hideSidebar()
-
-    // Persist state
-    saveUIState({
-      selectedAccountId: 'unified',
-      selectedFolderId: 'inbox',
-      selectedFolderName: 'All Inboxes',
-      selectedFolderType: 'inbox',
-      selectedThreadId: null,
-      selectedConversationAccountId: null,
-      selectedConversationFolderId: null,
-    })
+    handleUnifiedFolderSelect('inbox', $_('sidebar.inbox'))
   }
 
   // First run after the upgrade (or fresh install): no persisted folder
@@ -1012,6 +987,13 @@
   // Resizing state
   let isResizingSidebar = $state(false)
   let isResizingList = $state(false)
+  // Width the list had when a list drag started. Dragging the divider to
+  // the far right edge turns the preview pane off, and the stored width
+  // must stay as it was so re-enabling the pane restores it.
+  let listWidthBeforeDrag = 420
+  // How close to the window's right edge (px) the pointer must get during
+  // a list drag to close the preview pane.
+  const LIST_DRAG_CLOSE_EDGE_PX = 6
 
   function startResizeSidebar(e: MouseEvent) {
     if (isResponsive()) return
@@ -1021,14 +1003,41 @@
 
   function startResizeList(e: MouseEvent) {
     if (isResponsive()) return
+    listWidthBeforeDrag = listWidth
     isResizingList = true
     e.preventDefault()
+  }
+
+  // Turn the preview pane off through the same setting the Settings
+  // toggle uses, so it is persisted and survives a restart.
+  async function turnOffPreviewPane() {
+    try {
+      await SetShowMessagePreviewPane(false)
+      setShowMessagePreviewPane(false)
+    } catch (err) {
+      console.error('Failed to turn off preview pane:', err)
+    }
   }
 
   function handleMouseMove(e: MouseEvent) {
     if (isResizingSidebar) {
       sidebarWidth = Math.max(paneConstraints.sidebar.min, Math.min(paneConstraints.sidebar.max, e.clientX))
     } else if (isResizingList) {
+      // Dragging the divider to the far right edge of the window closes
+      // the preview pane directly. Only while the pane is on and the
+      // layout is the list+preview (full) mode — the divider only exists
+      // in that mode, but check anyway. The stored width is left as it
+      // was, so turning the pane back on restores the previous width.
+      if (
+        getShowMessagePreviewPane() &&
+        getLayoutMode() === 'full' &&
+        e.clientX >= window.innerWidth - LIST_DRAG_CLOSE_EDGE_PX
+      ) {
+        void turnOffPreviewPane()
+        listWidth = listWidthBeforeDrag
+        isResizingList = false
+        return
+      }
       listWidth = Math.max(paneConstraints.list.min, Math.min(paneConstraints.list.max, e.clientX - sidebarWidth))
     }
   }
@@ -1473,14 +1482,11 @@
       // single residual case.
       switch (e.key) {
         case 'Enter':
-          // Toggle expand/collapse for focused account header, focused
-          // unified group, or selected folder with children
+          // Toggle expand/collapse for focused account header or
+          // selected folder with children
           if (sidebarRef?.hasFocusedAccount()) {
             e.preventDefault()
             sidebarRef.toggleFocusedAccount()
-          } else if (sidebarRef?.hasFocusedUnifiedGroup()) {
-            e.preventDefault()
-            sidebarRef.toggleFocusedUnifiedGroup()
           } else if (sidebarRef?.hasSelectedFolderWithChildren()) {
             e.preventDefault()
             sidebarRef.toggleSelectedFolderCollapse()
@@ -1572,8 +1578,8 @@
     }
 
     // ArrowRight / ArrowLeft in the sidebar — expand / collapse the focused
-    // row (account header, unified folder-type group, or selected folder
-    // with children). Plain arrows only; Alt+arrows cycle panes.
+    // row (account header, or selected folder with children). Plain arrows
+    // only; Alt+arrows cycle panes.
     if (e.key === 'ArrowRight' && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
       if (isMailActive() && focusedPane === 'sidebar') {
         e.preventDefault()
@@ -1611,9 +1617,6 @@
         if (focusedPane === 'sidebar' && sidebarRef?.hasFocusedAccount()) {
           e.preventDefault()
           sidebarRef.openFocusedAccountInbox()
-        } else if (focusedPane === 'sidebar' && sidebarRef?.hasFocusedUnifiedGroup()) {
-          e.preventDefault()
-          sidebarRef.toggleFocusedUnifiedGroup()
         } else if (focusedPane === 'sidebar' && sidebarRef?.hasSelectedFolderWithChildren()) {
           e.preventDefault()
           sidebarRef.toggleSelectedFolderCollapse()
@@ -1637,8 +1640,6 @@
         e.preventDefault()
         if (focusedPane === 'sidebar' && sidebarRef?.hasFocusedAccount()) {
           sidebarRef.toggleFocusedAccount()
-        } else if (focusedPane === 'sidebar' && sidebarRef?.hasFocusedUnifiedGroup()) {
-          sidebarRef.toggleFocusedUnifiedGroup()
         } else if (focusedPane === 'sidebar' && sidebarRef?.hasSelectedFolderWithChildren()) {
           sidebarRef.toggleSelectedFolderCollapse()
         } else if (focusedPane === 'messageList') {
