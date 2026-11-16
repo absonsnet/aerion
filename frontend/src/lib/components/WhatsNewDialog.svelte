@@ -60,16 +60,18 @@
       </div>
 
       <div class="space-y-4 max-h-[60vh] overflow-y-auto text-sm">
-        <p>🚀 Welcome to {APP_NAME} v0.6.0!</p>
+        <p>🚀 Welcome to {APP_NAME} v0.7.0!</p>
 
-        <p>v0.6.0 is a big release: the app has a new name, and the message list gets bulk actions and tabs. Here are the highlights of the release:</p>
+        <p>v0.7.0 brings a smarter inbox, one-click unsubscribe, offline message translation and a tidier sidebar. Here are the highlights of the release:</p>
 
         <ul class="list-disc pl-6 space-y-1">
-          <li>📬 Aerion is now Daak — new name, new icon, same mailbox; your accounts and messages move over automatically</li>
-          <li>☑️ Bulk actions: select messages and mark read/unread, archive, delete, move or star them from the header</li>
-          <li>🗂️ Message tabs: open messages in tabs, a dialogue, or a pop-up window — and turn the preview pane off from Settings</li>
-          <li>😀 Email reactions: react to a message with an emoji, Gmail-style</li>
-          <li>✉️ Mail Merge: send one personalised message per recipient from a single draft, with CSV, JSON and spreadsheet sources</li>
+          <li>🔢 One-time passcodes: a chip on messages with a code copies it in one click, and the message is filed away in Trash</li>
+          <li>🔔 Needs attention: a strip above the message list flags one-time codes, travel changes, payment failures and delivery problems</li>
+          <li>🧭 Sidebar rework: unified folders on top, your accounts docked at the bottom — click an account name for its inbox, expand it for its folders</li>
+          <li>📭 Unsubscribe: one-click unsubscribe from mailing lists, just like Gmail</li>
+          <li>🌐 Message translation: translate a message into your language, with offline language downloads so it works without a connection</li>
+          <li>🏷️ Category tabs: switch between All, Personal and Automated messages</li>
+          <li>⚖️ Daak is now licensed under AGPLv3</li>
         </ul>
 
         <p>🏷 See the full change log here:</p>

@@ -375,6 +375,19 @@
   </provides>
 
   <releases>
+    <release version="0.7.0" date="2026-11-15">
+      <description>
+        <ul>
+          <li>One-time passcodes: a chip on messages with a code copies it in one click, and the message is filed away in Trash</li>
+          <li>Needs attention: a strip above the message list flags one-time codes, travel changes, payment failures and delivery problems</li>
+          <li>Sidebar rework: unified folders on top, accounts docked at the bottom — click an account name for its inbox, expand it for its folders</li>
+          <li>Unsubscribe: one-click unsubscribe from mailing lists, like Gmail</li>
+          <li>Message translation: translate a message into your language, with offline language downloads so it works without a connection</li>
+          <li>Category tabs: switch between All, Personal and Automated messages</li>
+          <li>Daak is now licensed under AGPLv3</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.6.0" date="2026-11-15">
       <description>
         <ul>
