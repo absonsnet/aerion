@@ -12,6 +12,8 @@
     "ui.settings-tab"
   ],
   "oauth": {
-    "first_party_uses_core_for_scopes": []
+    "first_party_uses_core_for_scopes": [
+      "https://www.googleapis.com/auth/calendar"
+    ]
   }
 }

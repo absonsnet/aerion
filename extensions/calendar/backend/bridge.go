@@ -745,16 +745,18 @@ func (b *CalendarBridge) Calendar_AddMicrosoftSource(accountID, name, accountEma
 
 // Calendar_GrantCalendarAccess runs an interactive incremental-consent OAuth
 // flow that adds the Calendar scope to the given mail account's existing
-// OAuth grant. The account's mail OAuth flow doesn't request any calendar
-// scopes by default, so the first time the user tries to add a Google /
-// Outlook calendar source we surface ErrAdditionalConsentRequired; the
-// frontend's consent banner offers a button that calls this method.
+// OAuth grant. It is the fallback for accounts whose mail token does not
+// carry the calendar scope: accounts linked before the mail flow started
+// requesting it, partial grants where the user declined calendar at link
+// time, and grants where the user later revoked the calendar scope at
+// Google. Mail and contacts keep working in all of those cases — only
+// calendar stays unconnected until this runs.
 //
-// After the OAuth window closes, the account's tokens carry the new scope
-// under the calendar client config; the next Calendar_List*ForAccount call
-// succeeds and the picker UI populates. Mirrors contacts'
-// Contacts_EnableWriteAccess flow shape.
-//
+// The grant lands on the same client config the Auth Broker checks: the
+// core mail slot ("google-mail") for Google, since the calendar manifest
+// routes the calendar scope through core. (Microsoft keeps its own slot —
+// Graph calendar scopes cannot be combined with the Outlook mail grant,
+// which uses a different audience.)
 // `provider` is "google" or "microsoft"; `accountID` is the existing Daak
 // mail account; `expectedEmail` is the email that the OAuth grant must
 // match (defense against the user picking a different account in the IdP
@@ -777,7 +779,7 @@ func (b *CalendarBridge) Calendar_GrantCalendarAccess(provider, accountID, expec
 	var scope string
 	switch provider {
 	case "google":
-		clientConfigID = "google-calendar"
+		clientConfigID = "google-mail"
 		scope = "https://www.googleapis.com/auth/calendar"
 	case "microsoft":
 		clientConfigID = "microsoft-calendar"

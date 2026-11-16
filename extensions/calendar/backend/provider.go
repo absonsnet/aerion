@@ -195,8 +195,10 @@ var (
 //   - caldavProvider: secrets (CalDAV password) + store + events; also auth, used
 //     only when a source links a custom-OAuth account (Bearer instead of Basic).
 //   - googleProvider, microsoftProvider: auth (OAuth-vended *http.Client) +
-//     store. Calendar's per-extension OAuth slots are "google-calendar" and
-//     "microsoft-calendar"; the broker routes scope→slot via Auth.HTTPClient.
+//     store. The Google calendar scope routes through core's mail slot
+//     ("google-mail") — the linked account's grant carries it — while
+//     Microsoft calendar uses its own slot ("microsoft-calendar"); the
+//     broker routes scope→slot via Auth.HTTPClient.
 type ProviderDeps struct {
 	Store   *Store
 	Secrets coreapi.Secrets

@@ -60,13 +60,14 @@
       </div>
 
       <div class="space-y-4 max-h-[60vh] overflow-y-auto text-sm">
-        <p>🚀 Welcome to {APP_NAME} v0.7.4!</p>
+        <p>🚀 Welcome to {APP_NAME} v0.7.5!</p>
 
-        <p>v0.7.4 changes how the sidebar behaves. Here are the highlights of the release:</p>
+        <p>v0.7.5 connects your calendar when you link Google, refines the sidebar divider, and fixes Archive, Delete and Undo. Here are the highlights of the release:</p>
 
         <ul class="list-disc pl-6 space-y-1">
-          <li>🖱️ Sidebar sections expand only from the chevron — clicking an account name opens its inbox, and clicking the Unified heading opens the unified inbox</li>
-          <li>↕️ The divider just above the Accounts block drags up and down, and never hides accounts while they fit in the window</li>
+          <li>📅 Calendar works as soon as a Google account is linked — no separate calendar link step (if calendar access was declined, the calendar offers its own Connect action)</li>
+          <li>↕️ The sidebar divider now snaps at the level where it starts hiding accounts or unified folders, and a clipped section scrolls with a visible scrollbar</li>
+          <li>↩️ Archive, Delete and Undo fixed — archiving falls back to All Mail, and Undo restores a message even seconds after it was moved</li>
         </ul>
 
         <p>🏷 See the full change log here:</p>

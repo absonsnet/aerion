@@ -375,6 +375,15 @@
   </provides>
 
   <releases>
+    <release version="0.7.5" date="2026-11-17">
+      <description>
+        <ul>
+          <li>Calendar: linking a Google account now includes calendar access, so the calendar works straight away with no separate calendar link step</li>
+          <li>Sidebar divider: it now snaps at the level where it starts hiding accounts or unified folders, and a section scrolls with a visible scrollbar when something in it is hidden</li>
+          <li>Archive, Delete and Undo fixed — archiving falls back to All Mail when there is no Archive folder, and Undo restores a message even seconds after it was moved</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.7.4" date="2026-11-16">
       <description>
         <ul>

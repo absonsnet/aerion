@@ -120,7 +120,25 @@ func (a *App) GetSpecialFolder(accountID string, folderType folder.Type) (*folde
 	}
 
 	// Fall back to auto-detected type
-	return a.folderStore.GetByType(accountID, folderType)
+	f, err := a.folderStore.GetByType(accountID, folderType)
+	if err != nil {
+		return nil, err
+	}
+	if f != nil {
+		return f, nil
+	}
+
+	// Gmail has no Archive folder: archiving there is "remove the Inbox
+	// label", which over IMAP is a move to All Mail. The sync-time mapping
+	// default (#464) covers accounts that have synced since it landed, but
+	// an account whose mapping was never persisted (or whose folders were
+	// never synced) still has nowhere to archive to — fall back to All Mail
+	// here so Archive works instead of failing with "no archive folder
+	// configured".
+	if folderType == folder.TypeArchive {
+		return a.folderStore.GetByType(accountID, folder.TypeAll)
+	}
+	return nil, nil
 }
 
 // SubscribeFolder subscribes to an IMAP folder for automatic sync.

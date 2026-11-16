@@ -50,6 +50,8 @@
     "outbox": "Outbox",
     "dragToReorder": "Drag to reorder",
     "dividerLabel": "Drag to resize the unified and accounts sections",
+    "dividerSnapAccounts": "Accounts fully visible — drag further to hide accounts",
+    "dividerSnapUnified": "Unified folders fully visible — drag further to hide unified folders",
     "containsSelection": "Contains the open folder",
     "expandAccount": "Expand account",
     "collapseAccount": "Collapse account",

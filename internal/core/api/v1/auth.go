@@ -54,8 +54,10 @@ type SMTPClient = any
 // access tokens, refresh tokens, or passwords. Token refresh is transparent.
 //
 // Routing: the broker resolves the right ClientConfigID for the requested
-// scopes (e.g., contacts-write scopes route to "google-contacts"; calendar
-// scopes to "google-calendar"). If the account lacks tokens covering those
+// scopes (e.g., contacts-write scopes route to "google-contacts"; the Google
+// calendar scope routes through core's "google-mail" slot, reusing the
+// linked account's grant, while Microsoft calendar scopes route to
+// "microsoft-calendar"). If the account lacks tokens covering those
 // scopes under the target ClientConfigID, the broker returns
 // ErrAdditionalConsentRequired and the extension drives the user-facing
 // grant flow (e.g., WriteAccessAccountPicker for contacts).
