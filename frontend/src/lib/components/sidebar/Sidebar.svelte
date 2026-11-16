@@ -301,13 +301,30 @@
   // --- Sidebar divider: Unified zone vs Accounts block ---
   // The divider sits just above the first account and is draggable up and
   // down. It sets the Accounts pane height (px); the Unified pane takes
-  // the rest and scrolls internally. The position persists in the backend
-  // UI state (accountsHeight, 0 = unset → size to content).
+  // the rest. The position persists in the backend UI state
+  // (accountsHeight, 0 = unset → size to content).
+  //
+  // Detents: the divider moves freely past both section boundaries, but it
+  // SNAPS at each one — the drag sticks at the boundary until the pointer
+  // pushes a little further, and the divider highlights while snapped so
+  // the stop is felt and seen:
+  //   - bottom detent: Accounts pane exactly fits every account row;
+  //     dragging further down starts hiding accounts.
+  //   - top detent: Unified pane exactly fits every unified folder;
+  //     dragging further up starts hiding unified folders.
+  // Past a detent the clipped section scrolls internally (overflow-y-auto)
+  // with a scrollbar that brightens while scrolling.
   const DIVIDER_HEIGHT = 9
-  // Hard floor for the Accounts pane in a too-short window: label + one
-  // account header + Add Account button, roughly. The content-driven
-  // floor (every account row visible) rules whenever it fits.
+  // Hard extremes for the Accounts pane: label + one account header + Add
+  // Account button at the bottom, the UNIFIED heading at the top. The
+  // detents sit inside this range; the hard extremes only stop a pane
+  // collapsing to nothing.
   const ACCOUNTS_MIN_PANE = 96
+  const UNIFIED_MIN_PANE = 64
+  // Snap feel: the drag sticks within this many px of a detent, and needs
+  // this much further pointer travel to break past it.
+  const SNAP_RADIUS = 10
+  const SNAP_BREAKAWAY = 16
 
   let unifiedContent = $state<HTMLDivElement | null>(null)
   let accountsContent = $state<HTMLDivElement | null>(null)
@@ -315,41 +332,81 @@
   // Live Accounts pane height (px). 0 until measured — before that the
   // pane sizes to its content.
   let accountsHeightPx = $state(0)
-  // Drag bounds, recomputed from the measured content heights.
-  let accountsFloor = $state(0)
-  let accountsCeiling = $state(0)
+  // Hard bounds + detents, recomputed from the measured content heights.
+  let accountsMin = $state(ACCOUNTS_MIN_PANE)
+  let accountsMax = $state(ACCOUNTS_MIN_PANE)
+  // Bottom detent: Accounts pane exactly fits its content (every account
+  // visible). Top detent: Unified pane exactly fits its content (every
+  // unified folder visible). Null when that boundary cannot be reached
+  // inside the hard range (section taller than the window).
+  let detentBottom = $state<number | null>(null)
+  let detentTop = $state<number | null>(null)
 
   let dividerDragging = $state(false)
   let dividerDragStartY = 0
   let dividerDragStartHeight = 0
+  // Snap engagement during a drag: which detent is holding the divider,
+  // and the pointer Y where it engaged. While engaged the height stays
+  // pinned until the pointer travels SNAP_BREAKAWAY past the detent.
+  let snapDetent = $state<number | null>(null)
+  let snapPointerY = 0
+  // A detent released during this drag stays disarmed until the pointer
+  // moves clear of it, so the drag does not re-snap on the same spot.
+  let snapDisarmed = new Set<number>()
+
+  // Whether the divider is sitting on a detent right now (dragging or
+  // parked) — drives the snap highlight and the accessible value text.
+  let dividerSnapped = $derived.by(() => {
+    const h = Math.round(accountsHeightPx)
+    if (snapDetent !== null && Math.round(snapDetent) === h) return true
+    return detents().some((d) => Math.round(d) === h)
+  })
+  let dividerSnapLabel = $derived.by(() => {
+    const h = Math.round(accountsHeightPx)
+    if (detentBottom !== null && Math.round(detentBottom) === h) return $_('sidebar.dividerSnapAccounts')
+    if (detentTop !== null && Math.round(detentTop) === h) return $_('sidebar.dividerSnapUnified')
+    return ''
+  })
 
   function clampNum(value: number, min: number, max: number): number {
     return Math.max(min, Math.min(max, value))
   }
 
-  // Re-measure content heights and re-clamp the divider bounds + position.
-  // Floor: every account row visible (when the window allows it); the pane
-  // scrolls internally only when the window is too short even with the
-  // Unified pane at its minimum.
+  function detents(): number[] {
+    const out: number[] = []
+    if (detentBottom !== null) out.push(detentBottom)
+    if (detentTop !== null) out.push(detentTop)
+    return out.sort((a, b) => a - b)
+  }
+
+  // Re-measure content heights and re-derive the hard bounds, the detents
+  // and the position. A clipped section scrolls internally; the bounds only
+  // stop a pane collapsing to nothing.
   function measureDividerBounds() {
     if (!scrollContainer || !accountsContent) return
     const columnH = scrollContainer.getBoundingClientRect().height
     const unifiedContentH = unifiedContent?.scrollHeight ?? 0
     const accountsContentH = accountsContent.scrollHeight
-    const unifiedMin = Math.min(
-      unifiedContentH,
-      Math.max(0, columnH - DIVIDER_HEIGHT - ACCOUNTS_MIN_PANE)
-    )
-    const maxAccounts = Math.max(0, columnH - DIVIDER_HEIGHT - unifiedMin)
-    accountsFloor = Math.min(accountsContentH, maxAccounts)
-    accountsCeiling = maxAccounts
+    accountsMin = ACCOUNTS_MIN_PANE
+    accountsMax = Math.max(accountsMin, columnH - DIVIDER_HEIGHT - UNIFIED_MIN_PANE)
+    detentBottom =
+      accountsContentH > accountsMin && accountsContentH < accountsMax
+        ? accountsContentH
+        : null
+    const top = columnH - DIVIDER_HEIGHT - unifiedContentH
+    detentTop =
+      top > accountsMin &&
+      top < accountsMax &&
+      (detentBottom === null || Math.abs(top - detentBottom) > SNAP_RADIUS + 2)
+        ? top
+        : null
     const persisted = getUIState().accountsHeight || 0
     if (accountsHeightPx === 0 && persisted > 0) {
-      accountsHeightPx = clampNum(persisted, accountsFloor, accountsCeiling)
+      accountsHeightPx = clampNum(persisted, accountsMin, accountsMax)
     } else if (accountsHeightPx === 0) {
-      accountsHeightPx = accountsFloor
+      accountsHeightPx = Math.min(accountsContentH, accountsMax)
     } else {
-      accountsHeightPx = clampNum(accountsHeightPx, accountsFloor, accountsCeiling)
+      accountsHeightPx = clampNum(accountsHeightPx, accountsMin, accountsMax)
     }
   }
 
@@ -372,34 +429,100 @@
     dividerDragStartY = e.clientY
     dividerDragStartHeight = accountsHeightPx
     dividerDragging = true
+    snapDetent = null
+    snapDisarmed = new Set()
   }
 
   function handleDividerMouseMove(e: MouseEvent) {
     if (!dividerDragging) return
-    // Dragging up (pointer moves up) grows the Accounts pane.
-    accountsHeightPx = clampNum(
+    const raw = clampNum(
       dividerDragStartHeight + (dividerDragStartY - e.clientY),
-      accountsFloor,
-      accountsCeiling
+      accountsMin,
+      accountsMax
     )
+
+    // A snap holds the divider at its detent until the pointer pushes
+    // SNAP_BREAKAWAY past it; the breakaway travel is spent on the
+    // resistance, and the drag then resumes from the detent with no jump.
+    if (snapDetent !== null) {
+      if (Math.abs(e.clientY - snapPointerY) <= SNAP_BREAKAWAY) {
+        accountsHeightPx = snapDetent
+        return
+      }
+      snapDisarmed.add(snapDetent)
+      const broken = snapDetent
+      snapDetent = null
+      dividerDragStartY = e.clientY
+      dividerDragStartHeight = broken
+      accountsHeightPx = broken
+      return
+    }
+
+    // Re-arm a disarmed detent once the pointer has moved clear of it.
+    for (const d of [...snapDisarmed]) {
+      if (Math.abs(raw - d) > SNAP_RADIUS + 2) snapDisarmed.delete(d)
+    }
+
+    // Snap: within SNAP_RADIUS of an armed detent, stick to it.
+    for (const d of detents()) {
+      if (!snapDisarmed.has(d) && Math.abs(raw - d) <= SNAP_RADIUS) {
+        snapDetent = d
+        snapPointerY = e.clientY
+        accountsHeightPx = d
+        return
+      }
+    }
+
+    accountsHeightPx = raw
   }
 
   function handleDividerMouseUp() {
     if (!dividerDragging) return
     dividerDragging = false
+    snapDetent = null
     // Persist through the same setting the list/sidebar widths use.
     saveUIState({ accountsHeight: Math.round(accountsHeightPx) })
   }
 
-  // Keyboard: arrows move the divider 10px (Shift: 50px), persisted.
+  // Keyboard: arrows move the divider 10px (Shift: 50px), persisted. A
+  // step that crosses a detent lands exactly on it; the next press
+  // continues past.
   function handleDividerKeyDown(e: KeyboardEvent) {
     let delta = 0
     if (e.key === 'ArrowUp') delta = e.shiftKey ? 50 : 10
     else if (e.key === 'ArrowDown') delta = -(e.shiftKey ? 50 : 10)
     else return
     e.preventDefault()
-    accountsHeightPx = clampNum(accountsHeightPx + delta, accountsFloor, accountsCeiling)
+    let next = clampNum(accountsHeightPx + delta, accountsMin, accountsMax)
+    for (const d of detents()) {
+      if (
+        (delta > 0 && accountsHeightPx < d && next >= d) ||
+        (delta < 0 && accountsHeightPx > d && next <= d)
+      ) {
+        next = d
+        break
+      }
+    }
+    accountsHeightPx = next
+    snapDetent = detents().includes(next) ? next : null
     saveUIState({ accountsHeight: Math.round(accountsHeightPx) })
+  }
+
+  // Scrollbar emphasis: while a sidebar pane is scrolling, brighten its
+  // thin scrollbar thumb so the scroll position reads at a glance. The
+  // class drops shortly after scrolling stops.
+  let unifiedScrollTimer: ReturnType<typeof setTimeout> | undefined
+  let accountsScrollTimer: ReturnType<typeof setTimeout> | undefined
+
+  function handlePaneScroll(e: Event, which: 'unified' | 'accounts') {
+    const el = e.currentTarget as HTMLElement | null
+    if (!el) return
+    el.classList.add('scrolling')
+    const prev = which === 'unified' ? unifiedScrollTimer : accountsScrollTimer
+    if (prev) clearTimeout(prev)
+    const next = setTimeout(() => el.classList.remove('scrolling'), 700)
+    if (which === 'unified') unifiedScrollTimer = next
+    else accountsScrollTimer = next
   }
 
   // Sync status: { accountName, label, percentage } — accountName + percentage are populated only when a sync is active
@@ -826,7 +949,10 @@
              sidebar_hide_unified_single_account setting is on. -->
         {#if showUnified}
           <!-- Zone 1 — Unified: fills the space above the divider. -->
-          <div class="flex-1 min-h-0 overflow-y-auto scrollbar-thin">
+          <div
+            class="flex-1 min-h-0 overflow-y-auto scrollbar-thin"
+            onscroll={(e) => handlePaneScroll(e, 'unified')}
+          >
             <div class="py-2" bind:this={unifiedContent}>
               <UnifiedSection
                 {attentionCount}
@@ -844,8 +970,11 @@
           </div>
 
           <!-- Divider: draggable up/down; the Accounts block moves with
-               it. Its lowest position is floored so accounts are never
-               hidden while they fit in the window. A focusable separator
+               it. It moves freely past both section boundaries, but snaps
+               at each one — the drag sticks at the boundary until the
+               pointer pushes a little further (the divider highlights
+               while snapped). Past a detent the clipped section scrolls
+               internally with a visible scrollbar. A focusable separator
                with value attributes is the splitter pattern, and
                ArrowUp/ArrowDown move it. svelte-ignore: the checker does
                not treat role=separator as interactive, but this element
@@ -859,14 +988,15 @@
             aria-orientation="horizontal"
             aria-label={$_('sidebar.dividerLabel')}
             aria-valuenow={Math.round(accountsHeightPx)}
-            aria-valuemin={Math.round(accountsFloor)}
-            aria-valuemax={Math.round(accountsCeiling)}
+            aria-valuemin={Math.round(accountsMin)}
+            aria-valuemax={Math.round(accountsMax)}
+            aria-valuetext={dividerSnapped ? dividerSnapLabel : undefined}
             tabindex="0"
             onmousedown={startResizeDivider}
             onkeydown={handleDividerKeyDown}
           >
-            <div class="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-px bg-border group-hover:bg-primary/50 {dividerDragging ? 'bg-primary/50' : ''}"></div>
-            <div class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-1 rounded-full bg-border group-hover:bg-primary/70 {dividerDragging ? 'bg-primary/70' : ''}"></div>
+            <div class="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-px bg-border group-hover:bg-primary/50 {dividerDragging || dividerSnapped ? 'bg-primary/50' : ''}"></div>
+            <div class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-1 rounded-full bg-border group-hover:bg-primary/70 {dividerDragging || dividerSnapped ? 'bg-primary/70' : ''}"></div>
           </div>
         {/if}
 
@@ -875,6 +1005,7 @@
         <div
           class="shrink-0 overflow-y-auto scrollbar-thin {showUnified ? '' : 'flex-1 min-h-0'}"
           style={showUnified && accountsHeightPx > 0 ? `height: ${accountsHeightPx}px` : ''}
+          onscroll={(e) => handlePaneScroll(e, 'accounts')}
         >
           <div class="pt-1" bind:this={accountsContent}>
           <div class="px-4 pb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
