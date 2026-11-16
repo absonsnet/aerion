@@ -60,18 +60,16 @@
       </div>
 
       <div class="space-y-4 max-h-[60vh] overflow-y-auto text-sm">
-        <p>🚀 Welcome to {APP_NAME} v0.7.0!</p>
+        <p>🚀 Welcome to {APP_NAME} v0.7.1!</p>
 
-        <p>v0.7.0 brings a smarter inbox, one-click unsubscribe, offline message translation and a tidier sidebar. Here are the highlights of the release:</p>
+        <p>v0.7.1 fixes the Settings dialog layout, the Dock icon, and the message-list width. Here are the highlights of the release:</p>
 
         <ul class="list-disc pl-6 space-y-1">
-          <li>🔢 One-time passcodes: a chip on messages with a code copies it in one click, and the message is filed away in Trash</li>
-          <li>🔔 Needs attention: a strip above the message list flags one-time codes, travel changes, payment failures and delivery problems</li>
-          <li>🧭 Sidebar rework: unified folders on top, your accounts docked at the bottom — click an account name for its inbox, expand it for its folders</li>
-          <li>📭 Unsubscribe: one-click unsubscribe from mailing lists, just like Gmail</li>
-          <li>🌐 Message translation: translate a message into your language, with offline language downloads so it works without a connection</li>
-          <li>🏷️ Category tabs: switch between All, Personal and Automated messages</li>
-          <li>⚖️ Daak is now licensed under AGPLv3</li>
+          <li>⚙️ Settings dialog: the tab bar no longer overlaps the content below it</li>
+          <li>🖥️ Dock icon: the new envelope logo now shows in the Dock instead of the old one</li>
+          <li>🗔 Double-click the title bar to maximize or restore the window</li>
+          <li>↔️ Message list: drag the divider as wide as you like, and drag it to the right edge to close the preview pane</li>
+          <li>✉️ The app logo is slightly taller</li>
         </ul>
 
         <p>🏷 See the full change log here:</p>

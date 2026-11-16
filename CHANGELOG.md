@@ -1,5 +1,14 @@
 # CHANGELOG
 
+**v0.7.1 - 16-11-2026**
+---
+
+- Settings dialog: the tab bar no longer overlaps the content below it
+- Dock icon: the new envelope logo now shows in the Dock instead of the old one
+- Double-click the title bar to maximize or restore the window
+- Message list: drag the divider as wide as you like, and drag it to the right edge to close the preview pane
+- The app logo is slightly taller
+
 **v0.7.0 - 15-11-2026**
 ---
 
