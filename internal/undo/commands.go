@@ -22,6 +22,11 @@ type UndoContext interface {
 	FindLocalMessageIDs(accountID, folderID string, rfc822MessageIDs []string) ([]string, error)
 	// MoveMessagesToFolder moves messages using the full move pipeline (IMAP + local DB)
 	MoveMessagesToFolder(messageIDs []string, destFolderID string) error
+	// ResolveMessageUID returns the message's CURRENT uid and folder ID
+	// (looked up at undo time, so a move that reassigned the UID is
+	// handled). UIDs <= 0 are temporary local placeholders with no
+	// server counterpart yet.
+	ResolveMessageUID(messageID string) (uint32, string, error)
 }
 
 // FlagChangeCommand handles read/star flag changes

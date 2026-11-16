@@ -1395,4 +1395,102 @@ var migrations = []Migration{
 			ALTER TABLE messages ADD COLUMN is_hidden INTEGER NOT NULL DEFAULT 0;
 		`,
 	},
+	{
+		Version: 46,
+		SQL: `
+			-- Phase A: sync-time enrichment (shared detector core).
+			-- Enrichment columns on messages, filled at header sync (category
+			-- + List-Unsubscribe) and again at body fetch (extraction needs
+			-- the body head). A one-off backfill fills them for already-synced
+			-- mail; see sync.Engine.BackfillEnrichment.
+			ALTER TABLE messages ADD COLUMN list_unsubscribe TEXT;
+			ALTER TABLE messages ADD COLUMN list_unsubscribe_post INTEGER NOT NULL DEFAULT 0;
+			ALTER TABLE messages ADD COLUMN category TEXT;
+			ALTER TABLE messages ADD COLUMN sub_category TEXT;
+			ALTER TABLE messages ADD COLUMN extract_kind TEXT;
+			ALTER TABLE messages ADD COLUMN extract_value TEXT;
+			ALTER TABLE messages ADD COLUMN extract_rule TEXT;
+
+			CREATE INDEX IF NOT EXISTS idx_messages_category ON messages(category);
+			CREATE INDEX IF NOT EXISTS idx_messages_extract ON messages(extract_kind) WHERE extract_kind IS NOT NULL;
+
+			-- unsubscribe_actions records one-click unsubscribes the user
+			-- has already acted on, so a re-sync never offers them again.
+			CREATE TABLE IF NOT EXISTS unsubscribe_actions (
+				sender_address TEXT NOT NULL,
+				account_id TEXT NOT NULL,
+				method TEXT NOT NULL,
+				acted_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				PRIMARY KEY (sender_address, account_id)
+			);
+
+			-- sender_category_overrides: the classifier's rule 1. A row here
+			-- beats every other signal for that sender.
+			CREATE TABLE IF NOT EXISTS sender_category_overrides (
+				sender_address TEXT PRIMARY KEY,
+				category TEXT NOT NULL,
+				created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+			);
+		`,
+	},
+	{
+		Version: 47,
+		SQL: `
+			-- Phase A: Needs attention dismissals + the translation cache
+			-- table. The cache is only used in Phase D, but the table lands
+			-- now so later phases never need a schema change for it.
+			CREATE TABLE IF NOT EXISTS attention_dismissals (
+				message_id TEXT PRIMARY KEY REFERENCES messages(id) ON DELETE CASCADE,
+				dismissed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+			);
+
+			CREATE TABLE IF NOT EXISTS message_translations (
+				message_id TEXT NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+				target_lang TEXT NOT NULL,
+				engine TEXT NOT NULL,
+				translated_subject TEXT,
+				translated_body TEXT,
+				created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				PRIMARY KEY (message_id, target_lang, engine)
+			);
+		`,
+	},
+	{
+		Version: 48,
+		SQL: `
+			-- Phase C: sender rules. Daak has no general filter-rule
+			-- system yet, so this is the minimal sender-based rule
+			-- table the unsubscribe flow needs: action 'auto_trash'
+			-- moves future mail from the sender to Trash at sync time.
+			-- One row per (sender, account); the address is stored
+			-- lower-cased so matching is case-insensitive.
+			CREATE TABLE IF NOT EXISTS sender_rules (
+				sender_address TEXT NOT NULL,
+				account_id TEXT NOT NULL,
+				action TEXT NOT NULL,
+				created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				PRIMARY KEY (sender_address, account_id, action)
+			);
+		`,
+	},
+	{
+		Version: 49,
+		SQL: `
+			-- Phase D: translation cache invalidation + service
+			-- secrets. body_hash on message_translations records
+			-- the message content a cached translation was made
+			-- from; a changed body invalidates the row.
+			-- service_secrets holds single global secrets (e.g. the
+			-- DeepL API key) as encrypted values; the OS keyring is
+			-- tried first and this table is the fallback (see
+			-- internal/credentials service secrets).
+			ALTER TABLE message_translations ADD COLUMN body_hash TEXT;
+
+			CREATE TABLE IF NOT EXISTS service_secrets (
+				service TEXT PRIMARY KEY,
+				encrypted_value TEXT NOT NULL,
+				updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+			);
+		`,
+	},
 }

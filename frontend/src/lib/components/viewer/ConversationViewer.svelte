@@ -4,13 +4,16 @@
   // Viewer bindings: dispatches to App in the main window and to
   // ViewerApp in a detached popup window (see viewerBindings.ts).
   import { GetConversation, GetReadReceiptResponsePolicy, SendReadReceipt, IgnoreReadReceipt, GetMarkAsReadDelay, GetMessageSource, ProcessSMIMEMessage, ProcessPGPMessage, FetchMessageBody } from '$lib/viewerBindings'
-  import { MarkAsRead, MarkAsUnread, Star, Unstar, Archive, Trash, MarkAsSpam, MarkAsNotSpam, DeletePermanently, Undo, GetMessageReactions, SendReaction, RemoveOwnReaction } from '$lib/viewerBindings'
+  import { MarkAsRead, MarkAsUnread, Star, Unstar, Archive, Trash, MarkAsSpam, MarkAsNotSpam, DeletePermanently, Undo, GetMessageReactions, SendReaction, RemoveOwnReaction, GetUnsubscribeStatuses } from '$lib/viewerBindings'
+  import { runUnsubscribeFlow } from '$lib/unsubscribe'
   // @ts-ignore - wailsjs path
   import { EventsOn } from '../../../../wailsjs/runtime/runtime'
   // @ts-ignore - wailsjs path
   import { message as messageModels, app as appModels } from '../../../../wailsjs/go/models'
   import AttachmentList from './AttachmentList.svelte'
+  import CodeChip from '$lib/components/list/CodeChip.svelte'
   import EmailBody from './EmailBody.svelte'
+  import MessageTranslation from './MessageTranslation.svelte'
   import { toasts } from '$lib/stores/toast'
   import { setFocusedPane, isInputElement, isComposerOpen } from '$lib/stores/keyboard.svelte'
   import { ConfirmDialog } from '$lib/components/ui/confirm-dialog'
@@ -154,6 +157,32 @@
   let reactionPickerMessageId = $state<string | null>(null)
   let sendingReaction = $state(false)
   let removingReactionIds = $state<Set<string>>(new Set())
+
+  // Unsubscribe (Phase C, Gmail behaviour): per-message status loaded
+  // with the conversation; the button only renders when the backend
+  // says the headers exist and the folder is Inbox or Spam.
+  let unsubscribeStatuses = $state<Record<string, appModels.UnsubscribeStatus>>({})
+  let unsubscribingIds = $state<Set<string>>(new Set())
+
+  // Translation (Phase D): per-message translated body HTML, keyed by
+  // message id. Each message keeps its own translated copy in memory
+  // only — the cache lives in the backend — so translating one message
+  // never touches the others. Cleared when the conversation changes.
+  let translatedBodies = $state<Record<string, string>>({})
+
+  function handleTranslationBodyChange(
+    messageId: string,
+    translatedHtml: string | null,
+    _translatedSubject: string | null
+  ) {
+    if (translatedHtml === null) {
+      const next = { ...translatedBodies }
+      delete next[messageId]
+      translatedBodies = next
+    } else {
+      translatedBodies = { ...translatedBodies, [messageId]: translatedHtml }
+    }
+  }
 
   // Auto-mark-as-read state
   let markAsReadDelay = $state(1000) // Default 1 second, loaded from settings
@@ -393,6 +422,7 @@
     reactionPickerOpen = false
     reactionPickerMessageId = null
     reactionsByMessage = {}
+    unsubscribeStatuses = {}
     // Reset focused message on thread change so opening a thread starts fresh.
     // Same-thread refreshes (handled via scheduleRefresh) preserve focus.
     focusedMessageId = null
@@ -488,6 +518,8 @@
 
     loading = true
     error = null
+    // A new thread gets fresh per-message translation state.
+    translatedBodies = {}
 
     try {
       const result = await GetConversation(tid, fid)
@@ -528,6 +560,9 @@
 
         // Load reactions for the expanded messages
         loadReactionsForExpanded()
+
+        // Load unsubscribe statuses for all messages in the thread
+        loadUnsubscribeStatuses()
 
         // Fetch bodies for messages that don't have them yet (on-demand)
         fetchUnfetchedBodies(conversation.messages)
@@ -896,6 +931,48 @@
       const next = new Set(removingReactionIds)
       next.delete(messageId)
       removingReactionIds = next
+    }
+  }
+
+  // --- Unsubscribe (Phase C, Gmail behaviour) ---
+  // The click itself is the consent: one-click fires the silent POST
+  // at once, with no confirm dialog. The toast/follow-up flow lives in
+  // $lib/unsubscribe.ts, shared with the context menu.
+  async function loadUnsubscribeStatuses() {
+    if (!conversation?.messages) return
+    try {
+      const statuses = await GetUnsubscribeStatuses(conversation.messages.map(m => m.id))
+      const next: Record<string, appModels.UnsubscribeStatus> = {}
+      for (const s of statuses ?? []) next[s.messageId] = s
+      unsubscribeStatuses = next
+    } catch (err) {
+      console.error('Failed to load unsubscribe statuses:', err)
+    }
+  }
+
+  function markUnsubscribed(messageId: string) {
+    const st = unsubscribeStatuses[messageId]
+    if (st) unsubscribeStatuses = { ...unsubscribeStatuses, [messageId]: { ...st, alreadyUnsubscribed: true } }
+  }
+
+  async function handleUnsubscribe(messageId: string) {
+    if (unsubscribingIds.has(messageId)) return
+    const st = unsubscribeStatuses[messageId]
+    if (!st?.available || st.alreadyUnsubscribed) return
+    unsubscribingIds = new Set([...unsubscribingIds, messageId])
+    try {
+      await runUnsubscribeFlow(messageId, {
+        onUnsubscribed: () => markUnsubscribed(messageId),
+        onMoved: () => {
+          // The message just left this folder: reload, and let the
+          // viewer dismiss itself if the thread is now empty here.
+          if (threadId && folderId) loadConversation(threadId, folderId)
+        },
+      })
+    } finally {
+      const next = new Set(unsubscribingIds)
+      next.delete(messageId)
+      unsubscribingIds = next
     }
   }
 
@@ -1650,6 +1727,31 @@
                       {#if !msg.isRead}
                         <span class="w-2 h-2 rounded-full bg-primary flex-shrink-0"></span>
                       {/if}
+
+                      <!-- Unsubscribe (Phase C): only when the message carries
+                           List-Unsubscribe headers and sits in Inbox/Spam.
+                           The tooltip names the destination domain before
+                           the click; spam mail gets a warning label. -->
+                      {#if unsubscribeStatuses[msg.id]?.available}
+                        {#if unsubscribeStatuses[msg.id].alreadyUnsubscribed}
+                          <button
+                            class="text-xs px-2 py-0.5 rounded-full border border-border text-muted-foreground cursor-default"
+                            disabled
+                            title={$_('viewer.alreadyUnsubscribedTitle')}
+                            onclick={(e) => e.stopPropagation()}
+                          >{$_('viewer.unsubscribed')}</button>
+                        {:else}
+                          <button
+                            class="text-xs px-2 py-0.5 rounded-full border transition-colors {unsubscribeStatuses[msg.id].isSpam ? 'border-amber-500/60 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10' : 'border-border text-muted-foreground hover:text-primary hover:border-primary/50'}"
+                            title={unsubscribeStatuses[msg.id].isSpam ? $_('viewer.unsubscribeSpamWarning', { values: { domain: unsubscribeStatuses[msg.id].domain } }) : $_('viewer.unsubscribeVia', { values: { domain: unsubscribeStatuses[msg.id].domain } })}
+                            disabled={unsubscribingIds.has(msg.id)}
+                            onclick={(e) => { e.stopPropagation(); handleUnsubscribe(msg.id) }}
+                            onkeydown={(e) => e.stopPropagation()}
+                          >
+                            {unsubscribeStatuses[msg.id].isSpam ? $_('viewer.unsubscribeSpam') : $_('viewer.unsubscribe')}
+                          </button>
+                        {/if}
+                      {/if}
                     </div>
 
                     {#if msg.replyTo && msg.replyTo.toLowerCase() !== msg.fromEmail.toLowerCase()}
@@ -1776,6 +1878,18 @@
                 {#if isExpanded}
                   <div class="px-4 pb-4 pt-0">
                     <div class="ml-13 pl-3 border-l-2 border-border">
+                      <!-- Code/reference chip (Phase A): at the top of the
+                           open message, same action as the list-row chip. -->
+                      {#if (msg.extractKind === 'code' || msg.extractKind === 'reference') && msg.extractValue}
+                        <div class="flex items-center mb-3">
+                          <CodeChip
+                            messageId={msg.id}
+                            kind={msg.extractKind}
+                            value={msg.extractValue}
+                            onDone={handleContextMenuActionComplete}
+                          />
+                        </div>
+                      {/if}
                       <!-- Read Receipt Banner -->
                       {#if shouldShowReadReceiptBanner(msg) && readReceiptPolicy === 'ask'}
                         <div class="flex items-center justify-between gap-3 px-3 py-2 mb-4 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-md">
@@ -1908,6 +2022,19 @@
                         </div>
                       {/if}
 
+                      <!-- Translation (Phase D): per-message banner inside
+                           this message's own block — never one button for
+                           the whole thread. -->
+                      <MessageTranslation
+                        messageId={msg.id}
+                        subject={msg.subject ?? ''}
+                        bodyHtml={msg.bodyHtml ?? ''}
+                        bodyText={msg.bodyText ?? ''}
+                        displayBodyHtml={msg.hasPGP && pgpResults[msg.id] ? pgpResults[msg.id].bodyHtml : msg.hasSMIME && smimeResults[msg.id] ? smimeResults[msg.id].bodyHtml : msg.bodyHtml}
+                        displayBodyText={msg.hasPGP && pgpResults[msg.id] ? pgpResults[msg.id].bodyText : msg.hasSMIME && smimeResults[msg.id] ? smimeResults[msg.id].bodyText : msg.bodyText}
+                        onBodyChange={(html, subj) => handleTranslationBodyChange(msg.id, html, subj)}
+                      />
+
                       <!-- Body (use on-view result for S/MIME or PGP messages) -->
                       <div class="mb-4">
                         {#if (msg as any).bodyFetched === false && !msg.bodyHtml && !msg.bodyText}
@@ -1924,7 +2051,7 @@
                             bind:this={emailBodyRefs[msg.id]}
                             messageId={msg.id}
                             accountId={msg.accountId}
-                            bodyHtml={msg.hasPGP && pgpResults[msg.id] ? pgpResults[msg.id].bodyHtml : msg.hasSMIME && smimeResults[msg.id] ? smimeResults[msg.id].bodyHtml : msg.bodyHtml}
+                            bodyHtml={translatedBodies[msg.id] ?? (msg.hasPGP && pgpResults[msg.id] ? pgpResults[msg.id].bodyHtml : msg.hasSMIME && smimeResults[msg.id] ? smimeResults[msg.id].bodyHtml : msg.bodyHtml)}
                             bodyText={msg.hasPGP && pgpResults[msg.id] ? pgpResults[msg.id].bodyText : msg.hasSMIME && smimeResults[msg.id] ? smimeResults[msg.id].bodyText : msg.bodyText}
                             fromEmail={msg.fromEmail}
                             onCompose={onComposeToAddress}

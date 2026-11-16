@@ -16,8 +16,16 @@
     isHeaderFocused?: boolean
     isExpanded?: boolean
     syncError?: { folderId: string; error: string } | null
+    // Unread count of this account's Inbox folder (0 hides the badge).
+    inboxUnreadCount?: number
+    // True when the open folder lives in this account's tree while the
+    // account is collapsed — shown as a subtle dot on the header.
+    containsSelection?: boolean
     onFolderSelect?: (accountId: string, folderId: string, folderPath: string, folderName: string, folderType: string) => void
     onToggleExpanded?: () => void
+    // Clicking the account name: opens the account's Inbox (and expands
+    // the account if collapsed). Only the chevron toggles without navigating.
+    onSelectInbox?: () => void
     onEdit?: () => void
     onDelete?: () => void
     onSync?: () => void
@@ -37,8 +45,11 @@
     isHeaderFocused = false,
     isExpanded = true,
     syncError = null,
+    inboxUnreadCount = 0,
+    containsSelection = false,
     onFolderSelect,
     onToggleExpanded,
+    onSelectInbox,
     onEdit,
     onDelete,
     onSync,
@@ -48,6 +59,12 @@
   }: Props = $props()
 
   let showMenu = $state(false)
+
+  // Auth-broken / mid-setup: the account failed to load folders or its
+  // last sync errored. Shown as a warning dot; clicking the name still
+  // opens the cached Inbox, same as today.
+  const hasWarning = $derived(!!error || !!syncError)
+  const warningText = $derived(error ?? syncError?.error ?? '')
 
   // Toggle expand/collapse via callback
   function toggleExpanded() {
@@ -87,26 +104,49 @@
 <svelte:window onclick={handleClickOutside} />
 
 <div class="mb-2">
-  <!-- Account Header -->
-  <div class="relative group">
+  <!-- Account Header: the chevron (and ONLY the chevron) expands/collapses
+       without navigating; the name opens the account's Inbox and expands
+       the account if it is collapsed. -->
+  <div class="relative group flex items-center gap-0.5 px-2">
     <button
-      class="w-full flex items-center gap-2 px-3 py-2 text-sm font-medium text-foreground hover:bg-muted/50 transition-colors {isHeaderFocused ? 'bg-muted ring-1 ring-primary/50' : ''}"
-      data-sidebar-item="account-header"
-      data-account-id={acc.id}
+      class="p-0.5 rounded hover:bg-muted transition-colors flex-shrink-0"
+      aria-label={isExpanded ? $_('sidebar.collapseAccount') : $_('sidebar.expandAccount')}
       onclick={toggleExpanded}
     >
       <Icon
         icon={isExpanded ? 'mdi:chevron-down' : 'mdi:chevron-right'}
         class="w-4 h-4 text-muted-foreground"
       />
-      <Icon icon="mdi:email-outline" class="w-4 h-4" />
-      <span class="truncate flex-1 text-left">{acc.name}</span>
+    </button>
+    <button
+      class="flex-1 min-w-0 flex items-center gap-2 pl-1 pr-7 py-1.5 text-sm font-medium text-foreground hover:bg-muted/50 rounded-md transition-colors {isHeaderFocused ? 'bg-muted ring-1 ring-primary/50' : ''}"
+      data-sidebar-item="account-header"
+      data-account-id={acc.id}
+      onclick={() => onSelectInbox?.()}
+    >
+      <Icon icon="mdi:email-outline" class="w-4 h-4 flex-shrink-0" />
+      <span class="truncate text-left">{acc.name}</span>
+
+      {#if hasWarning}
+        <span
+          class="w-2 h-2 rounded-full bg-destructive flex-shrink-0"
+          title={warningText}
+        ></span>
+      {/if}
+      {#if containsSelection && !isExpanded}
+        <span
+          class="w-1.5 h-1.5 rounded-full bg-primary flex-shrink-0"
+          title={$_('sidebar.containsSelection')}
+        ></span>
+      {/if}
 
       {#if syncing}
-        <Icon icon="mdi:sync" class="w-4 h-4 animate-spin text-muted-foreground" />
-      {:else if error}
-        <span title={error}>
-          <Icon icon="mdi:alert-circle" class="w-4 h-4 text-destructive" />
+        <Icon icon="mdi:sync" class="w-4 h-4 animate-spin text-muted-foreground flex-shrink-0" />
+      {/if}
+
+      {#if inboxUnreadCount > 0}
+        <span class="px-1.5 py-0.5 text-xs font-medium bg-primary text-primary-foreground rounded-full flex-shrink-0">
+          {inboxUnreadCount}
         </span>
       {/if}
     </button>

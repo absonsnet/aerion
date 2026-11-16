@@ -138,6 +138,11 @@ func (a *App) SyncFolder(accountID, folderID string) error {
 		log.Warn().Err(checkpointErr).Msg("WAL checkpoint after SyncFolder failed")
 	}
 
+	// Sender rules (Phase C): newly synced inbox mail from auto-delete
+	// senders goes straight to Trash. Runs after the header sync, never
+	// fails the sync itself.
+	a.applySenderRules(accountID, folderID)
+
 	// Registry size trend: a key that never disappears is a leaked entry.
 	a.syncMu.Lock()
 	activeKeys := make([]string, 0, len(a.syncContexts))

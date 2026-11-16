@@ -18,6 +18,7 @@
   // @ts-ignore - wailsjs path
   import { Star, Unstar } from '../../../../wailsjs/go/app/App'
   import MessageContextMenu from '$lib/components/common/MessageContextMenu.svelte'
+  import CodeChip from '$lib/components/list/CodeChip.svelte'
   import Avatar from '$lib/components/kit/Avatar.svelte'
   import { toasts } from '$lib/stores/toast'
   import { getAccentBarUnread, getAccentUnreadStyle, getShowMessageListCircles, getShowMessageListProfilePics, getAlwaysShowMessageCheckbox } from '$lib/stores/settings.svelte'
@@ -273,6 +274,21 @@
   // Determine star/read state from this conversation
   const ownIsStarred = $derived(conversation.isStarred ?? false)
   const ownIsRead = $derived((conversation.unreadCount || 0) === 0)
+
+  // Category label (Phase E): the automated sub-category when the
+  // classifier filed one ("Transactions", "Travel", …), else the category
+  // itself ("Personal" / "Automated"). No user-label system exists yet,
+  // so the stored category is what shows — a user label, if one is ever
+  // added, takes this slot instead.
+  const categoryLabel = $derived(
+    conversation.subCategory
+      ? conversation.subCategory
+      : conversation.category === 'automated'
+        ? $_('messageList.categoryAutomated')
+        : conversation.category === 'personal'
+          ? $_('messageList.categoryPersonal')
+          : ''
+  )
 
   // Context menu state - determines whether to use multi-select or single row
   let useMultiSelect = $state(false)
@@ -664,25 +680,55 @@
         </p>
       {/if}
 
-      <!-- Snippet (with highlighting if in search mode) -->
-      {#if highlightedSnippet}
-        <p class="truncate {densityClasses.text[density]} text-muted-foreground">
-          <!-- eslint-disable-next-line svelte/no-at-html-tags -- highlightMatches only inserts <mark> around already-escaped text -->
-          {@html highlightedSnippet}
-        </p>
-      {:else if conversation.snippet}
-        <p class="truncate {densityClasses.text[density]} text-muted-foreground">
-          {conversation.snippet}
-        </p>
-      {:else if conversation.isEncrypted}
-        <p class="truncate {densityClasses.text[density]} text-muted-foreground italic">
-          {$_('messageList.encryptedContent')}
-        </p>
-      {:else}
-        <p class="truncate {densityClasses.text[density]} text-muted-foreground italic">
-          {$_('messageList.noContent')}
-        </p>
+      <!-- Code/reference chip (Phase A): under the subject, above the
+           snippet, left-aligned with the subject text. Clicking the chip
+           never opens the message (stopPropagation in CodeChip). -->
+      {#if conversation.extractKind === 'code' || conversation.extractKind === 'reference'}
+        {#if conversation.extractValue && conversation.extractMessageId}
+          <div class="flex items-center mt-1">
+            <CodeChip
+              messageId={conversation.extractMessageId}
+              kind={conversation.extractKind}
+              value={conversation.extractValue}
+              onDone={onActionComplete}
+            />
+          </div>
+        {/if}
       {/if}
+
+      <!-- Snippet + category label (Phase E): the label sits at the
+           snippet's right edge. The snippet is flex-1/min-w-0 so it
+           truncates before the label instead of running under it, and the
+           code/reference chip lives on its own line above, so chip +
+           snippet can never collide. -->
+      <div class="flex items-center gap-2">
+        {#if highlightedSnippet}
+          <p class="flex-1 min-w-0 truncate {densityClasses.text[density]} text-muted-foreground">
+            <!-- eslint-disable-next-line svelte/no-at-html-tags -- highlightMatches only inserts <mark> around already-escaped text -->
+            {@html highlightedSnippet}
+          </p>
+        {:else if conversation.snippet}
+          <p class="flex-1 min-w-0 truncate {densityClasses.text[density]} text-muted-foreground">
+            {conversation.snippet}
+          </p>
+        {:else if conversation.isEncrypted}
+          <p class="flex-1 min-w-0 truncate {densityClasses.text[density]} text-muted-foreground italic">
+            {$_('messageList.encryptedContent')}
+          </p>
+        {:else}
+          <p class="flex-1 min-w-0 truncate {densityClasses.text[density]} text-muted-foreground italic">
+            {$_('messageList.noContent')}
+          </p>
+        {/if}
+        {#if categoryLabel}
+          <span
+            class="flex-shrink-0 px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground text-[11px] leading-none"
+            title={categoryLabel}
+          >
+            {categoryLabel}
+          </span>
+        {/if}
+      </div>
     </div>
 
     <!-- Star -->

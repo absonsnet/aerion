@@ -651,6 +651,18 @@ func (a *App) Startup(ctx context.Context) {
 		wailsRuntime.EventsEmit(ctx, "folders:countsChanged", counts)
 	})
 
+	// One-off enrichment backfill for mail synced before migration 46
+	// (Phase A). Runs once in the background; a failed run retries on
+	// the next launch. Silent when there is nothing to do.
+	go func() {
+		defer recoverPanic("app.backfill", "enrichment backfill")
+		if n, err := a.RunEnrichmentBackfill(); err != nil {
+			log.Warn().Err(err).Msg("Enrichment backfill failed (will retry next launch)")
+		} else if n > 0 {
+			log.Info().Int("enriched", n).Msg("Enrichment backfill complete")
+		}
+	}()
+
 	// Start connection pool cleanup routine
 	a.imapPool.StartCleanupRoutine(ctx)
 

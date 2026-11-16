@@ -8,6 +8,7 @@
   } from '$lib/components/ui/context-menu'
   import {
     GetAccounts,
+    GetMessage,
     MarkAsRead,
     MarkAsUnread,
     Star,
@@ -20,9 +21,12 @@
     MoveToFolder,
     CopyToFolder,
     Undo,
+    GetUnsubscribeStatuses,
+    SetSenderCategoryOverride,
   } from '../../../../wailsjs/go/app/App'
   // @ts-ignore - wailsjs path
-  import { account } from '../../../../wailsjs/go/models'
+  import { account, app as appModels } from '../../../../wailsjs/go/models'
+  import { runUnsubscribeFlow } from '$lib/unsubscribe'
   import { toasts } from '$lib/stores/toast'
   import { ConfirmDialog } from '$lib/components/ui/confirm-dialog'
   import FolderPickerDialog from './FolderPickerDialog.svelte'
@@ -61,6 +65,32 @@
   let accounts = $state<account.Account[]>([])
   let accountsLoaded = $state(false)
   let accountsLoading = $state(false)
+
+  // Unsubscribe (Phase C): loaded lazily when the menu opens, single
+  // message in Inbox/Spam only. Null = not offered for this message.
+  let unsubscribeStatus = $state<appModels.UnsubscribeStatus | null>(null)
+  let unsubscribeLoaded = $state(false)
+
+  // Sender address for the "wrong tab" correction (Phase E): loaded
+  // lazily when the menu opens, single message only. "" = not known yet.
+  let senderEmail = $state('')
+  let senderLoaded = $state(false)
+
+  // Reset the per-message unsubscribe state when the menu's target
+  // changes (a row component can be reused for another conversation).
+  // Compare the id, not the array: callers pass a fresh array literal
+  // on every render.
+  let lastUnsubMessageId: string | null = null
+  $effect(() => {
+    const id = messageIds[0] ?? null
+    if (id !== lastUnsubMessageId) {
+      lastUnsubMessageId = id
+      unsubscribeStatus = null
+      unsubscribeLoaded = false
+      senderEmail = ''
+      senderLoaded = false
+    }
+  })
 
   // Permanent delete confirmation
   let showDeleteConfirm = $state(false)
@@ -105,10 +135,40 @@
     }
   }
 
+  // Load unsubscribe status when the context menu opens (used by the
+  // Unsubscribe item). Single message in Inbox/Spam only.
+  async function loadUnsubscribeStatus() {
+    if (unsubscribeLoaded || !isSingleMessage) return
+    if (folderType !== 'inbox' && folderType !== 'spam') return
+    unsubscribeLoaded = true
+    try {
+      const statuses = await GetUnsubscribeStatuses(messageIds)
+      const st = statuses?.[0] ?? null
+      unsubscribeStatus = st?.available ? st : null
+    } catch (err) {
+      console.error('Failed to load unsubscribe status:', err)
+    }
+  }
+
+  // Load the sender address when the context menu opens (used by the
+  // "Always treat mail from this sender as …" items). Single message only.
+  async function loadSenderEmail() {
+    if (senderLoaded || !isSingleMessage) return
+    senderLoaded = true
+    try {
+      const msg = await GetMessage(messageIds[0])
+      senderEmail = msg?.fromEmail ?? ''
+    } catch (err) {
+      console.error('Failed to load sender for category override:', err)
+    }
+  }
+
   // Handle menu open
   function handleOpenChange(open: boolean) {
     if (open) {
       loadAccounts()
+      loadUnsubscribeStatus()
+      loadSenderEmail()
     }
     onOpenChange?.(open)
   }
@@ -237,6 +297,36 @@
     }
   }
 
+  async function handleUnsubscribe() {
+    if (!unsubscribeStatus?.available || unsubscribeStatus.alreadyUnsubscribed) return
+    await runUnsubscribeFlow(messageIds[0], {
+      onUnsubscribed: () => {
+        if (unsubscribeStatus) unsubscribeStatus = { ...unsubscribeStatus, alreadyUnsubscribed: true }
+      },
+      onMoved: () => onActionComplete?.(),
+    })
+  }
+
+  // "Wrong tab" correction (Phase E): file all mail from this sender
+  // under the chosen category from now on, and re-file what is already
+  // stored. The list reloads via onActionComplete; there is nothing to
+  // undo — no mail moves folders.
+  async function handleTreatAs(category: 'personal' | 'automated') {
+    if (!senderEmail) return
+    try {
+      await SetSenderCategoryOverride(senderEmail, category)
+      toasts.success(
+        $_(category === 'personal' ? 'toast.senderTreatedAsPersonal' : 'toast.senderTreatedAsAutomated', {
+          values: { sender: senderEmail },
+        })
+      )
+      onActionComplete?.()
+    } catch (err) {
+      console.error('Failed to set sender category override:', err)
+      toasts.error($_('toast.failedToSetSenderCategory'))
+    }
+  }
+
   function openMoveTo() {
     folderPickerMode = 'move'
     showFolderPicker = true
@@ -342,6 +432,17 @@
       {$_(isSpamFolder ? 'contextMenu.markAsNotSpam' : 'contextMenu.markAsSpam')}
     </ContextMenuItem>
 
+    {#if unsubscribeStatus}
+      <ContextMenuItem onSelect={handleUnsubscribe} disabled={unsubscribeStatus.alreadyUnsubscribed}>
+        <Icon icon="mdi:email-remove-outline" class="mr-2 h-4 w-4" />
+        {unsubscribeStatus.alreadyUnsubscribed
+          ? $_('contextMenu.unsubscribed')
+          : isSpamFolder
+            ? $_('contextMenu.unsubscribeSpam')
+            : $_('contextMenu.unsubscribe')}
+      </ContextMenuItem>
+    {/if}
+
     <ContextMenuSeparator />
 
     <!-- Move to folder picker -->
@@ -373,6 +474,20 @@
       />
       {$_(isRead ? 'contextMenu.markAsUnread' : 'contextMenu.markAsRead')}
     </ContextMenuItem>
+
+    {#if isSingleMessage && senderEmail}
+      <ContextMenuSeparator />
+      <!-- "Wrong tab" correction (Phase E): the sender override beats
+           every heuristic, for all future mail from this sender. -->
+      <ContextMenuItem onSelect={() => handleTreatAs('personal')}>
+        <Icon icon="mdi:account-outline" class="mr-2 h-4 w-4" />
+        {$_('contextMenu.treatAsPersonal')}
+      </ContextMenuItem>
+      <ContextMenuItem onSelect={() => handleTreatAs('automated')}>
+        <Icon icon="mdi:robot-outline" class="mr-2 h-4 w-4" />
+        {$_('contextMenu.treatAsAutomated')}
+      </ContextMenuItem>
+    {/if}
   </ContextMenuContent>
 </ContextMenuPrimitive.Root>
 

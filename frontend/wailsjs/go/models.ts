@@ -321,6 +321,59 @@ export namespace app {
 	        this.license = source["license"];
 	    }
 	}
+	export class AttentionItem {
+	    messageId: string;
+	    threadId: string;
+	    folderId: string;
+	    accountId: string;
+	    accountName: string;
+	    accountColor: string;
+	    subject: string;
+	    type: string;
+	    typeLabel: string;
+	    // Go type: time
+	    date: any;
+	    extractKind?: string;
+	    extractValue?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AttentionItem(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.messageId = source["messageId"];
+	        this.threadId = source["threadId"];
+	        this.folderId = source["folderId"];
+	        this.accountId = source["accountId"];
+	        this.accountName = source["accountName"];
+	        this.accountColor = source["accountColor"];
+	        this.subject = source["subject"];
+	        this.type = source["type"];
+	        this.typeLabel = source["typeLabel"];
+	        this.date = this.convertValues(source["date"], null);
+	        this.extractKind = source["extractKind"];
+	        this.extractValue = source["extractValue"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class AuthContextInfo {
 	    kind: string;
 	    identifier: string;
@@ -337,6 +390,94 @@ export namespace app {
 	        this.identifier = source["identifier"];
 	        this.email = source["email"];
 	        this.label = source["label"];
+	    }
+	}
+	export class BackfillStatus {
+	    remaining: number;
+	    done: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new BackfillStatus(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.remaining = source["remaining"];
+	        this.done = source["done"];
+	    }
+	}
+	export class BergamotLegStatus {
+	    from: string;
+	    to: string;
+	    available: boolean;
+	    supported: boolean;
+	    version?: string;
+	    sizeBytes: number;
+	    missing?: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new BergamotLegStatus(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.from = source["from"];
+	        this.to = source["to"];
+	        this.available = source["available"];
+	        this.supported = source["supported"];
+	        this.version = source["version"];
+	        this.sizeBytes = source["sizeBytes"];
+	        this.missing = source["missing"];
+	    }
+	}
+	export class BergamotModelsResult {
+	    pairs: translate.DownloadedPair[];
+	    totalSize: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new BergamotModelsResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.pairs = this.convertValues(source["pairs"], translate.DownloadedPair);
+	        this.totalSize = source["totalSize"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class CachedTranslationResult {
+	    found: boolean;
+	    engine?: string;
+	    subject?: string;
+	    body?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new CachedTranslationResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.found = source["found"];
+	        this.engine = source["engine"];
+	        this.subject = source["subject"];
+	        this.body = source["body"];
 	    }
 	}
 	export class ComposeMode {
@@ -528,6 +669,74 @@ export namespace app {
 	        this.subject = source["subject"];
 	        this.body = source["body"];
 	    }
+	}
+	export class MessageDetection {
+	    enabled: boolean;
+	    language: string;
+	    languageName: string;
+	    confidence: number;
+	    source: string;
+	    showBanner: boolean;
+	    target: string;
+	    targetName: string;
+	    isSecurity: boolean;
+	    mode: string;
+	    offlineAvailable: boolean;
+	    offlineEngine: string;
+	    offlineNeedsDownload: boolean;
+	    offlineDownloadSize: number;
+	    offlineEngineMissing: boolean;
+	    offlineSupported: boolean;
+	    onlineAllowed: boolean;
+	    onlineProvider: string;
+	    onlineConsented: boolean;
+	    cached?: translate.CachedTranslation;
+	
+	    static createFrom(source: any = {}) {
+	        return new MessageDetection(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.enabled = source["enabled"];
+	        this.language = source["language"];
+	        this.languageName = source["languageName"];
+	        this.confidence = source["confidence"];
+	        this.source = source["source"];
+	        this.showBanner = source["showBanner"];
+	        this.target = source["target"];
+	        this.targetName = source["targetName"];
+	        this.isSecurity = source["isSecurity"];
+	        this.mode = source["mode"];
+	        this.offlineAvailable = source["offlineAvailable"];
+	        this.offlineEngine = source["offlineEngine"];
+	        this.offlineNeedsDownload = source["offlineNeedsDownload"];
+	        this.offlineDownloadSize = source["offlineDownloadSize"];
+	        this.offlineEngineMissing = source["offlineEngineMissing"];
+	        this.offlineSupported = source["offlineSupported"];
+	        this.onlineAllowed = source["onlineAllowed"];
+	        this.onlineProvider = source["onlineProvider"];
+	        this.onlineConsented = source["onlineConsented"];
+	        this.cached = this.convertValues(source["cached"], translate.CachedTranslation);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class MessageReaction {
 	    emoji: string;
@@ -798,6 +1007,162 @@ export namespace app {
 		    }
 		    return a;
 		}
+	}
+	export class SenderCategoryOverride {
+	    senderEmail: string;
+	    category: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new SenderCategoryOverride(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.senderEmail = source["senderEmail"];
+	        this.category = source["category"];
+	    }
+	}
+	export class SubscriptionSender {
+	    senderEmail: string;
+	    senderName: string;
+	    accountId: string;
+	    countAll: number;
+	    count30Days: number;
+	    lastReceived: string;
+	    oneClick: boolean;
+	    unsubscribed: boolean;
+	    unsubscribeMethod: string;
+	    domainMismatch: boolean;
+	    autoDelete: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new SubscriptionSender(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.senderEmail = source["senderEmail"];
+	        this.senderName = source["senderName"];
+	        this.accountId = source["accountId"];
+	        this.countAll = source["countAll"];
+	        this.count30Days = source["count30Days"];
+	        this.lastReceived = source["lastReceived"];
+	        this.oneClick = source["oneClick"];
+	        this.unsubscribed = source["unsubscribed"];
+	        this.unsubscribeMethod = source["unsubscribeMethod"];
+	        this.domainMismatch = source["domainMismatch"];
+	        this.autoDelete = source["autoDelete"];
+	    }
+	}
+	export class TranslationSettings {
+	    enabled: boolean;
+	    mode: string;
+	    targetLanguage: string;
+	    resolvedTarget: string;
+	    onlineProvider: string;
+	    consents: Record<string, boolean>;
+	    deeplKeySet: boolean;
+	    osEngine: translate.OSEngineStatus;
+	
+	    static createFrom(source: any = {}) {
+	        return new TranslationSettings(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.enabled = source["enabled"];
+	        this.mode = source["mode"];
+	        this.targetLanguage = source["targetLanguage"];
+	        this.resolvedTarget = source["resolvedTarget"];
+	        this.onlineProvider = source["onlineProvider"];
+	        this.consents = source["consents"];
+	        this.deeplKeySet = source["deeplKeySet"];
+	        this.osEngine = this.convertValues(source["osEngine"], translate.OSEngineStatus);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class TranslationTargetLanguage {
+	    code: string;
+	    name: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new TranslationTargetLanguage(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.code = source["code"];
+	        this.name = source["name"];
+	    }
+	}
+	export class UnsubscribeResult {
+	    method: string;
+	    url: string;
+	    domain: string;
+	    domainMismatch: boolean;
+	    isSpam: boolean;
+	    senderEmail: string;
+	    senderName: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new UnsubscribeResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.method = source["method"];
+	        this.url = source["url"];
+	        this.domain = source["domain"];
+	        this.domainMismatch = source["domainMismatch"];
+	        this.isSpam = source["isSpam"];
+	        this.senderEmail = source["senderEmail"];
+	        this.senderName = source["senderName"];
+	    }
+	}
+	export class UnsubscribeStatus {
+	    messageId: string;
+	    available: boolean;
+	    alreadyUnsubscribed: boolean;
+	    method: string;
+	    domain: string;
+	    domainMismatch: boolean;
+	    isSpam: boolean;
+	    senderEmail: string;
+	    senderName: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new UnsubscribeStatus(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.messageId = source["messageId"];
+	        this.available = source["available"];
+	        this.alreadyUnsubscribed = source["alreadyUnsubscribed"];
+	        this.method = source["method"];
+	        this.domain = source["domain"];
+	        this.domainMismatch = source["domainMismatch"];
+	        this.isSpam = source["isSpam"];
+	        this.senderEmail = source["senderEmail"];
+	        this.senderName = source["senderName"];
+	    }
 	}
 	export class ViewMode {
 	    accountId: string;
@@ -2717,6 +3082,24 @@ export namespace message {
 	        this.localPath = source["localPath"];
 	    }
 	}
+	export class CategoryCounts {
+	    personal: number;
+	    automated: number;
+	    total: number;
+	    subCategories: Record<string, number>;
+	
+	    static createFrom(source: any = {}) {
+	        return new CategoryCounts(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.personal = source["personal"];
+	        this.automated = source["automated"];
+	        this.total = source["total"];
+	        this.subCategories = source["subCategories"];
+	    }
+	}
 	export class Message {
 	    id: string;
 	    accountId: string;
@@ -2747,6 +3130,13 @@ export namespace message {
 	    bodyText?: string;
 	    bodyHtml?: string;
 	    bodyFetched: boolean;
+	    listUnsubscribe?: string;
+	    listUnsubscribePost?: boolean;
+	    category?: string;
+	    subCategory?: string;
+	    extractKind?: string;
+	    extractValue?: string;
+	    extractRule?: string;
 	    readReceiptTo?: string;
 	    readReceiptHandled: boolean;
 	    smimeStatus?: string;
@@ -2796,6 +3186,13 @@ export namespace message {
 	        this.bodyText = source["bodyText"];
 	        this.bodyHtml = source["bodyHtml"];
 	        this.bodyFetched = source["bodyFetched"];
+	        this.listUnsubscribe = source["listUnsubscribe"];
+	        this.listUnsubscribePost = source["listUnsubscribePost"];
+	        this.category = source["category"];
+	        this.subCategory = source["subCategory"];
+	        this.extractKind = source["extractKind"];
+	        this.extractValue = source["extractValue"];
+	        this.extractRule = source["extractRule"];
 	        this.readReceiptTo = source["readReceiptTo"];
 	        this.readReceiptHandled = source["readReceiptHandled"];
 	        this.smimeStatus = source["smimeStatus"];
@@ -2843,6 +3240,12 @@ export namespace message {
 	    messageIds: string[];
 	    isEncrypted: boolean;
 	    messages?: Message[];
+	    extractKind?: string;
+	    extractValue?: string;
+	    extractRule?: string;
+	    extractMessageId?: string;
+	    category?: string;
+	    subCategory?: string;
 	    accountId?: string;
 	    accountName?: string;
 	    accountColor?: string;
@@ -2866,6 +3269,12 @@ export namespace message {
 	        this.messageIds = source["messageIds"];
 	        this.isEncrypted = source["isEncrypted"];
 	        this.messages = this.convertValues(source["messages"], Message);
+	        this.extractKind = source["extractKind"];
+	        this.extractValue = source["extractValue"];
+	        this.extractRule = source["extractRule"];
+	        this.extractMessageId = source["extractMessageId"];
+	        this.category = source["category"];
+	        this.subCategory = source["subCategory"];
 	        this.accountId = source["accountId"];
 	        this.accountName = source["accountName"];
 	        this.accountColor = source["accountColor"];
@@ -2904,6 +3313,12 @@ export namespace message {
 	    messageIds: string[];
 	    isEncrypted: boolean;
 	    messages?: Message[];
+	    extractKind?: string;
+	    extractValue?: string;
+	    extractRule?: string;
+	    extractMessageId?: string;
+	    category?: string;
+	    subCategory?: string;
 	    accountId?: string;
 	    accountName?: string;
 	    accountColor?: string;
@@ -2932,6 +3347,12 @@ export namespace message {
 	        this.messageIds = source["messageIds"];
 	        this.isEncrypted = source["isEncrypted"];
 	        this.messages = this.convertValues(source["messages"], Message);
+	        this.extractKind = source["extractKind"];
+	        this.extractValue = source["extractValue"];
+	        this.extractRule = source["extractRule"];
+	        this.extractMessageId = source["extractMessageId"];
+	        this.category = source["category"];
+	        this.subCategory = source["subCategory"];
 	        this.accountId = source["accountId"];
 	        this.accountName = source["accountName"];
 	        this.accountColor = source["accountColor"];
@@ -2996,6 +3417,9 @@ export namespace message {
 	    isRead: boolean;
 	    isStarred: boolean;
 	    hasAttachments: boolean;
+	    extractKind?: string;
+	    extractValue?: string;
+	    extractRule?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new MessageHeader(source);
@@ -3015,6 +3439,9 @@ export namespace message {
 	        this.isRead = source["isRead"];
 	        this.isStarred = source["isStarred"];
 	        this.hasAttachments = source["hasAttachments"];
+	        this.extractKind = source["extractKind"];
+	        this.extractValue = source["extractValue"];
+	        this.extractRule = source["extractRule"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -3590,6 +4017,105 @@ export namespace sync {
 		    }
 		    return a;
 		}
+	}
+
+}
+
+export namespace translate {
+	
+	export class BergamotLanguage {
+	    code: string;
+	    name: string;
+	    sizeBytes: number;
+	    downloaded: boolean;
+	    downloadedSize: number;
+	    toEnglish: boolean;
+	    fromEnglish: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new BergamotLanguage(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.code = source["code"];
+	        this.name = source["name"];
+	        this.sizeBytes = source["sizeBytes"];
+	        this.downloaded = source["downloaded"];
+	        this.downloadedSize = source["downloadedSize"];
+	        this.toEnglish = source["toEnglish"];
+	        this.fromEnglish = source["fromEnglish"];
+	    }
+	}
+	export class CachedTranslation {
+	    engine: string;
+	    translatedSubject: string;
+	    translatedBody: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new CachedTranslation(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.engine = source["engine"];
+	        this.translatedSubject = source["translatedSubject"];
+	        this.translatedBody = source["translatedBody"];
+	    }
+	}
+	export class DownloadedPair {
+	    fromLang: string;
+	    toLang: string;
+	    version: string;
+	    sizeBytes: number;
+	    files: Record<string, string>;
+	
+	    static createFrom(source: any = {}) {
+	        return new DownloadedPair(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.fromLang = source["fromLang"];
+	        this.toLang = source["toLang"];
+	        this.version = source["version"];
+	        this.sizeBytes = source["sizeBytes"];
+	        this.files = source["files"];
+	    }
+	}
+	export class EngineStatus {
+	    available: boolean;
+	    version?: string;
+	    sizeBytes: number;
+	    downloadedBytes: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new EngineStatus(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.available = source["available"];
+	        this.version = source["version"];
+	        this.sizeBytes = source["sizeBytes"];
+	        this.downloadedBytes = source["downloadedBytes"];
+	    }
+	}
+	export class OSEngineStatus {
+	    available: boolean;
+	    name: string;
+	    reason?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new OSEngineStatus(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.available = source["available"];
+	        this.name = source["name"];
+	        this.reason = source["reason"];
+	    }
 	}
 
 }

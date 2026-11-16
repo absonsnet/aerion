@@ -33,7 +33,7 @@ These shortcuts work anywhere in the application (unless in composer).
 | `Alt+Down` / `Alt+J` | Navigate to next folder |
 | `Alt+G` | Jump to top of sidebar (All Inboxes when present) |
 | `Alt+Shift+G` | Jump to last visible folder (last account header if all trees are collapsed) |
-| `Alt+Enter` | Expand/collapse focused account folder tree |
+| `Alt+Enter` | Expand/collapse focused account folder tree or unified folder group |
 | `Alt(L)+Alt(R)` | Brings up context menu for the focused folder |
 
 ### Message Actions (when message is selected/focused)
@@ -64,7 +64,10 @@ These shortcuts depend on which pane is focused. They are disabled when typing i
 | `Up` / `K` | Navigate to previous folder |
 | `Down` / `J` | Navigate to next folder |
 | `Alt+G` / `Alt+Shift+G` | Jump to top of sidebar / last visible folder |
-| `Alt + Enter` / `Space` | Expand/collapse account (when account header is focused) |
+| `Right` | Expand focused account, unified folder group, or folder with children |
+| `Left` | Collapse focused account, unified folder group, or folder with children |
+| `Enter` | Open focused account's Inbox (account header) or toggle unified folder group |
+| `Alt + Enter` / `Space` | Expand/collapse account (when account header is focused) or unified folder group |
 | `Alt(L) + Alt(R)` | Brings up context menu for the focused folder |
 
 ### Message List
@@ -150,11 +153,12 @@ NAVIGATION
   Alt + G             Jump to top of sidebar (All Inboxes)
   Alt + Shift + G     Jump to last visible folder
   Alt(L) + Alt(R)     Brings context menu up for the focused folder
-  Alt + Enter         Expand/collapse account
+  Alt + Enter         Expand/collapse account or unified folder group
   Ctrl + Tab          Switch to next extension on rail
   Ctrl + `            Switch to previous extension on rail
   Arrow Keys / HJKL   Navigate within focused pane
-  Enter               Open conversation / Expand account
+  Right / Left        Expand / collapse focused sidebar row
+  Enter               Open conversation / Open focused account's Inbox
   Space               Toggle checkbox / Expand account
 
 COMPOSE & REPLY

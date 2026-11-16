@@ -27,7 +27,7 @@ func (a *App) SaveUIState(state *appstate.UIState) error {
 // the About dialog via GetAppInfo() and by the --version CLI flag in main.go.
 // (wails.json, frontend/package.json, and metainfo.xml each carry their own
 // version strings for their respective tooling.)
-const Version = "0.6.0"
+const Version = "0.7.0"
 
 // AppInfo contains application metadata
 type AppInfo struct {
@@ -45,7 +45,7 @@ func (a *App) GetAppInfo() AppInfo {
 		Version:     Version,
 		Description: "An Open Source Lightweight E-Mail Client",
 		Website:     "https://github.com/absonsnet/daak",
-		License:     "Apache 2.0",
+		License:     "AGPLv3",
 	}
 }
 

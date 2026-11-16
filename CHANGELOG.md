@@ -1,5 +1,16 @@
 # CHANGELOG
 
+**v0.7.0 - 15-11-2026**
+---
+
+- One-time passcodes: a chip on messages with a code copies it in one click, and the message is filed away in Trash
+- Needs attention: a strip above the message list flags one-time codes, travel changes, payment failures and delivery problems, with a sidebar entry to match
+- Sidebar rework: unified folders on top, accounts docked at the bottom — click an account name for its inbox, expand it with the chevron for its folders
+- Unsubscribe: one-click unsubscribe from mailing lists, Gmail behaviour — no confirmation, just a toast
+- Message translation: translate any message into your language, with offline language downloads so it works without a connection, plus an online fallback
+- Category tabs: switch the message list between All, Personal and Automated messages
+- Relicensed from Apache License 2.0 to AGPLv3
+
 **v0.6.0 - 15-11-2026**
 ---
 

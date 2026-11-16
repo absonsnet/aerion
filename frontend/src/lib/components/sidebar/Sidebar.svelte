@@ -2,7 +2,8 @@
   import Icon from '@iconify/svelte'
   import { onMount } from 'svelte'
   import AccountSection from './AccountSection.svelte'
-  import UnifiedInboxSection from './UnifiedInboxSection.svelte'
+  import UnifiedSection from './UnifiedSection.svelte'
+  import type { UnifiedFolderGroup, UnifiedFolderEntry } from './UnifiedSection.svelte'
   import AccountDialog from '$lib/components/settings/AccountDialog.svelte'
   import DeleteAccountDialog from '$lib/components/settings/DeleteAccountDialog.svelte'
   import SettingsDialog from '$lib/components/settings/SettingsDialog.svelte'
@@ -10,20 +11,21 @@
   import { Button } from '$lib/components/ui/button'
   import { accountStore } from '$lib/stores/accounts.svelte'
   import { contactSourcesStore } from '$lib/stores/contactSources.svelte'
-  import { isAccountExpanded, setAccountExpanded, isUnifiedInboxExpanded, setFolderCollapsed, getUIState, getUIStateVersion, saveUIState } from '$lib/stores/uiState.svelte'
+  import { setFolderCollapsed, getUIState, getUIStateVersion, saveUIState } from '$lib/stores/uiState.svelte'
+  import { loadSidebarSettings, hasStoredExpandedAccounts, getExpandedAccountIds, setExpandedAccountIds, setSidebarAccountExpanded, getHideUnifiedSingleAccount } from '$lib/stores/sidebarSettings.svelte'
   import { setFocusedPane } from '$lib/stores/keyboard.svelte'
   import { _ } from '$lib/i18n'
   // @ts-ignore - wailsjs path
   import { account, folder } from '../../../../wailsjs/go/models'
   // @ts-ignore - wailsjs path
-  import { GetUnifiedInboxUnreadCount } from '../../../../wailsjs/go/app/App'
+  import { GetUnifiedInboxUnreadCount, GetAttentionCount } from '../../../../wailsjs/go/app/App'
   import { formatDistanceToNow } from 'date-fns'
   import { getCurrentDateFnsLocale } from '$lib/stores/settings.svelte'
-  import { EventsOn } from '../../../../wailsjs/runtime/runtime'
+  import { EventsOn, EventsEmit } from '../../../../wailsjs/runtime/runtime'
 
   // Folder item type for flat navigation list
   interface FolderNavItem {
-    type: 'unified' | 'unified-account' | 'account-header' | 'folder'
+    type: 'unified' | 'attention' | 'unified-group' | 'unified-folder' | 'account-header' | 'folder'
     accountId?: string
     folderId?: string
     folderPath?: string
@@ -34,30 +36,56 @@
   // Track focused account header for keyboard navigation
   let focusedAccountId = $state<string | null>(null)
 
+  // Track focused unified folder-type group for keyboard navigation
+  let focusedGroupType = $state<string | null>(null)
+
   // Ref to scrollable container for auto-scroll
   let scrollContainer: HTMLDivElement | null = null
 
-  // Track expanded state for each account (reactive, synced with persisted state)
+  // Track expanded state for each account (reactive, synced with persisted
+  // state in the sidebar_expanded_accounts setting)
   let expandedAccounts = $state<Record<string, boolean>>({})
 
-  // Initialize expanded state from persisted storage
-  // Depends on both accounts list AND UI state version (so it re-runs when persisted state loads)
+  // Initialize expanded state from the persisted setting.
+  // First run after the upgrade (key never stored): first account expanded,
+  // rest collapsed. Afterwards the stored set rules — expanding several
+  // accounts is allowed, there is no accordion.
   $effect(() => {
     // Read version to create dependency - effect re-runs when UI state finishes loading
     const _version = getUIStateVersion()
 
+    const ids = accountStore.accounts.map((acc) => acc.account.id)
+    if (ids.length === 0) {
+      expandedAccounts = {}
+      return
+    }
+
+    if (!hasStoredExpandedAccounts()) {
+      setExpandedAccountIds([ids[0]])
+    } else {
+      // Prune IDs of accounts that no longer exist
+      const stored = getExpandedAccountIds()
+      const pruned = stored.filter((id) => ids.includes(id))
+      if (pruned.length !== stored.length) setExpandedAccountIds(pruned)
+    }
+
+    const storedSet = new Set(getExpandedAccountIds())
     const newExpanded: Record<string, boolean> = {}
-    for (const acc of accountStore.accounts) {
-      newExpanded[acc.account.id] = isAccountExpanded(acc.account.id)
+    for (const id of ids) {
+      newExpanded[id] = storedSet.has(id)
     }
     expandedAccounts = newExpanded
   })
 
+  // Set account expansion (local state + persisted setting)
+  function setAccountExpandedValue(accountId: string, expanded: boolean) {
+    expandedAccounts = { ...expandedAccounts, [accountId]: expanded }
+    setSidebarAccountExpanded(accountId, expanded)
+  }
+
   // Toggle account expansion
   function toggleAccountExpanded(accountId: string) {
-    const newValue = !expandedAccounts[accountId]
-    expandedAccounts[accountId] = newValue
-    setAccountExpanded(accountId, newValue)
+    setAccountExpandedValue(accountId, !expandedAccounts[accountId])
   }
 
   // Track collapsed state for folders with children (reactive, synced with persisted state)
@@ -102,8 +130,13 @@
   function toggleFolderCollapsed(folderId: string) {
     const isCurrentlyCollapsed = collapsedFolders[folderId] !== false
     const newValue = !isCurrentlyCollapsed
-    collapsedFolders = { ...collapsedFolders, [folderId]: newValue }
-    setFolderCollapsed(folderId, newValue)
+    setFolderCollapsedValue(folderId, newValue)
+  }
+
+  // Set folder collapse explicitly (keyboard expand/collapse)
+  function setFolderCollapsedValue(folderId: string, collapsed: boolean) {
+    collapsedFolders = { ...collapsedFolders, [folderId]: collapsed }
+    setFolderCollapsed(folderId, collapsed)
   }
 
   interface Props {
@@ -139,6 +172,18 @@
   // Unified inbox state
   let unifiedUnreadCount = $state(0)
 
+  // Needs attention (Phase A): live count for the shortcut entry in the
+  // Unified zone. Hidden when the count is 0.
+  let attentionCount = $state(0)
+
+  // Unified folder-type groups (Starred / Sent / Drafts / Spam / Trash)
+  // expand/collapse locally; not persisted.
+  let expandedGroups = $state<Record<string, boolean>>({})
+
+  function toggleUnifiedGroup(type: string) {
+    expandedGroups = { ...expandedGroups, [type]: expandedGroups[type] !== true }
+  }
+
   // Dialog state
   let showAccountDialog = $state(false)
   let showDeleteDialog = $state(false)
@@ -148,6 +193,8 @@
 
   // Load accounts and contact sources on mount
   onMount(() => {
+    loadSidebarSettings()
+
     // Load accounts, then trigger comprehensive sync on launch
     accountStore.load().then(async () => {
       try {
@@ -159,14 +206,20 @@
 
     contactSourcesStore.load()
     loadUnifiedInboxCount()
+    loadAttentionCount()
 
     // Listen for folder count changes to update unified inbox count
     const unsubscribe = EventsOn('folders:countsChanged', (_data: Record<string, number>) => {
       loadUnifiedInboxCount()
     })
+    // Chip actions, dismissals and settings changes all emit this.
+    const unsubscribeAttention = EventsOn('attention:changed', () => {
+      loadAttentionCount()
+    })
 
     return () => {
       unsubscribe()
+      unsubscribeAttention()
     }
   })
 
@@ -180,37 +233,91 @@
     }
   }
 
-  // Get accounts with their inbox folders for unified inbox section
-  function getAccountsWithInbox() {
-    return accountStore.accounts.map(acc => {
-      // Find the inbox folder in the folder tree
-      const findInbox = (folders: folder.FolderTree[]): folder.Folder | null => {
-        for (const f of folders) {
-          if (f.folder?.type === 'inbox') {
-            return f.folder
-          }
-          if (f.children) {
-            const found = findInbox(f.children)
-            if (found) return found
-          }
-        }
-        return null
-      }
-      return {
-        account: acc.account,
-        inbox: findInbox(acc.folders || [])
-      }
-    })
+  // Load Needs attention count
+  async function loadAttentionCount() {
+    try {
+      attentionCount = await GetAttentionCount()
+    } catch (err) {
+      console.error('Failed to load attention count:', err)
+    }
   }
+
+  // Needs attention shortcut: opens Inbox/Unified Inbox with the bars in
+  // place (and scrolls the list to them when already there). This is a
+  // shortcut to the same bars, not a separate folder.
+  function handleAttentionSelect() {
+    handleUnifiedInboxSelect()
+    EventsEmit('attention:scrollToTop')
+  }
+
+  // Find the first folder of a given type in a folder tree (recursive —
+  // special folders can be nested, e.g. Gmail's [Gmail]/Sent).
+  function findFolderOfType(trees: folder.FolderTree[], type: string): folder.Folder | null {
+    for (const tree of trees) {
+      if (tree.folder?.type === type) return tree.folder
+      if (tree.children) {
+        const found = findFolderOfType(tree.children, type)
+        if (found) return found
+      }
+    }
+    return null
+  }
+
+  // Find the inbox folder in a folder tree
+  function findInboxFolder(trees: folder.FolderTree[]): folder.Folder | null {
+    return findFolderOfType(trees, 'inbox')
+  }
+
+  // Unified folder-type groups, in zone-1 order. Only types at least one
+  // account actually has a folder for are shown.
+  const UNIFIED_FOLDER_TYPES = [
+    { type: 'starred', labelKey: 'sidebar.starred', icon: 'mdi:star-outline' },
+    { type: 'sent', labelKey: 'sidebar.sent', icon: 'mdi:send' },
+    { type: 'drafts', labelKey: 'sidebar.drafts', icon: 'mdi:file-document-edit-outline' },
+    { type: 'spam', labelKey: 'sidebar.spam', icon: 'mdi:alert-octagon-outline' },
+    { type: 'trash', labelKey: 'sidebar.trash', icon: 'mdi:delete-outline' },
+  ] as const
+
+  let unifiedGroups = $derived.by<UnifiedFolderGroup[]>(() => {
+    const groups: UnifiedFolderGroup[] = []
+    for (const def of UNIFIED_FOLDER_TYPES) {
+      const entries: UnifiedFolderEntry[] = []
+      let totalUnread = 0
+      for (const acc of accountStore.accounts) {
+        if (!acc.account) continue
+        const found = findFolderOfType(acc.folders || [], def.type)
+        if (found) {
+          entries.push({ account: acc.account, folder: found })
+          totalUnread += found.unreadCount || 0
+        }
+      }
+      if (entries.length > 0) {
+        groups.push({
+          type: def.type,
+          labelKey: def.labelKey,
+          icon: def.icon,
+          totalUnread,
+          entries,
+        })
+      }
+    }
+    return groups
+  })
+
+  // The Unified zone still shows with a single account, unless the
+  // sidebar_hide_unified_single_account setting hides it.
+  let showUnified = $derived(
+    accountStore.accounts.length !== 1 || !getHideUnifiedSingleAccount()
+  )
 
   // Handle unified inbox selection (All Inboxes)
   function handleUnifiedInboxSelect() {
     onUnifiedInboxSelect?.()
   }
 
-  // Handle individual account inbox selection from unified section
-  function handleAccountInboxSelect(accountId: string, folderId: string, folderPath: string) {
-    onUnifiedFolderSelect?.(accountId, folderId, folderPath, 'Inbox', 'inbox')
+  // Handle folder selection from a unified group (per-account row)
+  function handleUnifiedFolderSelect(accountId: string, folderId: string, folderPath: string, folderName: string, folderType: string) {
+    onUnifiedFolderSelect?.(accountId, folderId, folderPath, folderName, folderType)
   }
 
   // Sync status: { accountName, label, percentage } — accountName + percentage are populated only when a sync is active
@@ -239,6 +346,43 @@
   function handleFolderSelect(accountId: string, folderId: string, folderPath: string, folderName: string, folderType: string) {
     accountStore.selectFolder(accountId, folderId, folderPath, folderName)
     onFolderSelect?.(accountId, folderId, folderPath, folderName, folderType)
+  }
+
+  // Open an account's Inbox (account-name click): navigates to the Inbox
+  // and expands the account if it is collapsed. When the account has no
+  // Inbox folder synced yet, just expands so its state is visible.
+  function openAccountInbox(accountId: string) {
+    const accWithFolders = accountStore.accounts.find((a) => a.account.id === accountId)
+    if (!accWithFolders) return
+    if (!expandedAccounts[accountId]) {
+      setAccountExpandedValue(accountId, true)
+    }
+    const inbox = findInboxFolder(accWithFolders.folders || [])
+    if (inbox) {
+      handleFolderSelect(accountId, inbox.id, inbox.path, inbox.name, 'inbox')
+    }
+  }
+
+  // Does this account's folder tree contain the open folder?
+  function treeContainsFolder(trees: folder.FolderTree[], folderId: string): boolean {
+    for (const tree of trees) {
+      if (tree.folder?.id === folderId) return true
+      if (tree.children && treeContainsFolder(tree.children, folderId)) return true
+    }
+    return false
+  }
+
+  function accountContainsSelection(accountId: string): boolean {
+    if (!selectedFolderId) return false
+    const acc = accountStore.accounts.find((a) => a.account.id === accountId)
+    if (!acc) return false
+    return treeContainsFolder(acc.folders || [], selectedFolderId)
+  }
+
+  function accountInboxUnread(accountId: string): number {
+    const acc = accountStore.accounts.find((a) => a.account.id === accountId)
+    if (!acc) return 0
+    return findInboxFolder(acc.folders || [])?.unreadCount ?? 0
   }
 
   // Open add account dialog
@@ -287,52 +431,48 @@
     }
   }
 
-  // Build flat list of all navigable folders including Unified Inbox
-  // The list matches the exact visual order in the sidebar, respecting expanded/collapsed state
+  // Build flat list of all navigable rows in exact visual order:
+  // Unified zone (inbox, attention, type groups + their per-account rows),
+  // then the accounts block (header + folders when expanded).
   function buildFolderNavList(): FolderNavItem[] {
     const items: FolderNavItem[] = []
 
-    // Add Unified Inbox section items if more than 1 account
-    if (accountStore.accounts.length > 1) {
-      // 1. Add "All Inboxes"
+    if (showUnified && accountStore.accounts.length > 0) {
       items.push({
         type: 'unified',
         folderName: 'Unified Inbox',
         folderType: 'unified',
       })
 
-      // 2. Add each account's inbox (under unified section) - only if unified section is expanded
-      if (isUnifiedInboxExpanded()) {
-        for (const accWithFolders of accountStore.accounts) {
-          // Skip if account is not fully loaded yet (can happen during reauth)
-          if (!accWithFolders.account) continue
+      if (attentionCount > 0) {
+        items.push({
+          type: 'attention',
+          folderName: 'Needs attention',
+        })
+      }
 
-          const findInbox = (trees: folder.FolderTree[]): folder.Folder | null => {
-            for (const tree of trees) {
-              if (tree.folder?.type === 'inbox') return tree.folder
-              if (tree.children) {
-                const found = findInbox(tree.children)
-                if (found) return found
-              }
-            }
-            return null
-          }
-          const inbox = findInbox(accWithFolders.folders || [])
-          if (inbox) {
+      for (const group of unifiedGroups) {
+        items.push({
+          type: 'unified-group',
+          folderName: group.type,
+          folderType: group.type,
+        })
+        if (expandedGroups[group.type] === true) {
+          for (const entry of group.entries) {
             items.push({
-              type: 'unified-account',
-              accountId: accWithFolders.account.id,
-              folderId: inbox.id,
-              folderPath: inbox.path,
-              folderName: inbox.name,
-              folderType: 'inbox',
+              type: 'unified-folder',
+              accountId: entry.account.id,
+              folderId: entry.folder.id,
+              folderPath: entry.folder.path,
+              folderName: entry.folder.name,
+              folderType: entry.folder.type,
             })
           }
         }
       }
     }
 
-    // 3. Add account headers and their folders
+    // Accounts block, in store order (first account on top)
     for (const accWithFolders of accountStore.accounts) {
       // Skip if account is not fully loaded yet (can happen during reauth)
       if (!accWithFolders.account) continue
@@ -382,6 +522,13 @@
       )
     }
 
+    // Check if a unified folder-type group is focused
+    if (focusedGroupType) {
+      return navList.findIndex(item =>
+        item.type === 'unified-group' && item.folderType === focusedGroupType
+      )
+    }
+
     // Check if Unified Inbox is selected (All Inboxes)
     if (selectedAccountId === 'unified') {
       return navList.findIndex(item => item.type === 'unified')
@@ -389,9 +536,9 @@
 
     // Check selectionSource to find the correct item
     if (selectionSource === 'unified') {
-      // Looking for unified-account item
+      // Looking for unified-folder item
       return navList.findIndex(item =>
-        item.type === 'unified-account' && item.folderId === selectedFolderId
+        item.type === 'unified-folder' && item.folderId === selectedFolderId
       )
     } else {
       // Looking for regular folder item
@@ -423,7 +570,7 @@
     selectFolderByIndex(navList, newIndex)
   }
 
-  // Jump to the top sidebar item — All Inboxes when present (Alt+G)
+  // Jump to the top sidebar item — Unified Inbox when shown (Alt+G)
   export function selectFirstFolder() {
     const navList = buildFolderNavList()
     if (navList.length === 0) return
@@ -446,8 +593,12 @@
     let selector: string | null = null
     if (item.type === 'unified') {
       selector = '[data-sidebar-item="unified"]'
-    } else if (item.type === 'unified-account' && item.folderId) {
-      selector = `[data-sidebar-item="unified-account"][data-folder-id="${item.folderId}"]`
+    } else if (item.type === 'attention') {
+      selector = '[data-sidebar-item="attention"]'
+    } else if (item.type === 'unified-group' && item.folderType) {
+      selector = `[data-sidebar-item="unified-group"][data-folder-type="${item.folderType}"]`
+    } else if (item.type === 'unified-folder' && item.folderId) {
+      selector = `[data-sidebar-item="unified-folder"][data-folder-id="${item.folderId}"]`
     } else if (item.type === 'account-header' && item.accountId) {
       selector = `[data-sidebar-item="account-header"][data-account-id="${item.accountId}"]`
     } else if (item.type === 'folder' && item.folderId) {
@@ -460,26 +611,38 @@
     }
   }
 
+  // Clear keyboard focus flags (moving to a real folder)
+  function clearRowFocus() {
+    focusedAccountId = null
+    focusedGroupType = null
+  }
+
   // Select folder by index in nav list
   function selectFolderByIndex(navList: FolderNavItem[], index: number) {
     const item = navList[index]
     if (!item) return
 
-    // Clear account header focus when selecting a folder
-    if (item.type !== 'account-header') {
-      focusedAccountId = null
-    }
-
     if (item.type === 'unified') {
+      clearRowFocus()
       onUnifiedInboxSelect?.()
-    } else if (item.type === 'unified-account' && item.accountId && item.folderId && item.folderPath) {
+    } else if (item.type === 'attention') {
+      clearRowFocus()
+      handleAttentionSelect()
+    } else if (item.type === 'unified-group' && item.folderType) {
+      // Focus on the group header (Enter/Space/→ will toggle it)
+      focusedAccountId = null
+      focusedGroupType = item.folderType
+    } else if (item.type === 'unified-folder' && item.accountId && item.folderId && item.folderPath) {
       // Select from unified section - uses onUnifiedFolderSelect
-      onUnifiedFolderSelect?.(item.accountId, item.folderId, item.folderPath, item.folderName, item.folderType || 'inbox')
+      clearRowFocus()
+      onUnifiedFolderSelect?.(item.accountId, item.folderId, item.folderPath, item.folderName, item.folderType || 'folder')
     } else if (item.type === 'account-header' && item.accountId) {
-      // Focus on account header (Enter/Space will toggle expand)
+      // Focus on account header (Enter opens its Inbox, Space/→/← expand/collapse)
       focusedAccountId = item.accountId
+      focusedGroupType = null
     } else if (item.type === 'folder' && item.accountId && item.folderId && item.folderPath) {
       // Select from account tree - uses handleFolderSelect
+      clearRowFocus()
       handleFolderSelect(item.accountId, item.folderId, item.folderPath, item.folderName, item.folderType || 'folder')
     }
 
@@ -487,7 +650,7 @@
     scrollItemIntoView(item)
   }
 
-  // Toggle expand/collapse for the focused account (called on Enter/Space/Alt+Enter)
+  // Toggle expand/collapse for the focused account (called on Space/Alt+Enter)
   export function toggleFocusedAccount() {
     if (focusedAccountId) {
       toggleAccountExpanded(focusedAccountId)
@@ -497,6 +660,56 @@
   // Check if an account header is focused
   export function hasFocusedAccount(): boolean {
     return focusedAccountId !== null
+  }
+
+  // Open the focused account's Inbox (called on Enter)
+  export function openFocusedAccountInbox() {
+    if (focusedAccountId) {
+      openAccountInbox(focusedAccountId)
+    }
+  }
+
+  // Check if a unified folder-type group is focused
+  export function hasFocusedUnifiedGroup(): boolean {
+    return focusedGroupType !== null
+  }
+
+  // Toggle expand/collapse for the focused unified group (Enter/Space/Alt+Enter)
+  export function toggleFocusedUnifiedGroup() {
+    if (focusedGroupType) {
+      toggleUnifiedGroup(focusedGroupType)
+    }
+  }
+
+  // Expand the focused row: account header, unified group, or the selected
+  // folder when it has children (called on ArrowRight)
+  export function expandFocusedRow() {
+    if (focusedAccountId) {
+      setAccountExpandedValue(focusedAccountId, true)
+      return
+    }
+    if (focusedGroupType) {
+      expandedGroups = { ...expandedGroups, [focusedGroupType]: true }
+      return
+    }
+    if (selectedFolderId && selectionSource === 'account' && folderHasChildren(selectedFolderId)) {
+      setFolderCollapsedValue(selectedFolderId, false)
+    }
+  }
+
+  // Collapse the focused row (called on ArrowLeft)
+  export function collapseFocusedRow() {
+    if (focusedAccountId) {
+      setAccountExpandedValue(focusedAccountId, false)
+      return
+    }
+    if (focusedGroupType) {
+      expandedGroups = { ...expandedGroups, [focusedGroupType]: false }
+      return
+    }
+    if (selectedFolderId && selectionSource === 'account' && folderHasChildren(selectedFolderId)) {
+      setFolderCollapsedValue(selectedFolderId, true)
+    }
   }
 
   // Check if the currently selected folder has children
@@ -558,78 +771,104 @@
     </div>
   </div>
 
-  <!-- Account List -->
+  <!-- Sidebar column: one scrollable column. Zone 1 (Unified) sits at the
+       top; a flexible spacer docks Zone 2 (Accounts) at the bottom when the
+       column is shorter than the window. When the column overflows, the
+       whole sidebar scrolls as one column — nothing is clipped to preserve
+       the docking. -->
   <div class="flex-1 overflow-y-auto scrollbar-thin py-2" bind:this={scrollContainer}>
-    {#if accountStore.loading}
-      <div class="flex items-center justify-center py-8">
-        <Icon icon="mdi:loading" class="w-6 h-6 animate-spin text-muted-foreground" />
-      </div>
-    {:else if accountStore.accounts.length === 0}
-      <!-- Empty State -->
-      <div class="flex flex-col items-center justify-center py-8 px-4 text-center">
-        <Icon icon="mdi:email-plus-outline" class="w-12 h-12 text-muted-foreground mb-3" />
-        <h3 class="text-sm font-medium mb-1">{$_('sidebar.noAccountsYet')}</h3>
-        <p class="text-xs text-muted-foreground mb-4">
-          {$_('sidebar.addFirstAccount')}
-        </p>
-        <Button size="sm" onclick={openAddAccount}>
-          <Icon icon="mdi:plus" class="w-4 h-4 mr-1" />
-          {$_('sidebar.addAccount')}
-        </Button>
-      </div>
-    {:else}
-      <!-- Unified Inbox Section (only show if more than 1 account) -->
-      {#if accountStore.accounts.length > 1}
-        <UnifiedInboxSection
-          accounts={getAccountsWithInbox()}
-          {unifiedUnreadCount}
-          {selectedAccountId}
-          {selectedFolderId}
-          {selectionSource}
-          onSelectUnified={handleUnifiedInboxSelect}
-          onSelectAccountInbox={handleAccountInboxSelect}
-        />
-        <div class="border-b border-border mx-3 my-1"></div>
+    <div class="flex flex-col min-h-full">
+      {#if accountStore.loading}
+        <div class="flex items-center justify-center py-8">
+          <Icon icon="mdi:loading" class="w-6 h-6 animate-spin text-muted-foreground" />
+        </div>
+      {:else if accountStore.accounts.length === 0}
+        <!-- Empty State -->
+        <div class="flex flex-col items-center justify-center py-8 px-4 text-center">
+          <Icon icon="mdi:email-plus-outline" class="w-12 h-12 text-muted-foreground mb-3" />
+          <h3 class="text-sm font-medium mb-1">{$_('sidebar.noAccountsYet')}</h3>
+          <p class="text-xs text-muted-foreground mb-4">
+            {$_('sidebar.addFirstAccount')}
+          </p>
+          <Button size="sm" onclick={openAddAccount}>
+            <Icon icon="mdi:plus" class="w-4 h-4 mr-1" />
+            {$_('sidebar.addAccount')}
+          </Button>
+        </div>
+      {:else}
+        <!-- Zone 1 — Unified: always at the top, always expanded, never
+             collapsible. Hidden only with a single account when the
+             sidebar_hide_unified_single_account setting is on. -->
+        {#if showUnified}
+          <UnifiedSection
+            {unifiedUnreadCount}
+            {attentionCount}
+            groups={unifiedGroups}
+            {expandedGroups}
+            {focusedGroupType}
+            {selectedAccountId}
+            {selectedFolderId}
+            {selectionSource}
+            onSelectUnified={handleUnifiedInboxSelect}
+            onSelectAttention={handleAttentionSelect}
+            onSelectUnifiedFolder={handleUnifiedFolderSelect}
+            onToggleGroup={toggleUnifiedGroup}
+          />
+          <div class="border-b border-border mx-3 my-1"></div>
+        {/if}
+
+        <!-- Flexible spacer: docks the accounts block at the bottom -->
+        <div class="flex-1"></div>
+
+        <!-- Zone 2 — Accounts: docked at the bottom of the column, in
+             normal order (first account on top, second below it). -->
+        <div class="pt-1">
+          <div class="px-4 pb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+            {$_('sidebar.accounts')}
+          </div>
+
+          {#each accountStore.accounts as accWithFolders (accWithFolders.account.id)}
+            <AccountSection
+              account={accWithFolders.account}
+              folders={accWithFolders.folders}
+              loading={accWithFolders.loading}
+              syncing={accWithFolders.syncing}
+              error={accWithFolders.error}
+              selectedFolderId={accountStore.selectedFolder?.folderId ?? ''}
+              {selectionSource}
+              isHeaderFocused={focusedAccountId === accWithFolders.account.id}
+              isExpanded={expandedAccounts[accWithFolders.account.id] ?? true}
+              syncError={accountStore.getSyncError(accWithFolders.account.id)}
+              inboxUnreadCount={accountInboxUnread(accWithFolders.account.id)}
+              containsSelection={accountContainsSelection(accWithFolders.account.id)}
+              {collapsedFolders}
+              {onMessagesMoved}
+              onFolderSelect={handleFolderSelect}
+              onToggleExpanded={() => toggleAccountExpanded(accWithFolders.account.id)}
+              onSelectInbox={() => openAccountInbox(accWithFolders.account.id)}
+              onEdit={() => openEditAccount(accWithFolders.account)}
+              onDelete={() => openDeleteAccount(accWithFolders.account)}
+              onSync={() => {
+                // Clear any sync error before retrying
+                accountStore.clearSyncError(accWithFolders.account.id)
+                accountStore.syncAccount(accWithFolders.account.id)
+              }}
+            />
+          {/each}
+
+          <!-- Add Account Button -->
+          <div class="px-3 py-2">
+            <button
+              class="w-full flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-md transition-colors"
+              onclick={openAddAccount}
+            >
+              <Icon icon="mdi:plus" class="w-4 h-4" />
+              <span>{$_('sidebar.addAccount')}</span>
+            </button>
+          </div>
+        </div>
       {/if}
-
-      {#each accountStore.accounts as accWithFolders (accWithFolders.account.id)}
-        <AccountSection
-          account={accWithFolders.account}
-          folders={accWithFolders.folders}
-          loading={accWithFolders.loading}
-          syncing={accWithFolders.syncing}
-          error={accWithFolders.error}
-          selectedFolderId={accountStore.selectedFolder?.folderId ?? ''}
-          {selectionSource}
-          isHeaderFocused={focusedAccountId === accWithFolders.account.id}
-          isExpanded={expandedAccounts[accWithFolders.account.id] ?? true}
-          syncError={accountStore.getSyncError(accWithFolders.account.id)}
-          {collapsedFolders}
-          {onMessagesMoved}
-          onFolderSelect={handleFolderSelect}
-          onToggleExpanded={() => toggleAccountExpanded(accWithFolders.account.id)}
-          onToggleFolderCollapse={toggleFolderCollapsed}
-          onEdit={() => openEditAccount(accWithFolders.account)}
-          onDelete={() => openDeleteAccount(accWithFolders.account)}
-          onSync={() => {
-            // Clear any sync error before retrying
-            accountStore.clearSyncError(accWithFolders.account.id)
-            accountStore.syncAccount(accWithFolders.account.id)
-          }}
-        />
-      {/each}
-
-      <!-- Add Account Button -->
-      <div class="px-3 py-2">
-        <button
-          class="w-full flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-md transition-colors"
-          onclick={openAddAccount}
-        >
-          <Icon icon="mdi:plus" class="w-4 h-4" />
-          <span>{$_('sidebar.addAccount')}</span>
-        </button>
-      </div>
-    {/if}
+    </div>
   </div>
 
   <!-- Footer: Sync Status + Settings. Chrome (padding/border/min-height)

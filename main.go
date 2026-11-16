@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/absonsnet/daak/app"
@@ -206,6 +207,9 @@ func runMainMode(mailtoData *app.MailtoData, rawMailtoArg string) {
 		EnableDefaultContextMenu: true,
 		AssetServer: &assetserver.Options{
 			Assets: assets,
+			// Fallback for paths the bundled assets do not have:
+			// downloaded Bergamot engine and model files (Phase D).
+			Handler: newBergamotFilesHandler(),
 		},
 		BackgroundColour: &options.RGBA{R: 27, G: 38, B: 54, A: 1},
 		OnStartup:        application.Startup,
@@ -352,7 +356,7 @@ func runViewerMode() {
 
 	viewerApp := app.NewViewerApp(config)
 
-	viewerAssetHandler := &viewerAssetHandler{assets: assets}
+	viewerAssetHandler := &viewerAssetHandler{assets: assets, models: newBergamotFilesHandler()}
 
 	// The viewer popup uses the native OS title bar (not frameless), like
 	// the detached composer: standard resize/drag, and BeforeClose keeps
@@ -390,15 +394,87 @@ func runViewerMode() {
 	}
 }
 
+// bergamotFilesHandler serves downloaded Bergamot files to the
+// webview (Phase D, Tier 2). The WASM engine runs in the webview, so it
+// fetches its engine and models over HTTP like the spellcheck worker
+// fetches its dictionaries; both live in the Daak data folder, not in
+// the bundled frontend assets, so the asset server needs this fallback.
+// Only paths under /bergamot/models/ (language models, from
+// <data>/bergamot/models) and /bergamot/engine/ (the WASM runtime, from
+// <data>/bergamot/runtime) are served, and only files inside those
+// directories (path traversal is rejected). Anything else is a 404. A
+// nil dataDir serves nothing.
+type bergamotFilesHandler struct {
+	dataDir string
+}
+
+func newBergamotFilesHandler() *bergamotFilesHandler {
+	dataDir := ""
+	if paths, err := platform.GetPaths(); err == nil {
+		dataDir = paths.Data
+	}
+	return &bergamotFilesHandler{dataDir: dataDir}
+}
+
+// ServeHTTP implements http.Handler.
+func (h *bergamotFilesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if h.dataDir == "" {
+		http.NotFound(w, r)
+		return
+	}
+	var prefix, subdir string
+	switch {
+	case strings.HasPrefix(r.URL.Path, "/bergamot/models/"):
+		prefix, subdir = "/bergamot/models/", filepath.Join("bergamot", "models")
+	case strings.HasPrefix(r.URL.Path, "/bergamot/engine/"):
+		prefix, subdir = "/bergamot/engine/", filepath.Join("bergamot", "runtime")
+	default:
+		http.NotFound(w, r)
+		return
+	}
+	rel := strings.TrimPrefix(r.URL.Path, prefix)
+	clean := strings.TrimPrefix(filepath.Clean("/"+rel), "/")
+	if clean == "." || clean == "" || strings.Contains(clean, "..") {
+		http.NotFound(w, r)
+		return
+	}
+	// Resolve the file inside the base directory and refuse anything
+	// that escapes (symlinks included).
+	base, err := filepath.Abs(filepath.Join(h.dataDir, subdir))
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	target, err := filepath.Abs(filepath.Join(base, clean))
+	if err != nil || (target != base && !strings.HasPrefix(target, base+string(os.PathSeparator))) {
+		http.NotFound(w, r)
+		return
+	}
+	http.ServeFile(w, r, target)
+}
+
 // viewerAssetHandler serves viewer.html instead of index.html for the root request.
 type viewerAssetHandler struct {
 	assets embed.FS
+	models http.Handler
 }
 
 // ServeHTTP implements http.Handler.
 // It intercepts requests for "/" and serves viewer.html instead.
 func (h *viewerAssetHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
+
+	// Bergamot model files (Phase D) are served from the data folder.
+	if strings.HasPrefix(path, "/bergamot/models/") && h.models != nil {
+		h.models.ServeHTTP(w, r)
+		return
+	}
+
+	// Bergamot engine files (Phase D) are served from the data folder.
+	if strings.HasPrefix(path, "/bergamot/engine/") && h.models != nil {
+		h.models.ServeHTTP(w, r)
+		return
+	}
 
 	// Rewrite root path to viewer.html
 	if path == "/" || path == "" || path == "/index.html" {

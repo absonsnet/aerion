@@ -988,6 +988,65 @@ func (v *ViewerApp) Undo() (string, error) {
 	return "", fmt.Errorf("nothing to undo in a popup window")
 }
 
+// GetCodeChipClickMode returns the code-chip click mode.
+func (v *ViewerApp) GetCodeChipClickMode() (string, error) {
+	return v.settingsStore.GetCodeChipClickMode()
+}
+
+// GetOtpClipboardClearSeconds returns the clipboard-clear delay in seconds.
+func (v *ViewerApp) GetOtpClipboardClearSeconds() (int, error) {
+	return v.settingsStore.GetOtpClipboardClearSeconds()
+}
+
+// ApplyCodeChipAction performs the backend half of a code-chip click in a
+// viewer popup (mirrors App.ApplyCodeChipAction). Same modes; the only
+// difference is Undo: a popup holds no undo stack, so a move to Trash
+// cannot be undone from here — the frontend omits the Undo action in
+// popup mode.
+func (v *ViewerApp) ApplyCodeChipAction(messageID string, mode string) (bool, error) {
+	if mode == "" {
+		var err error
+		mode, err = v.settingsStore.GetCodeChipClickMode()
+		if err != nil {
+			return false, err
+		}
+	}
+	switch mode {
+	case settings.CodeChipClickCopyMarkReadDelete,
+		settings.CodeChipClickCopyMarkRead,
+		settings.CodeChipClickCopyOnly:
+	default:
+		return false, fmt.Errorf("invalid code chip click mode: %s", mode)
+	}
+
+	msg, err := v.messageStore.Get(messageID)
+	if err != nil {
+		return false, fmt.Errorf("failed to get message: %w", err)
+	}
+	if msg == nil {
+		return false, fmt.Errorf("message not found: %s", messageID)
+	}
+	if msg.ExtractKind == "" {
+		return false, fmt.Errorf("message has no extracted value")
+	}
+
+	moved := false
+	if mode != settings.CodeChipClickCopyOnly && !msg.IsRead {
+		if err := v.MarkAsRead([]string{messageID}); err != nil {
+			return false, fmt.Errorf("failed to mark message read: %w", err)
+		}
+	}
+	if mode == settings.CodeChipClickCopyMarkReadDelete {
+		moved, err = v.Trash([]string{messageID})
+		if err != nil {
+			return false, fmt.Errorf("failed to move message to Trash: %w", err)
+		}
+	}
+
+	wailsRuntime.EventsEmit(v.ctx, "attention:changed", messageID)
+	return moved, nil
+}
+
 // ============================================================================
 // Reactions, read receipts, images, links
 // ============================================================================
@@ -1044,6 +1103,58 @@ func (v *ViewerApp) RemoveOwnReaction(messageID string) error {
 // sender only, via the shared SMTP path (mirrors App.sendReaction).
 func (v *ViewerApp) SendReaction(messageID string, emoji string) error {
 	return v.sendReaction(v.ctx, messageID, emoji)
+}
+
+// ============================================================================
+// Unsubscribe (Phase C) - mirrors App; the shared work lives on
+// unsubscribeDeps, so the popup window behaves exactly like the main one.
+// ============================================================================
+
+// GetUnsubscribeStatuses returns the unsubscribe status for each
+// message id.
+func (v *ViewerApp) GetUnsubscribeStatuses(messageIDs []string) ([]*UnsubscribeStatus, error) {
+	return v.unsubscribeDeps().getStatuses(messageIDs), nil
+}
+
+// UnsubscribeFromMessage carries out the unsubscribe for one message
+// (internal id).
+func (v *ViewerApp) UnsubscribeFromMessage(messageID string) (*UnsubscribeResult, error) {
+	return v.unsubscribeDeps().unsubscribeFromMessage(v.ctx, messageID)
+}
+
+// UnsubscribeFollowUp applies the optional extras after an unsubscribe:
+// move the sender's existing inbox mail to Trash, and/or auto-delete
+// future mail from the sender.
+func (v *ViewerApp) UnsubscribeFollowUp(messageID string, moveExisting bool, autoDelete bool) error {
+	return v.unsubscribeDeps().followUp(messageID, moveExisting, autoDelete)
+}
+
+// GetSubscriptions returns every sender who ever sent List-Unsubscribe
+// headers, most messages first, for Settings → Subscriptions.
+func (v *ViewerApp) GetSubscriptions() ([]SubscriptionSender, error) {
+	return v.unsubscribeDeps().listSubscriptions()
+}
+
+// UnsubscribeFromSubscription unsubscribes from a sender listed in the
+// Subscriptions view.
+func (v *ViewerApp) UnsubscribeFromSubscription(senderEmail string, accountID string) (*UnsubscribeResult, error) {
+	return v.unsubscribeDeps().unsubscribeFromSubscription(v.ctx, senderEmail, accountID)
+}
+
+// SetSenderAutoDelete creates or removes the auto-delete rule for a
+// sender: future mail from the sender goes to Trash at sync time.
+func (v *ViewerApp) SetSenderAutoDelete(senderEmail string, accountID string, enabled bool) error {
+	return v.unsubscribeDeps().setSenderAutoDelete(senderEmail, accountID, enabled)
+}
+
+func (v *ViewerApp) unsubscribeDeps() *unsubscribeDeps {
+	return &unsubscribeDeps{
+		messageStore: v.messageStore,
+		accountStore: v.accountStore,
+		folderStore:  v.folderStore,
+		composeOps:   &v.composeOps,
+		trash:        v.Trash,
+	}
 }
 
 func (v *ViewerApp) sendReaction(ctx context.Context, messageID, emoji string) error {

@@ -201,9 +201,25 @@ func TestMigrationV32_LocalRecordIDsRewrittenToUUIDs(t *testing.T) {
 	if _, err := db.Exec(`ALTER TABLE messages DROP COLUMN is_hidden`); err != nil {
 		t.Fatalf("drop messages.is_hidden for re-migrate: %v", err)
 	}
+	// And v46's enrichment columns on messages (indexes first: SQLite
+	// refuses DROP COLUMN while an index references the column).
+	for _, idx := range []string{"idx_messages_category", "idx_messages_extract"} {
+		if _, err := db.Exec(`DROP INDEX IF EXISTS ` + idx); err != nil {
+			t.Fatalf("drop index %s for re-migrate: %v", idx, err)
+		}
+	}
+	for _, col := range []string{"list_unsubscribe", "list_unsubscribe_post", "category", "sub_category", "extract_kind", "extract_value", "extract_rule"} {
+		if _, err := db.Exec(`ALTER TABLE messages DROP COLUMN ` + col); err != nil {
+			t.Fatalf("drop messages.%s for re-migrate: %v", col, err)
+		}
+	}
 	// And v43's reply_to on drafts.
 	if _, err := db.Exec(`ALTER TABLE drafts DROP COLUMN reply_to`); err != nil {
 		t.Fatalf("drop drafts.reply_to for re-migrate: %v", err)
+	}
+	// And v49's body_hash on message_translations.
+	if _, err := db.Exec(`ALTER TABLE message_translations DROP COLUMN body_hash`); err != nil {
+		t.Fatalf("drop message_translations.body_hash for re-migrate: %v", err)
 	}
 
 	// Re-run migrations — migration 32 should rewrite the seeded local- id.
@@ -361,9 +377,25 @@ func TestMigrationV33_CleansExistingOrphans(t *testing.T) {
 	if _, err := db.Exec(`ALTER TABLE messages DROP COLUMN is_hidden`); err != nil {
 		t.Fatalf("drop messages.is_hidden for re-migrate: %v", err)
 	}
+	// And v46's enrichment columns on messages (indexes first: SQLite
+	// refuses DROP COLUMN while an index references the column).
+	for _, idx := range []string{"idx_messages_category", "idx_messages_extract"} {
+		if _, err := db.Exec(`DROP INDEX IF EXISTS ` + idx); err != nil {
+			t.Fatalf("drop index %s for re-migrate: %v", idx, err)
+		}
+	}
+	for _, col := range []string{"list_unsubscribe", "list_unsubscribe_post", "category", "sub_category", "extract_kind", "extract_value", "extract_rule"} {
+		if _, err := db.Exec(`ALTER TABLE messages DROP COLUMN ` + col); err != nil {
+			t.Fatalf("drop messages.%s for re-migrate: %v", col, err)
+		}
+	}
 	// And v43's reply_to on drafts.
 	if _, err := db.Exec(`ALTER TABLE drafts DROP COLUMN reply_to`); err != nil {
 		t.Fatalf("drop drafts.reply_to for re-migrate: %v", err)
+	}
+	// And v49's body_hash on message_translations.
+	if _, err := db.Exec(`ALTER TABLE message_translations DROP COLUMN body_hash`); err != nil {
+		t.Fatalf("drop message_translations.body_hash for re-migrate: %v", err)
 	}
 
 	// Seed: orphan state row whose addressbook doesn't exist. Pre-migration,

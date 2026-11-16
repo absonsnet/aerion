@@ -10,9 +10,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/absonsnet/daak/internal/database"
+	"github.com/absonsnet/daak/internal/enrich"
 	"github.com/absonsnet/daak/internal/logging"
+	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 )
 
@@ -60,11 +61,69 @@ func filterWhereClause(filter, prefix string) string {
 	}
 }
 
+// categoryFilterClause returns a WHERE fragment (plus its bound args)
+// restricting a conversation list/count to one category tab (Phase E).
+// category is "" (All — no restriction), "personal" or "automated";
+// subCategory further restricts inside the Automated tab ("" = all
+// automated). prefix is "" or "m." for the outer row's columns, and
+// scopeColumn is the column the thread's latest message must share with
+// the outer row ("folder_id" for a single folder, "account_id" for the
+// Unified Inbox — the list groups by (thread, account) there).
+//
+// A conversation belongs to a tab by its LATEST message's category, so
+// the condition is evaluated per row in WHERE (constant per thread —
+// every row of a thread passes or fails together), never in HAVING,
+// where a correlated subquery would see an arbitrary group row.
+//
+// Rows never classified (category IS NULL) count as Personal: the
+// classifier defaults to Personal, so un-backfilled mail must not vanish
+// from the Personal tab while the backfill is still running.
+func categoryFilterClause(category, subCategory, prefix, scopeColumn string) (string, []any) {
+	switch category {
+	case "", "all":
+		return "", nil
+	case enrich.CategoryPersonal, enrich.CategoryAutomated:
+	default:
+		// Unknown tab value: show nothing rather than the whole folder.
+		return " AND 1 = 0", nil
+	}
+	latestCategory := fmt.Sprintf(
+		`(SELECT m2.category FROM messages m2 WHERE COALESCE(m2.thread_id, m2.id) = COALESCE(%sthread_id, %sid) AND m2.%s = %s%s ORDER BY m2.date DESC LIMIT 1)`,
+		prefix, prefix, scopeColumn, prefix, scopeColumn,
+	)
+	clause := fmt.Sprintf(" AND COALESCE(%s, 'personal') = ?", latestCategory)
+	args := []any{category}
+	if subCategory != "" {
+		if category != enrich.CategoryAutomated {
+			// Sub-categories only exist inside the Automated tab.
+			return " AND 1 = 0", nil
+		}
+		latestSub := fmt.Sprintf(
+			`(SELECT m2.sub_category FROM messages m2 WHERE COALESCE(m2.thread_id, m2.id) = COALESCE(%sthread_id, %sid) AND m2.%s = %s%s ORDER BY m2.date DESC LIMIT 1)`,
+			prefix, prefix, scopeColumn, prefix, scopeColumn,
+		)
+		clause += fmt.Sprintf(" AND %s = ?", latestSub)
+		args = append(args, subCategory)
+	}
+	return clause, args
+}
+
+// CategoryCounts is the per-tab conversation count for one list scope
+// (Phase E): the three category tabs plus, inside Automated, one count
+// per sub-category. NULL (never classified) counts as Personal.
+type CategoryCounts struct {
+	Personal      int            `json:"personal"`
+	Automated     int            `json:"automated"`
+	Total         int            `json:"total"`
+	SubCategories map[string]int `json:"subCategories"`
+}
+
 // ListByFolder returns message headers for a folder with pagination
 func (s *Store) ListByFolder(folderID string, offset, limit int) ([]*MessageHeader, error) {
 	query := `
 		SELECT id, account_id, folder_id, uid, subject, from_name, from_email,
-		       date, snippet, is_read, is_starred, has_attachments
+		       date, snippet, is_read, is_starred, has_attachments,
+		       extract_kind, extract_value, extract_rule
 		FROM messages
 		WHERE folder_id = ? AND is_hidden = 0
 		ORDER BY date DESC
@@ -84,12 +143,23 @@ func (s *Store) ListByFolder(folderID string, offset, limit int) ([]*MessageHead
 		var snippet sql.NullString
 		var uidI64 int64
 
+		var extractKind, extractValue, extractRule sql.NullString
 		err := rows.Scan(
 			&m.ID, &m.AccountID, &m.FolderID, &uidI64,
 			&m.Subject, &m.FromName, &m.FromEmail,
 			&dateStr, &snippet,
 			&m.IsRead, &m.IsStarred, &m.HasAttachments,
+			&extractKind, &extractValue, &extractRule,
 		)
+		if extractKind.Valid {
+			m.ExtractKind = extractKind.String
+		}
+		if extractValue.Valid {
+			m.ExtractValue = extractValue.String
+		}
+		if extractRule.Valid {
+			m.ExtractRule = extractRule.String
+		}
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan message: %w", err)
 		}
@@ -110,12 +180,16 @@ func (s *Store) ListByFolder(folderID string, offset, limit int) ([]*MessageHead
 
 // ListConversationsUnifiedInbox returns conversations from all inbox folders across all accounts
 // This is used for the unified inbox view
-func (s *Store) ListConversationsUnifiedInbox(offset, limit int, sortOrder, filter string) ([]*Conversation, error) {
+func (s *Store) ListConversationsUnifiedInbox(offset, limit int, sortOrder, filter, category, subCategory string) ([]*Conversation, error) {
 	// Determine sort direction
 	orderClause := "ORDER BY latest_date DESC"
 	if sortOrder == "oldest" {
 		orderClause = "ORDER BY latest_date ASC"
 	}
+
+	// Phase E: category tab filter ("" = All). A conversation belongs to
+	// a tab by its latest message's category.
+	categoryClause, categoryArgs := categoryFilterClause(category, subCategory, "m.", "account_id")
 
 	// Query conversations from all inbox folders, joining with accounts for name and color
 	query := `
@@ -130,6 +204,12 @@ func (s *Store) ListConversationsUnifiedInbox(offset, limit int, sortOrder, filt
 			MAX(m.date) as latest_date,
 			GROUP_CONCAT(m.id) as message_ids,
 			MAX(CASE WHEN m.smime_encrypted = 1 OR m.pgp_encrypted = 1 THEN 1 ELSE 0 END) as is_encrypted,
+			(SELECT m2.extract_kind FROM messages m2 WHERE COALESCE(m2.thread_id, m2.id) = COALESCE(m.thread_id, m.id) AND m2.account_id = m.account_id ORDER BY m2.date DESC LIMIT 1) as extract_kind,
+			(SELECT m2.extract_value FROM messages m2 WHERE COALESCE(m2.thread_id, m2.id) = COALESCE(m.thread_id, m.id) AND m2.account_id = m.account_id ORDER BY m2.date DESC LIMIT 1) as extract_value,
+			(SELECT m2.extract_rule FROM messages m2 WHERE COALESCE(m2.thread_id, m2.id) = COALESCE(m.thread_id, m.id) AND m2.account_id = m.account_id ORDER BY m2.date DESC LIMIT 1) as extract_rule,
+			(SELECT m2.id FROM messages m2 WHERE COALESCE(m2.thread_id, m2.id) = COALESCE(m.thread_id, m.id) AND m2.account_id = m.account_id ORDER BY m2.date DESC LIMIT 1) as extract_message_id,
+			(SELECT m2.category FROM messages m2 WHERE COALESCE(m2.thread_id, m2.id) = COALESCE(m.thread_id, m.id) AND m2.account_id = m.account_id ORDER BY m2.date DESC LIMIT 1) as category,
+			(SELECT m2.sub_category FROM messages m2 WHERE COALESCE(m2.thread_id, m2.id) = COALESCE(m.thread_id, m.id) AND m2.account_id = m.account_id ORDER BY m2.date DESC LIMIT 1) as sub_category,
 			a.id as account_id,
 			a.name as account_name,
 			a.color as account_color,
@@ -138,14 +218,15 @@ func (s *Store) ListConversationsUnifiedInbox(offset, limit int, sortOrder, filt
 		FROM messages m
 		INNER JOIN folders f ON m.folder_id = f.id AND f.folder_type = 'inbox'
 		INNER JOIN accounts a ON f.account_id = a.id AND a.enabled = 1
-		WHERE m.is_hidden = 0
+		WHERE m.is_hidden = 0` + categoryClause + `
 		GROUP BY COALESCE(m.thread_id, m.id), a.id` +
 		filterHavingClause(filter, "m.") + `
 		` + orderClause + `
 		LIMIT ? OFFSET ?
 	`
 
-	rows, err := s.db.Query(query, limit, offset)
+	args := append(append([]any{}, categoryArgs...), limit, offset)
+	rows, err := s.db.Query(query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query unified inbox conversations: %w", err)
 	}
@@ -158,6 +239,8 @@ func (s *Store) ListConversationsUnifiedInbox(offset, limit int, sortOrder, filt
 		var snippet sql.NullString
 		var messageIDsStr sql.NullString
 		var participantsJSON sql.NullString
+		var extractKind, extractValue, extractRule, extractMessageID sql.NullString
+		var categoryVal, subCategoryVal sql.NullString
 
 		err := rows.Scan(
 			&c.ThreadID,
@@ -170,6 +253,8 @@ func (s *Store) ListConversationsUnifiedInbox(offset, limit int, sortOrder, filt
 			&latestDateStr,
 			&messageIDsStr,
 			&c.IsEncrypted,
+			&extractKind, &extractValue, &extractRule, &extractMessageID,
+			&categoryVal, &subCategoryVal,
 			&c.AccountID,
 			&c.AccountName,
 			&c.AccountColor,
@@ -178,6 +263,24 @@ func (s *Store) ListConversationsUnifiedInbox(offset, limit int, sortOrder, filt
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan unified inbox conversation: %w", err)
+		}
+		if extractKind.Valid {
+			c.ExtractKind = extractKind.String
+		}
+		if extractValue.Valid {
+			c.ExtractValue = extractValue.String
+		}
+		if extractRule.Valid {
+			c.ExtractRule = extractRule.String
+		}
+		if extractMessageID.Valid {
+			c.ExtractMessageID = extractMessageID.String
+		}
+		if categoryVal.Valid {
+			c.Category = categoryVal.String
+		}
+		if subCategoryVal.Valid {
+			c.SubCategory = subCategoryVal.String
 		}
 
 		if snippet.Valid {
@@ -206,15 +309,15 @@ func (s *Store) ListConversationsUnifiedInbox(offset, limit int, sortOrder, filt
 	return conversations, nil
 }
 
-
-
 // CountConversationsUnifiedInbox returns the total count of conversations across all inbox folders
-func (s *Store) CountConversationsUnifiedInbox(filter string) (int, error) {
+func (s *Store) CountConversationsUnifiedInbox(filter, category, subCategory string) (int, error) {
 	filterCond := filterWhereClause(filter, "m.")
+	categoryClause, categoryArgs := categoryFilterClause(category, subCategory, "m.", "account_id")
 	wherePart := " WHERE m.is_hidden = 0"
 	if filterCond != "" {
 		wherePart += filterCond
 	}
+	wherePart += categoryClause
 
 	query := `
 		SELECT COUNT(DISTINCT COALESCE(m.thread_id, m.id) || '-' || a.id)
@@ -224,7 +327,7 @@ func (s *Store) CountConversationsUnifiedInbox(filter string) (int, error) {
 	` + wherePart
 
 	var count int
-	err := s.db.QueryRow(query).Scan(&count)
+	err := s.db.QueryRow(query, categoryArgs...).Scan(&count)
 	if err != nil {
 		return 0, fmt.Errorf("failed to count unified inbox conversations: %w", err)
 	}
@@ -367,6 +470,8 @@ func (s *Store) Get(id string) (*Message, error) {
 		       smime_encrypted, (smime_raw_body IS NOT NULL) as has_smime,
 		       pgp_status, pgp_signer_email, pgp_signer_key_id,
 		       pgp_encrypted, (pgp_raw_body IS NOT NULL) as has_pgp,
+		       list_unsubscribe, list_unsubscribe_post, category, sub_category,
+		       extract_kind, extract_value, extract_rule,
 		       received_at
 		FROM messages
 		WHERE id = ?
@@ -376,6 +481,7 @@ func (s *Store) Get(id string) (*Message, error) {
 	var messageID, inReplyTo, threadID, toList, ccList, bccList, replyTo, snippet, bodyText, bodyHTML, readReceiptTo sql.NullString
 	var smimeStatus, smimeSignerEmail, smimeSignerSubject sql.NullString
 	var pgpStatus, pgpSignerEmail, pgpSignerKeyID sql.NullString
+	var listUnsubscribe, category, subCategory, extractKind, extractValue, extractRule sql.NullString
 	var dateStr, receivedAtStr sql.NullString
 	var uidI64 int64
 
@@ -389,6 +495,8 @@ func (s *Store) Get(id string) (*Message, error) {
 		&m.SMIMEEncrypted, &m.HasSMIME,
 		&pgpStatus, &pgpSignerEmail, &pgpSignerKeyID,
 		&m.PGPEncrypted, &m.HasPGP,
+		&listUnsubscribe, &m.ListUnsubscribePost, &category, &subCategory,
+		&extractKind, &extractValue, &extractRule,
 		&receivedAtStr,
 	)
 	if err == sql.ErrNoRows {
@@ -453,6 +561,24 @@ func (s *Store) Get(id string) (*Message, error) {
 	if pgpSignerKeyID.Valid {
 		m.PGPSignerKeyID = pgpSignerKeyID.String
 	}
+	if listUnsubscribe.Valid {
+		m.ListUnsubscribe = listUnsubscribe.String
+	}
+	if category.Valid {
+		m.Category = category.String
+	}
+	if subCategory.Valid {
+		m.SubCategory = subCategory.String
+	}
+	if extractKind.Valid {
+		m.ExtractKind = extractKind.String
+	}
+	if extractValue.Valid {
+		m.ExtractValue = extractValue.String
+	}
+	if extractRule.Valid {
+		m.ExtractRule = extractRule.String
+	}
 	if receivedAtStr.Valid && receivedAtStr.String != "" {
 		m.ReceivedAt = parseTimeString(receivedAtStr.String)
 	}
@@ -472,6 +598,8 @@ func (s *Store) GetByUID(folderID string, uid uint32) (*Message, error) {
 		       smime_encrypted, (smime_raw_body IS NOT NULL) as has_smime,
 		       pgp_status, pgp_signer_email, pgp_signer_key_id,
 		       pgp_encrypted, (pgp_raw_body IS NOT NULL) as has_pgp,
+		       list_unsubscribe, list_unsubscribe_post, category, sub_category,
+		       extract_kind, extract_value, extract_rule,
 		       received_at
 		FROM messages
 		WHERE folder_id = ? AND uid = ?
@@ -481,6 +609,7 @@ func (s *Store) GetByUID(folderID string, uid uint32) (*Message, error) {
 	var messageID, inReplyTo, threadID, toList, ccList, bccList, replyTo, snippet, bodyText, bodyHTML, readReceiptTo sql.NullString
 	var smimeStatus, smimeSignerEmail, smimeSignerSubject sql.NullString
 	var pgpStatus, pgpSignerEmail, pgpSignerKeyID sql.NullString
+	var listUnsubscribe, category, subCategory, extractKind, extractValue, extractRule sql.NullString
 	var dateStr, receivedAtStr sql.NullString
 	var uidI64 int64
 
@@ -494,6 +623,8 @@ func (s *Store) GetByUID(folderID string, uid uint32) (*Message, error) {
 		&m.SMIMEEncrypted, &m.HasSMIME,
 		&pgpStatus, &pgpSignerEmail, &pgpSignerKeyID,
 		&m.PGPEncrypted, &m.HasPGP,
+		&listUnsubscribe, &m.ListUnsubscribePost, &category, &subCategory,
+		&extractKind, &extractValue, &extractRule,
 		&receivedAtStr,
 	)
 	if err == sql.ErrNoRows {
@@ -559,6 +690,24 @@ func (s *Store) GetByUID(folderID string, uid uint32) (*Message, error) {
 	if pgpSignerKeyID.Valid {
 		m.PGPSignerKeyID = pgpSignerKeyID.String
 	}
+	if listUnsubscribe.Valid {
+		m.ListUnsubscribe = listUnsubscribe.String
+	}
+	if category.Valid {
+		m.Category = category.String
+	}
+	if subCategory.Valid {
+		m.SubCategory = subCategory.String
+	}
+	if extractKind.Valid {
+		m.ExtractKind = extractKind.String
+	}
+	if extractValue.Valid {
+		m.ExtractValue = extractValue.String
+	}
+	if extractRule.Valid {
+		m.ExtractRule = extractRule.String
+	}
 	if receivedAtStr.Valid && receivedAtStr.String != "" {
 		m.ReceivedAt = parseTimeString(receivedAtStr.String)
 	}
@@ -591,8 +740,10 @@ func (s *Store) Create(m *Message) error {
 			subject, from_name, from_email, to_list, cc_list, bcc_list, reply_to, date,
 			snippet, is_read, is_starred, is_answered, is_forwarded, is_draft, is_deleted,
 			size, has_attachments, body_text, body_html, body_fetched,
-			read_receipt_to, read_receipt_handled, received_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			read_receipt_to, read_receipt_handled, received_at,
+			list_unsubscribe, list_unsubscribe_post, category, sub_category,
+			extract_kind, extract_value, extract_rule
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 
 	_, err := s.db.Exec(query,
@@ -606,6 +757,9 @@ func (s *Store) Create(m *Message) error {
 		nullString(m.BodyText), nullString(m.BodyHTML), m.BodyFetched,
 		nullString(m.ReadReceiptTo), m.ReadReceiptHandled,
 		m.ReceivedAt,
+		nullString(m.ListUnsubscribe), m.ListUnsubscribePost,
+		nullString(m.Category), nullString(m.SubCategory),
+		nullString(m.ExtractKind), nullString(m.ExtractValue), nullString(m.ExtractRule),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create message: %w", err)
@@ -631,8 +785,10 @@ func (s *Store) Upsert(m *Message) error {
 			subject, from_name, from_email, to_list, cc_list, bcc_list, reply_to, date,
 			snippet, is_read, is_starred, is_answered, is_forwarded, is_draft, is_deleted,
 			size, has_attachments, body_text, body_html, body_fetched,
-			read_receipt_to, read_receipt_handled, received_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			read_receipt_to, read_receipt_handled, received_at,
+			list_unsubscribe, list_unsubscribe_post, category, sub_category,
+			extract_kind, extract_value, extract_rule
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(folder_id, uid) DO UPDATE SET
 			id=excluded.id, account_id=excluded.account_id,
 			message_id=excluded.message_id, in_reply_to=excluded.in_reply_to,
@@ -647,7 +803,12 @@ func (s *Store) Upsert(m *Message) error {
 			body_text=excluded.body_text, body_html=excluded.body_html,
 			body_fetched=excluded.body_fetched,
 			read_receipt_to=excluded.read_receipt_to, read_receipt_handled=excluded.read_receipt_handled,
-			received_at=excluded.received_at
+			received_at=excluded.received_at,
+			list_unsubscribe=excluded.list_unsubscribe,
+			list_unsubscribe_post=excluded.list_unsubscribe_post,
+			category=excluded.category, sub_category=excluded.sub_category,
+			extract_kind=excluded.extract_kind, extract_value=excluded.extract_value,
+			extract_rule=excluded.extract_rule
 	`
 
 	_, err := s.db.Exec(query,
@@ -661,6 +822,9 @@ func (s *Store) Upsert(m *Message) error {
 		nullString(m.BodyText), nullString(m.BodyHTML), m.BodyFetched,
 		nullString(m.ReadReceiptTo), m.ReadReceiptHandled,
 		m.ReceivedAt,
+		nullString(m.ListUnsubscribe), m.ListUnsubscribePost,
+		nullString(m.Category), nullString(m.SubCategory),
+		nullString(m.ExtractKind), nullString(m.ExtractValue), nullString(m.ExtractRule),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to upsert message: %w", err)
@@ -678,7 +842,9 @@ func (s *Store) Update(m *Message) error {
 			to_list = ?, cc_list = ?, bcc_list = ?, reply_to = ?, date = ?,
 			snippet = ?, is_read = ?, is_starred = ?, is_answered = ?, is_forwarded = ?,
 			is_draft = ?, is_deleted = ?, size = ?, has_attachments = ?,
-			body_text = ?, body_html = ?, read_receipt_to = ?, read_receipt_handled = ?
+			body_text = ?, body_html = ?, read_receipt_to = ?, read_receipt_handled = ?,
+			list_unsubscribe = ?, list_unsubscribe_post = ?, category = ?, sub_category = ?,
+			extract_kind = ?, extract_value = ?, extract_rule = ?
 		WHERE id = ?
 	`
 
@@ -691,6 +857,9 @@ func (s *Store) Update(m *Message) error {
 		m.IsDraft, m.IsDeleted, m.Size, m.HasAttachments,
 		nullString(m.BodyText), nullString(m.BodyHTML),
 		nullString(m.ReadReceiptTo), m.ReadReceiptHandled,
+		nullString(m.ListUnsubscribe), m.ListUnsubscribePost,
+		nullString(m.Category), nullString(m.SubCategory),
+		nullString(m.ExtractKind), nullString(m.ExtractValue), nullString(m.ExtractRule),
 		m.ID,
 	)
 	if err != nil {
@@ -1174,11 +1343,14 @@ func (s *Store) GetMessageUIDsAndFolder(messageIDs []string) (map[string]UIDInfo
 
 // BodyUpdate holds body content for batch updates
 type BodyUpdate struct {
-	MessageID          string
-	BodyHTML           string
-	BodyText           string
-	Snippet            string
-	HasAttachments     bool
+	MessageID      string
+	BodyHTML       string
+	BodyText       string
+	Snippet        string
+	HasAttachments bool
+	// Enrichment, when set, is persisted alongside the body by
+	// UpdateBodiesBatch (the body pass is where extraction runs).
+	Enrichment         *enrich.Result
 	SMIMEStatus        string
 	SMIMESignerEmail   string
 	SMIMESignerSubject string
@@ -1186,6 +1358,680 @@ type BodyUpdate struct {
 	SMIMEEncrypted     bool
 	PGPRawBody         []byte
 	PGPEncrypted       bool
+}
+
+// UpdateEnrichment persists a sync-time enrichment result for one message.
+// The extracted value is stored as-is; callers must never log it.
+func (s *Store) UpdateEnrichment(id string, r enrich.Result) error {
+	_, err := s.db.Exec(`
+		UPDATE messages SET
+			list_unsubscribe = ?, list_unsubscribe_post = ?,
+			category = ?, sub_category = ?,
+			extract_kind = ?, extract_value = ?, extract_rule = ?
+		WHERE id = ?
+	`, nullString(r.ListUnsubscribe), r.ListUnsubscribePost,
+		nullString(r.Category), nullString(r.SubCategory),
+		nullString(r.ExtractKind), nullString(r.ExtractValue), nullString(r.ExtractRule),
+		id)
+	if err != nil {
+		return fmt.Errorf("failed to update enrichment: %w", err)
+	}
+	return nil
+}
+
+// ListUnenriched returns messages whose category has never been computed
+// (category IS NULL), oldest first, for the one-off backfill. The body
+// head is capped at 2000 chars; the caller enriches and calls
+// UpdateEnrichment. The stored List-Unsubscribe columns ride along so
+// the backfill preserves them (raw headers are not stored, so it cannot
+// recover them for already-synced mail — those fill on next full sync).
+func (s *Store) ListUnenriched(limit int) ([]*Message, error) {
+	rows, err := s.db.Query(`
+		SELECT id, account_id, folder_id, uid, subject, from_name, from_email,
+		       date, snippet, substr(body_text, 1, 2000),
+		       list_unsubscribe, list_unsubscribe_post
+		FROM messages WHERE category IS NULL AND is_hidden = 0
+		ORDER BY date ASC LIMIT ?
+	`, limit)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query unenriched messages: %w", err)
+	}
+	defer rows.Close()
+	var out []*Message
+	for rows.Next() {
+		m := &Message{}
+		var dateStr, snippet, bodyText sql.NullString
+		var listUnsubscribe sql.NullString
+		var uidI64 int64
+		if err := rows.Scan(&m.ID, &m.AccountID, &m.FolderID, &uidI64,
+			&m.Subject, &m.FromName, &m.FromEmail, &dateStr, &snippet, &bodyText,
+			&listUnsubscribe, &m.ListUnsubscribePost); err != nil {
+			return nil, fmt.Errorf("failed to scan unenriched message: %w", err)
+		}
+		m.UID = uint32(uidI64)
+		if dateStr.Valid && dateStr.String != "" {
+			m.Date = parseTimeString(dateStr.String)
+		}
+		if snippet.Valid {
+			m.Snippet = snippet.String
+		}
+		if bodyText.Valid {
+			m.BodyText = bodyText.String
+		}
+		if listUnsubscribe.Valid {
+			m.ListUnsubscribe = listUnsubscribe.String
+		}
+		out = append(out, m)
+	}
+	return out, nil
+}
+
+// CountUnenriched returns how many messages still need backfill enrichment.
+func (s *Store) CountUnenriched() (int, error) {
+	var count int
+	err := s.db.QueryRow("SELECT COUNT(*) FROM messages WHERE category IS NULL AND is_hidden = 0").Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count unenriched messages: %w", err)
+	}
+	return count, nil
+}
+
+// EnrichmentHeader is the stored header data the body-time enrichment
+// pass needs (no body fetch required).
+type EnrichmentHeader struct {
+	FromEmail           string
+	FromName            string
+	Subject             string
+	ListUnsubscribe     string
+	ListUnsubscribePost bool
+	Category            string
+}
+
+// GetHeaderForEnrichment loads the stored header for one message (nil,
+// nil when the row is gone).
+func (s *Store) GetHeaderForEnrichment(id string) (*EnrichmentHeader, error) {
+	h := &EnrichmentHeader{}
+	var lu, category sql.NullString
+	err := s.db.QueryRow(
+		`SELECT from_email, from_name, subject, list_unsubscribe,
+		        list_unsubscribe_post, category FROM messages WHERE id = ?`,
+		id,
+	).Scan(&h.FromEmail, &h.FromName, &h.Subject, &lu, &h.ListUnsubscribePost, &category)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to query enrichment header: %w", err)
+	}
+	if lu.Valid {
+		h.ListUnsubscribe = lu.String
+	}
+	if category.Valid {
+		h.Category = category.String
+	}
+	return h, nil
+}
+
+// StoredEnrichment is the enrichment row already stored for a message
+// (used to preserve body-time extraction across header re-syncs).
+type StoredEnrichment struct {
+	ListUnsubscribe     string
+	ListUnsubscribePost bool
+	Category            string
+	SubCategory         string
+	ExtractKind         string
+	ExtractValue        string
+	ExtractRule         string
+}
+
+// GetStoredEnrichment loads the enrichment already stored for the message
+// at (folderID, uid), or (nil, nil) when there is no row yet.
+func (s *Store) GetStoredEnrichment(folderID string, uid uint32) (*StoredEnrichment, error) {
+	st := &StoredEnrichment{}
+	var lu, category, subCategory, extractKind, extractValue, extractRule sql.NullString
+	err := s.db.QueryRow(
+		`SELECT list_unsubscribe, list_unsubscribe_post, category, sub_category,
+		        extract_kind, extract_value, extract_rule
+		 FROM messages WHERE folder_id = ? AND uid = ?`,
+		folderID, uid,
+	).Scan(&lu, &st.ListUnsubscribePost, &category, &subCategory,
+		&extractKind, &extractValue, &extractRule)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to query stored enrichment: %w", err)
+	}
+	if lu.Valid {
+		st.ListUnsubscribe = lu.String
+	}
+	if category.Valid {
+		st.Category = category.String
+	}
+	if subCategory.Valid {
+		st.SubCategory = subCategory.String
+	}
+	if extractKind.Valid {
+		st.ExtractKind = extractKind.String
+	}
+	if extractValue.Valid {
+		st.ExtractValue = extractValue.String
+	}
+	if extractRule.Valid {
+		st.ExtractRule = extractRule.String
+	}
+	return st, nil
+}
+
+// ListSenderCategoryOverrides returns every classifier override as
+// lowercased sender -> category.
+func (s *Store) ListSenderCategoryOverrides() (map[string]string, error) {
+	rows, err := s.db.Query("SELECT sender_address, category FROM sender_category_overrides")
+	if err != nil {
+		return nil, fmt.Errorf("failed to query sender overrides: %w", err)
+	}
+	defer rows.Close()
+	out := make(map[string]string)
+	for rows.Next() {
+		var addr, cat string
+		if err := rows.Scan(&addr, &cat); err != nil {
+			return nil, fmt.Errorf("failed to scan sender override: %w", err)
+		}
+		out[strings.ToLower(strings.TrimSpace(addr))] = cat
+	}
+	return out, nil
+}
+
+// GetSenderCategoryOverride returns the classifier override for a sender
+// (lowercased match), if one exists.
+func (s *Store) GetSenderCategoryOverride(email string) (string, bool, error) {
+	var category string
+	err := s.db.QueryRow(
+		"SELECT category FROM sender_category_overrides WHERE sender_address = ?",
+		strings.ToLower(strings.TrimSpace(email)),
+	).Scan(&category)
+	if err == sql.ErrNoRows {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, fmt.Errorf("failed to query sender override: %w", err)
+	}
+	return category, true, nil
+}
+
+// SetSenderCategoryOverride records the user's "Always treat mail from
+// this sender as ..." choice (Phase E, rule 1 of the classifier). The
+// address is stored lower-cased; a later call for the same sender
+// replaces the row.
+func (s *Store) SetSenderCategoryOverride(email, category string) error {
+	switch category {
+	case enrich.CategoryPersonal, enrich.CategoryAutomated:
+	default:
+		return fmt.Errorf("invalid category: %s (must be 'personal' or 'automated')", category)
+	}
+	_, err := s.db.Exec(
+		"INSERT INTO sender_category_overrides (sender_address, category) VALUES (?, ?) "+
+			"ON CONFLICT(sender_address) DO UPDATE SET category = excluded.category, created_at = CURRENT_TIMESTAMP",
+		strings.ToLower(strings.TrimSpace(email)), category,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to set sender override: %w", err)
+	}
+	return nil
+}
+
+// DeleteSenderCategoryOverride removes a sender override. Future mail
+// from the sender is classified by the heuristics again; mail already
+// stored keeps its stored category until it is re-enriched.
+func (s *Store) DeleteSenderCategoryOverride(email string) error {
+	_, err := s.db.Exec(
+		"DELETE FROM sender_category_overrides WHERE sender_address = ?",
+		strings.ToLower(strings.TrimSpace(email)),
+	)
+	if err != nil {
+		return fmt.Errorf("failed to delete sender override: %w", err)
+	}
+	return nil
+}
+
+// ApplySenderCategoryOverride re-files every stored message from the
+// sender under the override category, so the "wrong tab" correction
+// takes effect on mail already in the list, not just on future syncs.
+// A Personal override also clears the sub-category and any extracted
+// code/reference (extraction only exists for Automated mail); an
+// Automated override keeps the stored sub-category, if the classifier
+// already computed one. Returns the number of messages re-filed.
+func (s *Store) ApplySenderCategoryOverride(email, category string) (int64, error) {
+	switch category {
+	case enrich.CategoryPersonal, enrich.CategoryAutomated:
+	default:
+		return 0, fmt.Errorf("invalid category: %s (must be 'personal' or 'automated')", category)
+	}
+	addr := strings.ToLower(strings.TrimSpace(email))
+	var res sql.Result
+	var err error
+	if category == enrich.CategoryPersonal {
+		res, err = s.db.Exec(
+			`UPDATE messages SET category = ?, sub_category = NULL,
+				extract_kind = NULL, extract_value = NULL, extract_rule = NULL
+				WHERE lower(from_email) = ?`,
+			category, addr,
+		)
+	} else {
+		res, err = s.db.Exec(
+			`UPDATE messages SET category = ? WHERE lower(from_email) = ?`,
+			category, addr,
+		)
+	}
+	if err != nil {
+		return 0, fmt.Errorf("failed to apply sender override: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("failed to count re-filed messages: %w", err)
+	}
+	return n, nil
+}
+
+// IsKnownPersonalSender reports whether the sender is in contacts and has
+// emailed as a person before (a collected contact with send history).
+func (s *Store) IsKnownPersonalSender(email string) (bool, error) {
+	var count int
+	err := s.db.QueryRow(
+		"SELECT COUNT(*) FROM contact_emails WHERE email = ? AND send_count > 0",
+		strings.ToLower(strings.TrimSpace(email)),
+	).Scan(&count)
+	if err != nil {
+		return false, fmt.Errorf("failed to query known sender: %w", err)
+	}
+	return count > 0, nil
+}
+
+// --- Unsubscribe (Phase C) -------------------------------------------------
+//
+// Sender addresses are normalised to lower-case on write and on read, so
+// "News@Example.com" and "news@example.com" are one sender everywhere.
+
+// completedUnsubscribeMethods are the unsubscribe_actions methods that
+// mean the unsubscribe actually happened. A "browser" action only means
+// the sender's page was opened — the user may or may not have finished
+// there, so the button keeps being offered.
+var completedUnsubscribeMethods = map[string]bool{
+	"one_click": true,
+	"mailto":    true,
+}
+
+// RecordUnsubscribeAction records one unsubscribe the user acted on, so
+// a re-sync never offers it again and the Subscriptions view can show
+// it. Re-recording the same sender+account updates the method and time.
+func (s *Store) RecordUnsubscribeAction(senderAddress, accountID, method string) error {
+	_, err := s.db.Exec(`
+		INSERT INTO unsubscribe_actions (sender_address, account_id, method, acted_at)
+		VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+		ON CONFLICT(sender_address, account_id) DO UPDATE SET
+			method = excluded.method, acted_at = excluded.acted_at
+	`, strings.ToLower(strings.TrimSpace(senderAddress)), accountID, method)
+	if err != nil {
+		return fmt.Errorf("failed to record unsubscribe action: %w", err)
+	}
+	return nil
+}
+
+// UnsubscribeActionMethod returns the recorded method for a sender on an
+// account, if the user has ever acted on that sender.
+func (s *Store) UnsubscribeActionMethod(senderAddress, accountID string) (string, bool, error) {
+	var method string
+	err := s.db.QueryRow(
+		"SELECT method FROM unsubscribe_actions WHERE sender_address = ? AND account_id = ?",
+		strings.ToLower(strings.TrimSpace(senderAddress)), accountID,
+	).Scan(&method)
+	if err == sql.ErrNoRows {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, fmt.Errorf("failed to query unsubscribe action: %w", err)
+	}
+	return method, true, nil
+}
+
+// HasUnsubscribed reports whether the sender was already unsubscribed
+// from by a completed method (one-click POST sent, or unsubscribe email
+// sent). A browser-only action does not count.
+func (s *Store) HasUnsubscribed(senderAddress, accountID string) (bool, error) {
+	method, ok, err := s.UnsubscribeActionMethod(senderAddress, accountID)
+	if err != nil {
+		return false, err
+	}
+	return ok && completedUnsubscribeMethods[method], nil
+}
+
+// SetSenderRule stores a sender rule (Phase C: action "auto_trash" moves
+// future mail from the sender to Trash at sync time). Re-setting the
+// same rule is a no-op.
+func (s *Store) SetSenderRule(senderAddress, accountID, action string) error {
+	_, err := s.db.Exec(`
+		INSERT OR IGNORE INTO sender_rules (sender_address, account_id, action)
+		VALUES (?, ?, ?)
+	`, strings.ToLower(strings.TrimSpace(senderAddress)), accountID, action)
+	if err != nil {
+		return fmt.Errorf("failed to set sender rule: %w", err)
+	}
+	return nil
+}
+
+// DeleteSenderRule removes a sender rule.
+func (s *Store) DeleteSenderRule(senderAddress, accountID, action string) error {
+	_, err := s.db.Exec(`
+		DELETE FROM sender_rules WHERE sender_address = ? AND account_id = ? AND action = ?
+	`, strings.ToLower(strings.TrimSpace(senderAddress)), accountID, action)
+	if err != nil {
+		return fmt.Errorf("failed to delete sender rule: %w", err)
+	}
+	return nil
+}
+
+// HasSenderRule reports whether a sender rule exists.
+func (s *Store) HasSenderRule(senderAddress, accountID, action string) (bool, error) {
+	var count int
+	err := s.db.QueryRow(
+		"SELECT COUNT(*) FROM sender_rules WHERE sender_address = ? AND account_id = ? AND action = ?",
+		strings.ToLower(strings.TrimSpace(senderAddress)), accountID, action,
+	).Scan(&count)
+	if err != nil {
+		return false, fmt.Errorf("failed to query sender rule: %w", err)
+	}
+	return count > 0, nil
+}
+
+// ListSenderRuleSenders returns the lower-cased sender addresses with a
+// given rule action on an account, for sync-time application.
+func (s *Store) ListSenderRuleSenders(accountID, action string) ([]string, error) {
+	rows, err := s.db.Query(
+		"SELECT sender_address FROM sender_rules WHERE account_id = ? AND action = ?",
+		accountID, action,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query sender rules: %w", err)
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var addr string
+		if err := rows.Scan(&addr); err != nil {
+			return nil, fmt.Errorf("failed to scan sender rule: %w", err)
+		}
+		out = append(out, addr)
+	}
+	return out, nil
+}
+
+// SubscriptionSender is one row of the Settings → Subscriptions view:
+// every sender who ever sent List-Unsubscribe headers, with volume.
+type SubscriptionSender struct {
+	AccountID       string
+	SenderEmail     string
+	SenderName      string
+	CountAll        int
+	Count30Days     int
+	LastReceived    time.Time
+	OneClick        bool
+	ListUnsubscribe string // raw header from the newest message, for the mismatch check
+}
+
+// ListSubscriptionSenders returns every sender with List-Unsubscribe
+// headers, most messages first. The 30-day count uses the same stored
+// date format the store writes, so the comparison is chronological.
+func (s *Store) ListSubscriptionSenders() ([]SubscriptionSender, error) {
+	cutoff := time.Now().AddDate(0, 0, -30)
+	rows, err := s.db.Query(`
+		SELECT account_id,
+		       lower(from_email) AS email,
+		       (SELECT m2.from_name FROM messages m2
+		         WHERE m2.account_id = messages.account_id
+		           AND lower(m2.from_email) = lower(messages.from_email)
+		         ORDER BY m2.date DESC LIMIT 1) AS name,
+		       COUNT(*) AS total,
+		       SUM(CASE WHEN date >= ? THEN 1 ELSE 0 END) AS recent,
+		       MAX(date) AS last_received,
+		       MAX(list_unsubscribe_post) AS one_click,
+		       (SELECT m2.list_unsubscribe FROM messages m2
+		         WHERE m2.account_id = messages.account_id
+		           AND lower(m2.from_email) = lower(messages.from_email)
+		         ORDER BY m2.date DESC LIMIT 1) AS lu
+		FROM messages
+		WHERE list_unsubscribe IS NOT NULL AND trim(list_unsubscribe) != ''
+		GROUP BY account_id, lower(from_email)
+		ORDER BY total DESC
+	`, cutoff)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query subscription senders: %w", err)
+	}
+	defer rows.Close()
+	var out []SubscriptionSender
+	for rows.Next() {
+		var row SubscriptionSender
+		var name, lastReceived sql.NullString
+		var lu sql.NullString
+		if err := rows.Scan(&row.AccountID, &row.SenderEmail, &name, &row.CountAll,
+			&row.Count30Days, &lastReceived, &row.OneClick, &lu); err != nil {
+			return nil, fmt.Errorf("failed to scan subscription sender: %w", err)
+		}
+		if name.Valid {
+			row.SenderName = name.String
+		}
+		if lastReceived.Valid && lastReceived.String != "" {
+			row.LastReceived = parseTimeString(lastReceived.String)
+		}
+		if lu.Valid {
+			row.ListUnsubscribe = lu.String
+		}
+		out = append(out, row)
+	}
+	return out, nil
+}
+
+// GetLatestMessageFromSender returns the newest message from one sender
+// (case-insensitive) that carries List-Unsubscribe headers, or nil when
+// the sender has none. Used by the Subscriptions view's Unsubscribe
+// button, which has no message id of its own.
+func (s *Store) GetLatestMessageFromSender(accountID, senderEmail string) (*Message, error) {
+	rows, err := s.db.Query(`
+		SELECT id FROM messages
+		WHERE account_id = ? AND lower(from_email) = ?
+		  AND list_unsubscribe IS NOT NULL AND trim(list_unsubscribe) != ''
+		ORDER BY date DESC LIMIT 1
+	`, accountID, strings.ToLower(strings.TrimSpace(senderEmail)))
+	if err != nil {
+		return nil, fmt.Errorf("failed to query sender messages: %w", err)
+	}
+	defer rows.Close()
+	if !rows.Next() {
+		return nil, nil
+	}
+	var id string
+	if err := rows.Scan(&id); err != nil {
+		return nil, fmt.Errorf("failed to scan sender message: %w", err)
+	}
+	return s.Get(id)
+}
+
+// ListMessageIDsFromSenderInFolder returns the internal ids of messages
+// from one sender (case-insensitive) currently in one folder, oldest
+// first. Used by the unsubscribe follow-up ("move existing mail to
+// Trash") and by sync-time sender rules.
+func (s *Store) ListMessageIDsFromSenderInFolder(accountID, folderID, senderEmail string) ([]string, error) {
+	rows, err := s.db.Query(`
+		SELECT id FROM messages
+		WHERE account_id = ? AND folder_id = ? AND lower(from_email) = ?
+		ORDER BY date ASC
+	`, accountID, folderID, strings.ToLower(strings.TrimSpace(senderEmail)))
+	if err != nil {
+		return nil, fmt.Errorf("failed to query sender messages: %w", err)
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("failed to scan sender message: %w", err)
+		}
+		out = append(out, id)
+	}
+	return out, nil
+}
+
+// AttentionCandidate is one inbox message that may earn a Needs attention
+// bar. Eligibility + expiry are derived at read time (enrich package);
+// this is just the row data the derivation needs.
+type AttentionCandidate struct {
+	Message      *Message
+	FolderID     string
+	FolderType   string
+	AccountID    string
+	AccountName  string
+	AccountColor string
+}
+
+// ListAttentionCandidates returns recent inbox messages that could qualify
+// for a Needs attention bar: not hidden, in an inbox folder (or one of the
+// given folder IDs), within the last 14 days, and carrying either an
+// extracted code or a Travel/Transactions/Shipping sub-category. The
+// caller runs enrich.EvaluateAttention per row and filters dismissals.
+func (s *Store) ListAttentionCandidates(folderIDs []string, since time.Time) ([]*AttentionCandidate, error) {
+	args := []interface{}{since}
+	folderFilter := ""
+	if len(folderIDs) > 0 {
+		placeholders := make([]string, len(folderIDs))
+		for i, id := range folderIDs {
+			placeholders[i] = "?"
+			args = append(args, id)
+		}
+		folderFilter = " AND m.folder_id IN (" + strings.Join(placeholders, ", ") + ")"
+	}
+	query := `
+		SELECT m.id, m.account_id, m.folder_id, m.uid, m.message_id,
+		       m.subject, m.from_name, m.from_email, m.date,
+		       m.snippet, substr(m.body_text, 1, 2000),
+		       m.is_read, m.category, m.sub_category,
+		       m.extract_kind, m.extract_value, m.extract_rule,
+		       f.folder_type, a.name, a.color
+		FROM messages m
+		INNER JOIN folders f ON m.folder_id = f.id AND f.folder_type = 'inbox'
+		INNER JOIN accounts a ON m.account_id = a.id AND a.enabled = 1
+		WHERE m.is_hidden = 0 AND m.date >= ?` + folderFilter + `
+		  AND (m.extract_kind = 'code' OR m.sub_category IN ('Travel', 'Transactions', 'Shipping'))
+		ORDER BY m.date DESC
+	`
+	rows, err := s.db.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query attention candidates: %w", err)
+	}
+	defer rows.Close()
+	var out []*AttentionCandidate
+	for rows.Next() {
+		m := &Message{}
+		c := &AttentionCandidate{Message: m}
+		var dateStr, snippet, bodyText sql.NullString
+		var messageID sql.NullString
+		var accountName, accountColor sql.NullString
+		var category, subCategory, extractKind, extractValue, extractRule sql.NullString
+		var uidI64 int64
+		if err := rows.Scan(
+			&m.ID, &m.AccountID, &m.FolderID, &uidI64, &messageID,
+			&m.Subject, &m.FromName, &m.FromEmail, &dateStr,
+			&snippet, &bodyText,
+			&m.IsRead, &category, &subCategory,
+			&extractKind, &extractValue, &extractRule,
+			&c.FolderType, &accountName, &accountColor,
+		); err != nil {
+			return nil, fmt.Errorf("failed to scan attention candidate: %w", err)
+		}
+		m.UID = uint32(uidI64)
+		c.FolderID = m.FolderID
+		c.AccountID = m.AccountID
+		if messageID.Valid {
+			m.MessageID = messageID.String
+		}
+		if dateStr.Valid && dateStr.String != "" {
+			m.Date = parseTimeString(dateStr.String)
+		}
+		if snippet.Valid {
+			m.Snippet = snippet.String
+		}
+		if bodyText.Valid {
+			m.BodyText = bodyText.String
+		}
+		// category / sub_category / extract_* are all nullable: a row
+		// without an extraction must not fail the whole scan.
+		if category.Valid {
+			m.Category = category.String
+		}
+		if subCategory.Valid {
+			m.SubCategory = subCategory.String
+		}
+		if extractKind.Valid {
+			m.ExtractKind = extractKind.String
+		}
+		if extractValue.Valid {
+			m.ExtractValue = extractValue.String
+		}
+		if extractRule.Valid {
+			m.ExtractRule = extractRule.String
+		}
+		if accountName.Valid {
+			c.AccountName = accountName.String
+		}
+		if accountColor.Valid {
+			c.AccountColor = accountColor.String
+		}
+		out = append(out, c)
+	}
+	return out, nil
+}
+
+// DismissAttention records that a message's Needs attention bar was
+// dismissed. The mail itself is untouched; the dismissal survives sync
+// and restart, and the bar never resurfaces for that message.
+func (s *Store) DismissAttention(messageID string) error {
+	_, err := s.db.Exec(
+		"INSERT OR REPLACE INTO attention_dismissals (message_id, dismissed_at) VALUES (?, CURRENT_TIMESTAMP)",
+		messageID,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to dismiss attention: %w", err)
+	}
+	return nil
+}
+
+// GetAttentionDismissalIDs returns every dismissed message ID.
+func (s *Store) GetAttentionDismissalIDs() (map[string]bool, error) {
+	rows, err := s.db.Query("SELECT message_id FROM attention_dismissals")
+	if err != nil {
+		return nil, fmt.Errorf("failed to query attention dismissals: %w", err)
+	}
+	defer rows.Close()
+	out := make(map[string]bool)
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("failed to scan attention dismissal: %w", err)
+		}
+		out[id] = true
+	}
+	return out, nil
+}
+
+// IsAttentionDismissed reports whether a message's bar was dismissed.
+func (s *Store) IsAttentionDismissed(messageID string) (bool, error) {
+	var count int
+	err := s.db.QueryRow(
+		"SELECT COUNT(*) FROM attention_dismissals WHERE message_id = ?",
+		messageID,
+	).Scan(&count)
+	if err != nil {
+		return false, fmt.Errorf("failed to query attention dismissal: %w", err)
+	}
+	return count > 0, nil
 }
 
 // UpdateBodiesBatch updates body content for multiple messages in a single transaction
@@ -1214,6 +2060,18 @@ func (s *Store) UpdateBodiesBatch(updates []BodyUpdate) error {
 	}
 	defer stmt.Close()
 
+	enrichStmt, err := tx.Prepare(`
+		UPDATE messages
+		SET list_unsubscribe = ?, list_unsubscribe_post = ?,
+		    category = ?, sub_category = ?,
+		    extract_kind = ?, extract_value = ?, extract_rule = ?
+		WHERE id = ?
+	`)
+	if err != nil {
+		return fmt.Errorf("failed to prepare enrichment statement: %w", err)
+	}
+	defer enrichStmt.Close()
+
 	for _, u := range updates {
 		var smimeRawBody interface{}
 		if len(u.SMIMERawBody) > 0 {
@@ -1234,6 +2092,18 @@ func (s *Store) UpdateBodiesBatch(updates []BodyUpdate) error {
 		if err != nil {
 			s.log.Warn().Err(err).Str("messageID", u.MessageID).Msg("Failed to update body in batch")
 			// Continue with other updates
+		}
+		if u.Enrichment != nil {
+			// Never log the extracted value (see internal/enrich).
+			if _, err := enrichStmt.Exec(
+				nullString(u.Enrichment.ListUnsubscribe), u.Enrichment.ListUnsubscribePost,
+				nullString(u.Enrichment.Category), nullString(u.Enrichment.SubCategory),
+				nullString(u.Enrichment.ExtractKind), nullString(u.Enrichment.ExtractValue),
+				nullString(u.Enrichment.ExtractRule),
+				u.MessageID,
+			); err != nil {
+				s.log.Warn().Err(err).Str("messageID", u.MessageID).Msg("Failed to update enrichment in batch")
+			}
 		}
 	}
 
@@ -1319,12 +2189,16 @@ func parseTimeString(s string) time.Time {
 
 // ListConversationsByFolder returns conversations (grouped by thread) for a folder with pagination
 // sortOrder can be "newest" (default) or "oldest"
-func (s *Store) ListConversationsByFolder(folderID string, offset, limit int, sortOrder, filter string) ([]*Conversation, error) {
+func (s *Store) ListConversationsByFolder(folderID string, offset, limit int, sortOrder, filter, category, subCategory string) ([]*Conversation, error) {
 	// Determine sort direction
 	orderClause := "ORDER BY latest_date DESC"
 	if sortOrder == "oldest" {
 		orderClause = "ORDER BY latest_date ASC"
 	}
+
+	// Phase E: category tab filter ("" = All). A conversation belongs to
+	// a tab by its latest message's category.
+	categoryClause, categoryArgs := categoryFilterClause(category, subCategory, "m.", "folder_id")
 
 	// Pre-fetch folder type so we can pick the right participants
 	// aggregation. Sent and Drafts folders should surface the recipient
@@ -1362,16 +2236,23 @@ func (s *Store) ListConversationsByFolder(folderID string, offset, limit int, so
 			MAX(date) as latest_date,
 			GROUP_CONCAT(id) as message_ids,
 			MAX(CASE WHEN smime_encrypted = 1 OR pgp_encrypted = 1 THEN 1 ELSE 0 END) as is_encrypted,
+			(SELECT m2.extract_kind FROM messages m2 WHERE COALESCE(m2.thread_id, m2.id) = COALESCE(m.thread_id, m.id) AND m2.account_id = m.account_id ORDER BY m2.date DESC LIMIT 1) as extract_kind,
+			(SELECT m2.extract_value FROM messages m2 WHERE COALESCE(m2.thread_id, m2.id) = COALESCE(m.thread_id, m.id) AND m2.account_id = m.account_id ORDER BY m2.date DESC LIMIT 1) as extract_value,
+			(SELECT m2.extract_rule FROM messages m2 WHERE COALESCE(m2.thread_id, m2.id) = COALESCE(m.thread_id, m.id) AND m2.account_id = m.account_id ORDER BY m2.date DESC LIMIT 1) as extract_rule,
+			(SELECT m2.id FROM messages m2 WHERE COALESCE(m2.thread_id, m2.id) = COALESCE(m.thread_id, m.id) AND m2.account_id = m.account_id ORDER BY m2.date DESC LIMIT 1) as extract_message_id,
+			(SELECT m2.category FROM messages m2 WHERE COALESCE(m2.thread_id, m2.id) = COALESCE(m.thread_id, m.id) AND m2.account_id = m.account_id ORDER BY m2.date DESC LIMIT 1) as category,
+			(SELECT m2.sub_category FROM messages m2 WHERE COALESCE(m2.thread_id, m2.id) = COALESCE(m.thread_id, m.id) AND m2.account_id = m.account_id ORDER BY m2.date DESC LIMIT 1) as sub_category,
 			%s as participants_json
-		FROM messages
-		WHERE folder_id = ? AND is_hidden = 0
+		FROM messages m
+		WHERE folder_id = ? AND is_hidden = 0`+categoryClause+`
 		GROUP BY COALESCE(thread_id, id)`+
 		filterHavingClause(filter, "")+`
 		`+orderClause+`
 		LIMIT ? OFFSET ?
 	`, participantsExpr)
 
-	rows, err := s.db.Query(query, folderID, limit, offset)
+	args := append(append([]any{folderID}, categoryArgs...), limit, offset)
+	rows, err := s.db.Query(query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query conversations: %w", err)
 	}
@@ -1385,6 +2266,8 @@ func (s *Store) ListConversationsByFolder(folderID string, offset, limit int, so
 		var messageIDsStr sql.NullString
 		var participantsJSON sql.NullString
 
+		var extractKind, extractValue, extractRule, extractMessageID sql.NullString
+		var categoryVal, subCategoryVal sql.NullString
 		err := rows.Scan(
 			&c.ThreadID,
 			&c.Subject,
@@ -1396,10 +2279,30 @@ func (s *Store) ListConversationsByFolder(folderID string, offset, limit int, so
 			&latestDateStr,
 			&messageIDsStr,
 			&c.IsEncrypted,
+			&extractKind, &extractValue, &extractRule, &extractMessageID,
+			&categoryVal, &subCategoryVal,
 			&participantsJSON,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan conversation: %w", err)
+		}
+		if extractKind.Valid {
+			c.ExtractKind = extractKind.String
+		}
+		if extractValue.Valid {
+			c.ExtractValue = extractValue.String
+		}
+		if extractRule.Valid {
+			c.ExtractRule = extractRule.String
+		}
+		if extractMessageID.Valid {
+			c.ExtractMessageID = extractMessageID.String
+		}
+		if categoryVal.Valid {
+			c.Category = categoryVal.String
+		}
+		if subCategoryVal.Valid {
+			c.SubCategory = subCategoryVal.String
 		}
 
 		if snippet.Valid {
@@ -1510,19 +2413,88 @@ func parseAggregatedToListJSON(s string) []Address {
 }
 
 // CountConversationsByFolder returns the count of conversations in a folder
-func (s *Store) CountConversationsByFolder(folderID, filter string) (int, error) {
+func (s *Store) CountConversationsByFolder(folderID, filter, category, subCategory string) (int, error) {
+	categoryClause, categoryArgs := categoryFilterClause(category, subCategory, "m.", "folder_id")
 	query := `
-		SELECT COUNT(DISTINCT COALESCE(thread_id, id))
-		FROM messages
-		WHERE folder_id = ? AND is_hidden = 0
-	` + filterWhereClause(filter, "")
+		SELECT COUNT(DISTINCT COALESCE(m.thread_id, m.id))
+		FROM messages m
+		WHERE m.folder_id = ? AND m.is_hidden = 0
+	` + filterWhereClause(filter, "m.") + categoryClause
 
+	args := append([]any{folderID}, categoryArgs...)
 	var count int
-	err := s.db.QueryRow(query, folderID).Scan(&count)
+	err := s.db.QueryRow(query, args...).Scan(&count)
 	if err != nil {
 		return 0, fmt.Errorf("failed to count conversations: %w", err)
 	}
 	return count, nil
+}
+
+// GetCategoryCounts returns the Phase E tab counts for one list scope:
+// conversations per category (latest message's category; never-classified
+// rows count as Personal) plus, inside Automated, one count per
+// sub-category. When unified is true the scope is every inbox of every
+// enabled account; otherwise it is the single folderID. Hidden (reaction)
+// rows are excluded, matching the list queries.
+func (s *Store) GetCategoryCounts(folderID string, unified bool) (*CategoryCounts, error) {
+	var query string
+	var args []any
+	if unified {
+		query = `
+			SELECT COALESCE(m.category, 'personal') AS category, m.sub_category, COUNT(*)
+			FROM (
+				SELECT m.category, m.sub_category,
+					ROW_NUMBER() OVER (PARTITION BY COALESCE(m.thread_id, m.id), m.account_id ORDER BY m.date DESC) AS rn
+				FROM messages m
+				INNER JOIN folders f ON m.folder_id = f.id AND f.folder_type = 'inbox'
+				INNER JOIN accounts a ON f.account_id = a.id AND a.enabled = 1
+				WHERE m.is_hidden = 0
+			) m
+			WHERE m.rn = 1
+			GROUP BY category, m.sub_category
+		`
+	} else {
+		query = `
+			SELECT COALESCE(m.category, 'personal') AS category, m.sub_category, COUNT(*)
+			FROM (
+				SELECT m.category, m.sub_category,
+					ROW_NUMBER() OVER (PARTITION BY COALESCE(m.thread_id, m.id), m.account_id ORDER BY m.date DESC) AS rn
+				FROM messages m
+				WHERE m.folder_id = ? AND m.is_hidden = 0
+			) m
+			WHERE m.rn = 1
+			GROUP BY category, m.sub_category
+		`
+		args = []any{folderID}
+	}
+	rows, err := s.db.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query category counts: %w", err)
+	}
+	defer rows.Close()
+	counts := &CategoryCounts{SubCategories: map[string]int{}}
+	for rows.Next() {
+		var category string
+		var subCategory sql.NullString
+		var n int
+		if err := rows.Scan(&category, &subCategory, &n); err != nil {
+			return nil, fmt.Errorf("failed to scan category count: %w", err)
+		}
+		counts.Total += n
+		switch category {
+		case enrich.CategoryAutomated:
+			counts.Automated += n
+			if subCategory.Valid && subCategory.String != "" {
+				counts.SubCategories[subCategory.String] += n
+			}
+		default:
+			// "personal" and anything unexpected count as Personal —
+			// the classifier only ever writes the two values, and an
+			// unknown value must not hide mail from the Personal tab.
+			counts.Personal += n
+		}
+	}
+	return counts, nil
 }
 
 // GetConversation returns messages in a conversation/thread from the specified folder plus Sent and Drafts
@@ -1625,6 +2597,8 @@ func (s *Store) GetConversation(threadID, folderID string) (*Conversation, error
 		       m.smime_encrypted, (m.smime_raw_body IS NOT NULL) as has_smime,
 		       m.pgp_status, m.pgp_signer_email, m.pgp_signer_key_id,
 		       m.pgp_encrypted, (m.pgp_raw_body IS NOT NULL) as has_pgp,
+		       m.list_unsubscribe, m.list_unsubscribe_post, m.category, m.sub_category,
+		       m.extract_kind, m.extract_value, m.extract_rule,
 		       m.received_at
 		FROM messages m
 		INNER JOIN folders f ON m.folder_id = f.id
@@ -1648,6 +2622,7 @@ func (s *Store) GetConversation(threadID, folderID string) (*Conversation, error
 		var messageID, inReplyTo, references, threadIDVal, toList, ccList, bccList, replyTo, snippetVal, bodyText, bodyHTML, readReceiptTo sql.NullString
 		var smimeStatus, smimeSignerEmail, smimeSignerSubject sql.NullString
 		var pgpStatus, pgpSignerEmail, pgpSignerKeyID sql.NullString
+		var listUnsubscribe, category, subCategory, extractKind, extractValue, extractRule sql.NullString
 		var dateStr, receivedAtStr sql.NullString
 		var uidI64 int64
 
@@ -1661,6 +2636,8 @@ func (s *Store) GetConversation(threadID, folderID string) (*Conversation, error
 			&m.SMIMEEncrypted, &m.HasSMIME,
 			&pgpStatus, &pgpSignerEmail, &pgpSignerKeyID,
 			&m.PGPEncrypted, &m.HasPGP,
+			&listUnsubscribe, &m.ListUnsubscribePost, &category, &subCategory,
+			&extractKind, &extractValue, &extractRule,
 			&receivedAtStr,
 		)
 		if err != nil {
@@ -1725,6 +2702,24 @@ func (s *Store) GetConversation(threadID, folderID string) (*Conversation, error
 		if pgpSignerKeyID.Valid {
 			m.PGPSignerKeyID = pgpSignerKeyID.String
 		}
+		if listUnsubscribe.Valid {
+			m.ListUnsubscribe = listUnsubscribe.String
+		}
+		if category.Valid {
+			m.Category = category.String
+		}
+		if subCategory.Valid {
+			m.SubCategory = subCategory.String
+		}
+		if extractKind.Valid {
+			m.ExtractKind = extractKind.String
+		}
+		if extractValue.Valid {
+			m.ExtractValue = extractValue.String
+		}
+		if extractRule.Valid {
+			m.ExtractRule = extractRule.String
+		}
 		if receivedAtStr.Valid && receivedAtStr.String != "" {
 			m.ReceivedAt = parseTimeString(receivedAtStr.String)
 		}
@@ -1782,6 +2777,17 @@ func (s *Store) GetConversation(threadID, folderID string) (*Conversation, error
 		Int("messageCount", len(c.Messages)).
 		Str("threadID", threadID).
 		Msg("GetConversation returning")
+
+	// The row chip acts on the latest message's extraction (Phase A).
+	for i := len(c.Messages) - 1; i >= 0; i-- {
+		if m := c.Messages[i]; m.ExtractKind != "" {
+			c.ExtractKind = m.ExtractKind
+			c.ExtractValue = m.ExtractValue
+			c.ExtractRule = m.ExtractRule
+			c.ExtractMessageID = m.ID
+			break
+		}
+	}
 
 	// Build participants from already-loaded messages (no extra query needed).
 	// Messages are date-ASC; iterate in reverse so Participants[0] is the
@@ -2280,6 +3286,8 @@ func (s *Store) GetByIDs(ids []string) ([]*Message, error) {
 		       smime_encrypted, (smime_raw_body IS NOT NULL) as has_smime,
 		       pgp_status, pgp_signer_email, pgp_signer_key_id,
 		       pgp_encrypted, (pgp_raw_body IS NOT NULL) as has_pgp,
+		       list_unsubscribe, list_unsubscribe_post, category, sub_category,
+		       extract_kind, extract_value, extract_rule,
 		       received_at
 		FROM messages WHERE id IN (%s)
 	`, strings.Join(placeholders, ", "))
@@ -2296,6 +3304,7 @@ func (s *Store) GetByIDs(ids []string) ([]*Message, error) {
 		var messageID, inReplyTo, references, threadID, toList, ccList, bccList, replyTo, snippet, bodyText, bodyHTML, readReceiptTo sql.NullString
 		var smimeStatus, smimeSignerEmail, smimeSignerSubject sql.NullString
 		var pgpStatus, pgpSignerEmail, pgpSignerKeyID sql.NullString
+		var listUnsubscribe, category, subCategory, extractKind, extractValue, extractRule sql.NullString
 		var dateStr, receivedAtStr sql.NullString
 		var uidI64 int64
 
@@ -2309,6 +3318,8 @@ func (s *Store) GetByIDs(ids []string) ([]*Message, error) {
 			&m.SMIMEEncrypted, &m.HasSMIME,
 			&pgpStatus, &pgpSignerEmail, &pgpSignerKeyID,
 			&m.PGPEncrypted, &m.HasPGP,
+			&listUnsubscribe, &m.ListUnsubscribePost, &category, &subCategory,
+			&extractKind, &extractValue, &extractRule,
 			&receivedAtStr,
 		)
 		if err != nil {
@@ -2373,6 +3384,24 @@ func (s *Store) GetByIDs(ids []string) ([]*Message, error) {
 		if pgpSignerKeyID.Valid {
 			m.PGPSignerKeyID = pgpSignerKeyID.String
 		}
+		if listUnsubscribe.Valid {
+			m.ListUnsubscribe = listUnsubscribe.String
+		}
+		if category.Valid {
+			m.Category = category.String
+		}
+		if subCategory.Valid {
+			m.SubCategory = subCategory.String
+		}
+		if extractKind.Valid {
+			m.ExtractKind = extractKind.String
+		}
+		if extractValue.Valid {
+			m.ExtractValue = extractValue.String
+		}
+		if extractRule.Valid {
+			m.ExtractRule = extractRule.String
+		}
 		if receivedAtStr.Valid && receivedAtStr.String != "" {
 			m.ReceivedAt = parseTimeString(receivedAtStr.String)
 		}
@@ -2432,6 +3461,10 @@ func (s *Store) SearchConversations(folderID, query string, offset, limit int, f
 			MAX(m.date) as latest_date,
 			GROUP_CONCAT(m.id) as message_ids,
 			MAX(CASE WHEN m.smime_encrypted = 1 OR m.pgp_encrypted = 1 THEN 1 ELSE 0 END) as is_encrypted,
+			(SELECT m2.extract_kind FROM messages m2 WHERE COALESCE(m2.thread_id, m2.id) = COALESCE(m.thread_id, m.id) AND m2.account_id = m.account_id ORDER BY m2.date DESC LIMIT 1) as extract_kind,
+			(SELECT m2.extract_value FROM messages m2 WHERE COALESCE(m2.thread_id, m2.id) = COALESCE(m.thread_id, m.id) AND m2.account_id = m.account_id ORDER BY m2.date DESC LIMIT 1) as extract_value,
+			(SELECT m2.extract_rule FROM messages m2 WHERE COALESCE(m2.thread_id, m2.id) = COALESCE(m.thread_id, m.id) AND m2.account_id = m.account_id ORDER BY m2.date DESC LIMIT 1) as extract_rule,
+			(SELECT m2.id FROM messages m2 WHERE COALESCE(m2.thread_id, m2.id) = COALESCE(m.thread_id, m.id) AND m2.account_id = m.account_id ORDER BY m2.date DESC LIMIT 1) as extract_message_id,
 			json_group_array(json_object('name', m.from_name, 'email', m.from_email, 'date', m.date, 'snippet', m.snippet)) as participants_json
 		FROM messages m
 		JOIN messages_fts fts ON m.rowid = fts.rowid
@@ -2456,6 +3489,7 @@ func (s *Store) SearchConversations(folderID, query string, offset, limit int, f
 		var fromName sql.NullString
 		var messageIDsStr sql.NullString
 		var participantsJSON sql.NullString
+		var extractKind, extractValue, extractRule, extractMessageID sql.NullString
 
 		err := rows.Scan(
 			&c.ThreadID,
@@ -2469,10 +3503,23 @@ func (s *Store) SearchConversations(folderID, query string, offset, limit int, f
 			&latestDateStr,
 			&messageIDsStr,
 			&c.IsEncrypted,
+			&extractKind, &extractValue, &extractRule, &extractMessageID,
 			&participantsJSON,
 		)
 		if err != nil {
 			return nil, 0, fmt.Errorf("failed to scan search result: %w", err)
+		}
+		if extractKind.Valid {
+			c.ExtractKind = extractKind.String
+		}
+		if extractValue.Valid {
+			c.ExtractValue = extractValue.String
+		}
+		if extractRule.Valid {
+			c.ExtractRule = extractRule.String
+		}
+		if extractMessageID.Valid {
+			c.ExtractMessageID = extractMessageID.String
 		}
 
 		if snippet.Valid {
@@ -2553,6 +3600,10 @@ func (s *Store) SearchConversationsUnifiedInbox(query string, offset, limit int,
 			MAX(m.date) as latest_date,
 			GROUP_CONCAT(m.id) as message_ids,
 			MAX(CASE WHEN m.smime_encrypted = 1 OR m.pgp_encrypted = 1 THEN 1 ELSE 0 END) as is_encrypted,
+			(SELECT m2.extract_kind FROM messages m2 WHERE COALESCE(m2.thread_id, m2.id) = COALESCE(m.thread_id, m.id) AND m2.account_id = m.account_id ORDER BY m2.date DESC LIMIT 1) as extract_kind,
+			(SELECT m2.extract_value FROM messages m2 WHERE COALESCE(m2.thread_id, m2.id) = COALESCE(m.thread_id, m.id) AND m2.account_id = m.account_id ORDER BY m2.date DESC LIMIT 1) as extract_value,
+			(SELECT m2.extract_rule FROM messages m2 WHERE COALESCE(m2.thread_id, m2.id) = COALESCE(m.thread_id, m.id) AND m2.account_id = m.account_id ORDER BY m2.date DESC LIMIT 1) as extract_rule,
+			(SELECT m2.id FROM messages m2 WHERE COALESCE(m2.thread_id, m2.id) = COALESCE(m.thread_id, m.id) AND m2.account_id = m.account_id ORDER BY m2.date DESC LIMIT 1) as extract_message_id,
 			a.id as account_id,
 			a.name as account_name,
 			a.color as account_color,
@@ -2585,6 +3636,7 @@ func (s *Store) SearchConversationsUnifiedInbox(query string, offset, limit int,
 		var fromName sql.NullString
 		var messageIDsStr sql.NullString
 		var participantsJSON sql.NullString
+		var extractKind, extractValue, extractRule, extractMessageID sql.NullString
 
 		err := rows.Scan(
 			&c.ThreadID,
@@ -2598,6 +3650,7 @@ func (s *Store) SearchConversationsUnifiedInbox(query string, offset, limit int,
 			&latestDateStr,
 			&messageIDsStr,
 			&c.IsEncrypted,
+			&extractKind, &extractValue, &extractRule, &extractMessageID,
 			&c.AccountID,
 			&c.AccountName,
 			&c.AccountColor,
@@ -2608,6 +3661,18 @@ func (s *Store) SearchConversationsUnifiedInbox(query string, offset, limit int,
 		)
 		if err != nil {
 			return nil, 0, fmt.Errorf("failed to scan unified search result: %w", err)
+		}
+		if extractKind.Valid {
+			c.ExtractKind = extractKind.String
+		}
+		if extractValue.Valid {
+			c.ExtractValue = extractValue.String
+		}
+		if extractRule.Valid {
+			c.ExtractRule = extractRule.String
+		}
+		if extractMessageID.Valid {
+			c.ExtractMessageID = extractMessageID.String
 		}
 
 		if snippet.Valid {
@@ -2714,4 +3779,3 @@ func highlightMatches(text, query string) string {
 
 	return highlighted
 }
-

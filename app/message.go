@@ -88,9 +88,11 @@ func (a *App) FetchMessageBody(messageID string) (*message.Message, error) {
 // GetConversations returns conversations (threaded messages) for a folder with pagination
 // sortOrder can be "newest" (default) or "oldest"
 // filter can be "" (all), "unread", "starred", or "attachments"
-func (a *App) GetConversations(accountID, folderID string, offset, limit int, sortOrder, filter string) ([]*message.Conversation, error) {
+// category can be "" (all tabs), "personal" or "automated"; subCategory
+// further filters inside the Automated tab ("" = all automated)
+func (a *App) GetConversations(accountID, folderID string, offset, limit int, sortOrder, filter, category, subCategory string) ([]*message.Conversation, error) {
 	start := time.Now()
-	convs, err := a.messageStore.ListConversationsByFolder(folderID, offset, limit, sortOrder, filter)
+	convs, err := a.messageStore.ListConversationsByFolder(folderID, offset, limit, sortOrder, filter, category, subCategory)
 	// List-query latency early vs. late in a session is the "it gets slow"
 	// signal; limit growth here is the reload-size ratchet.
 	log := logging.WithComponent("app")
@@ -105,14 +107,14 @@ func (a *App) GetConversations(accountID, folderID string, offset, limit int, so
 }
 
 // GetConversationCount returns the total conversation count for a folder
-func (a *App) GetConversationCount(accountID, folderID, filter string) (int, error) {
-	return a.messageStore.CountConversationsByFolder(folderID, filter)
+func (a *App) GetConversationCount(accountID, folderID, filter, category, subCategory string) (int, error) {
+	return a.messageStore.CountConversationsByFolder(folderID, filter, category, subCategory)
 }
 
 // GetUnifiedInboxConversations returns conversations from all inbox folders across all accounts
-func (a *App) GetUnifiedInboxConversations(offset, limit int, sortOrder, filter string) ([]*message.Conversation, error) {
+func (a *App) GetUnifiedInboxConversations(offset, limit int, sortOrder, filter, category, subCategory string) ([]*message.Conversation, error) {
 	start := time.Now()
-	convs, err := a.messageStore.ListConversationsUnifiedInbox(offset, limit, sortOrder, filter)
+	convs, err := a.messageStore.ListConversationsUnifiedInbox(offset, limit, sortOrder, filter, category, subCategory)
 	log := logging.WithComponent("app")
 	log.Info().
 		Int("offset", offset).
@@ -124,8 +126,8 @@ func (a *App) GetUnifiedInboxConversations(offset, limit int, sortOrder, filter 
 }
 
 // GetUnifiedInboxCount returns the total conversation count across all inbox folders
-func (a *App) GetUnifiedInboxCount(filter string) (int, error) {
-	return a.messageStore.CountConversationsUnifiedInbox(filter)
+func (a *App) GetUnifiedInboxCount(filter, category, subCategory string) (int, error) {
+	return a.messageStore.CountConversationsUnifiedInbox(filter, category, subCategory)
 }
 
 // GetUnifiedInboxUnreadCount returns the total unread count across all inbox folders

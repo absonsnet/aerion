@@ -20,14 +20,14 @@ Daak is a local application that runs on your computer. We do not provide any cl
 
 ## Open Source License
 
-Daak is licensed under the Apache License 2.0. You can:
+Daak is licensed under the GNU Affero General Public License v3.0. You can:
 
 - Use the software for any purpose
 - Distribute copies of the software
 - Modify the software and distribute your modifications
 - Use the software commercially
 
-Subject to the conditions of the Apache License 2.0, including preservation of copyright notices and disclaimers. The full license text is available in the LICENSE file included with the Application and at [https://github.com/absonsnet/daak](https://github.com/absonsnet/daak).
+Subject to the conditions of the GNU Affero General Public License v3.0, including preservation of copyright notices and disclaimers. The full license text is available in the LICENSE file included with the Application and at [https://github.com/absonsnet/daak](https://github.com/absonsnet/daak).
 
 ## User Responsibilities
 

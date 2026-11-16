@@ -412,6 +412,41 @@ func TestSetGetMessagePreviewPaneAndOpenMode(t *testing.T) {
 	}
 }
 
+func TestSetGetInboxTabDefault(t *testing.T) {
+	store := NewStore(openTestDB(t))
+
+	// Default: All — Daak must not hide mail behind a classifier on day one.
+	if got, err := store.GetInboxTabDefault(); err != nil || got != "all" {
+		t.Errorf("GetInboxTabDefault default: got %q, err %v, want %q", got, err, "all")
+	}
+
+	// Each tab round-trips.
+	for _, tab := range []string{"all", "personal", "automated"} {
+		if err := store.SetInboxTabDefault(tab); err != nil {
+			t.Fatalf("SetInboxTabDefault(%q): %v", tab, err)
+		}
+		if got, _ := store.GetInboxTabDefault(); got != tab {
+			t.Errorf("GetInboxTabDefault after %q: got %q", tab, got)
+		}
+	}
+
+	// Invalid tab is rejected and the previous value survives.
+	if err := store.SetInboxTabDefault("spam"); err == nil {
+		t.Errorf("SetInboxTabDefault(%q): expected error, got nil", "spam")
+	}
+	if got, _ := store.GetInboxTabDefault(); got != "automated" {
+		t.Errorf("GetInboxTabDefault after invalid set: got %q, want %q", got, "automated")
+	}
+
+	// Unknown stored value falls back to "all" instead of failing the load.
+	if err := store.Set(KeyInboxTabDefault, "bogus"); err != nil {
+		t.Fatalf("raw Set: %v", err)
+	}
+	if got, err := store.GetInboxTabDefault(); err != nil || got != "all" {
+		t.Errorf("GetInboxTabDefault unknown value: got %q, err %v, want %q", got, err, "all")
+	}
+}
+
 func TestSetGetLanguage(t *testing.T) {
 	tests := []struct {
 		name      string
