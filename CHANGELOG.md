@@ -1,5 +1,10 @@
 # CHANGELOG
 
+**v0.7.3 - 16-11-2026**
+---
+
+- The app logo is narrower than in v0.7.2 — width down 10%, height down 5% (half the width cut), back to the original height
+
 **v0.7.2 - 16-11-2026**
 ---
 

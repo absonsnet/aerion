@@ -60,12 +60,12 @@
       </div>
 
       <div class="space-y-4 max-h-[60vh] overflow-y-auto text-sm">
-        <p>🚀 Welcome to {APP_NAME} v0.7.2!</p>
+        <p>🚀 Welcome to {APP_NAME} v0.7.3!</p>
 
-        <p>v0.7.2 adjusts the app logo: it is slightly shorter than in v0.7.1, still a touch taller than the original. Here are the highlights of the release:</p>
+        <p>v0.7.3 adjusts the app logo: it is narrower than in v0.7.2 — width down 10%, height down 5%, back to the original height. Here are the highlights of the release:</p>
 
         <ul class="list-disc pl-6 space-y-1">
-          <li>✉️ The app logo is slightly shorter than in v0.7.1</li>
+          <li>✉️ The app logo is narrower than in v0.7.2</li>
         </ul>
 
         <p>🏷 See the full change log here:</p>

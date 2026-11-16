@@ -375,6 +375,13 @@
   </provides>
 
   <releases>
+    <release version="0.7.3" date="2026-11-16">
+      <description>
+        <ul>
+          <li>The app logo is narrower than in v0.7.2 — width down 10%, height down 5%, back to the original height</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.7.2" date="2026-11-16">
       <description>
         <ul>

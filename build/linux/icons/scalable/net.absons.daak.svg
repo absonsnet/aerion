@@ -1,15 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
-  <!-- Daak app icon: envelope in #0C5EF6, full width, transparent background.
-       Vector redraw of the approved envelope mark, stretched ~5% taller
-       about the centre; geometry measured from the raster master
-       (envelope 0-512 x 58-455, corner radii rx 75, ry 79; V flap from
-       the side edges at y=144 to the centre apex at y=318, band 43 wide). -->
+  <!-- Daak app icon: envelope in #0C5EF6, transparent background.
+       Vector redraw of the approved envelope mark, narrowed 10% about
+       the centre (height back to the original); geometry measured from
+       the raster master (envelope 26-486 x 67-445, corner radii rx 68,
+       ry 75; V flap from the side edges at y=149 to the centre apex at
+       y=315, band 41 wide). -->
   <defs>
     <mask id="daak-flap">
       <rect width="512" height="512" fill="#FFFFFF"/>
-      <polyline points="0,144 256,318 512,144" fill="none" stroke="#000000" stroke-width="43" stroke-linejoin="round"/>
+      <polyline points="26,149 256,315 486,149" fill="none" stroke="#000000" stroke-width="41" stroke-linejoin="round"/>
     </mask>
   </defs>
-  <rect x="0" y="58" width="512" height="397" rx="75" ry="79" fill="#0C5EF6" mask="url(#daak-flap)"/>
+  <rect x="26" y="67" width="461" height="378" rx="68" ry="75" fill="#0C5EF6" mask="url(#daak-flap)"/>
 </svg>
