@@ -56,10 +56,10 @@
         <defs>
           <mask id="daak-flap">
             <rect width="512" height="512" fill="#FFFFFF" />
-            <polyline points="0,149 256,315 512,149" fill="none" stroke="#000000" stroke-width="41" stroke-linejoin="round" />
+            <polyline points="0,136 256,322 512,136" fill="none" stroke="#000000" stroke-width="44" stroke-linejoin="round" />
           </mask>
         </defs>
-        <rect x="0" y="67" width="512" height="378" rx="75" fill="#0C5EF6" mask="url(#daak-flap)" />
+        <rect x="0" y="44" width="512" height="424" rx="75" ry="84" fill="#0C5EF6" mask="url(#daak-flap)" />
       </svg>
       <div class="text-center space-y-1">
         <h2 class="text-2xl font-bold text-foreground">{appInfo.name}</h2>
