@@ -60,18 +60,12 @@
       </div>
 
       <div class="space-y-4 max-h-[60vh] overflow-y-auto text-sm">
-        <p>🚀 Welcome to {APP_NAME} v0.7.1!</p>
+        <p>🚀 Welcome to {APP_NAME} v0.7.2!</p>
 
-        <p>v0.7.1 fixes the Settings dialog layout, the Dock icon, and the message-list width. It also adds unified folders and a single Google client. Here are the highlights of the release:</p>
+        <p>v0.7.2 adjusts the app logo: it is slightly shorter than in v0.7.1, still a touch taller than the original. Here are the highlights of the release:</p>
 
         <ul class="list-disc pl-6 space-y-1">
-          <li>⚙️ Settings dialog: the tab bar no longer overlaps the content below it</li>
-          <li>🖥️ Dock icon: the new envelope logo now shows in the Dock instead of the old one</li>
-          <li>🗔 Double-click the title bar to maximize or restore the window</li>
-          <li>↔️ Message list: drag the divider as wide as you like, and drag it to the right edge to close the preview pane</li>
-          <li>✉️ The app logo is slightly taller</li>
-          <li>📁 Unified folders: the UNIFIED section is expandable and its folders (Inbox, Starred, Sent, Draft, Spam, Trash, Outbox) open the combined view across all accounts; drag the folders to reorder them</li>
-          <li>🔑 Google sign-in: one Google client now backs mail, contacts and calendar — the separate testing client is gone</li>
+          <li>✉️ The app logo is slightly shorter than in v0.7.1</li>
         </ul>
 
         <p>🏷 See the full change log here:</p>

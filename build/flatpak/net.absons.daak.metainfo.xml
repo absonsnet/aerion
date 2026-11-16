@@ -375,6 +375,13 @@
   </provides>
 
   <releases>
+    <release version="0.7.2" date="2026-11-16">
+      <description>
+        <ul>
+          <li>The app logo is slightly shorter than in v0.7.1 — still a touch taller than the original</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.7.1" date="2026-11-16">
       <description>
         <ul>
