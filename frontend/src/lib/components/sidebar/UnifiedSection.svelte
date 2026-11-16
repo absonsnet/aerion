@@ -170,6 +170,12 @@
       aria-label={sectionExpanded ? $_('sidebar.collapseUnified') : $_('sidebar.expandUnified')}
       aria-expanded={sectionExpanded}
       onclick={toggleSection}
+      onkeydown={(e) => {
+        // Enter/Space on a focused sidebar button is swallowed by the
+        // app's global keydown handler; keep the event here so the
+        // button's native activation runs.
+        if (e.key === 'Enter' || e.key === ' ') e.stopPropagation()
+      }}
     >
       <Icon
         icon={sectionExpanded ? 'mdi:chevron-down' : 'mdi:chevron-right'}

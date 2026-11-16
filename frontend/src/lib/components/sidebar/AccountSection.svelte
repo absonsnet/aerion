@@ -109,9 +109,16 @@
        the account if it is collapsed. -->
   <div class="relative group flex items-center gap-0.5 px-2">
     <button
+      type="button"
       class="p-0.5 rounded hover:bg-muted transition-colors flex-shrink-0"
       aria-label={isExpanded ? $_('sidebar.collapseAccount') : $_('sidebar.expandAccount')}
       onclick={toggleExpanded}
+      onkeydown={(e) => {
+        // Enter/Space on a focused sidebar button is swallowed by the
+        // app's global keydown handler; keep the event here so the
+        // button's native activation runs.
+        if (e.key === 'Enter' || e.key === ' ') e.stopPropagation()
+      }}
     >
       <Icon
         icon={isExpanded ? 'mdi:chevron-down' : 'mdi:chevron-right'}
