@@ -8,6 +8,8 @@
 - Double-click the title bar to maximize or restore the window
 - Message list: drag the divider as wide as you like, and drag it to the right edge to close the preview pane
 - The app logo is slightly taller
+- Unified folders: the UNIFIED section in the sidebar is expandable and its folders (Inbox, Starred, Sent, Draft, Spam, Trash, Outbox) open the combined view across all accounts; drag the folders to reorder them
+- Google sign-in: one Google client now backs mail, contacts and calendar — the separate testing client is gone
 
 **v0.7.0 - 15-11-2026**
 ---
