@@ -26,7 +26,7 @@
   import * as AlertDialog from '$lib/components/ui/alert-dialog'
   import { accountStore } from '$lib/stores/accounts.svelte'
   import { addToast } from '$lib/stores/toast'
-  import { loadSettings, getThemeMode, getShowTitleBar, getNativeTitleBar, getComposerMode, getMailtoMode, getShowMessagePreviewPane, getMessageOpenMode, type MessageOpenMode } from '$lib/stores/settings.svelte'
+  import { loadSettings, getThemeMode, getShowTitleBar, getNativeTitleBar, getComposerMode, getMailtoMode, getShowMessagePreviewPane, setShowMessagePreviewPane, getMessageOpenMode, type MessageOpenMode } from '$lib/stores/settings.svelte'
   import { loadWindowControlsLayout } from '$lib/stores/windowControls.svelte'
   import { loadImageAllowlist } from '$lib/stores/imageAllowlist.svelte'
   import { initTheme, applyThemeFromMode, handleSystemThemeEvent, handleMediaQueryChange } from '$lib/stores/theme.svelte'
@@ -47,7 +47,7 @@
   import { dispatchExtensionShortcut } from '$lib/stores/extensionShortcuts.svelte'
   import { initLayout, getLayoutMode, getResponsiveView, showViewer, hideViewer, showSidebar, hideSidebar, isResponsive } from '$lib/stores/layout.svelte'
   // @ts-ignore - wailsjs path
-  import { PrepareReply, GetPendingMailto, GetDraft, MarkAsRead, MarkAsUnread, Star, Unstar, Archive, MarkAsSpam, MarkAsNotSpam, Undo, GetTermsAccepted, SetTermsAccepted, RefreshWindowConstraints, AcceptCertificate, GetStartHiddenActive, CloseWindow, QuitApp, OpenComposerWindow, OpenViewerWindow, GetSystemTheme, NotifyStartupComplete, GetOAuthBuildStatus, GetOAuthWarningDisabled, SetOAuthWarningDisabled, GetLastSeenVersion, SetLastSeenVersion, GetAppInfo } from '../wailsjs/go/app/App.js'
+  import { PrepareReply, GetPendingMailto, GetDraft, MarkAsRead, MarkAsUnread, Star, Unstar, Archive, MarkAsSpam, MarkAsNotSpam, Undo, GetTermsAccepted, SetTermsAccepted, RefreshWindowConstraints, AcceptCertificate, GetStartHiddenActive, CloseWindow, QuitApp, OpenComposerWindow, OpenViewerWindow, GetSystemTheme, NotifyStartupComplete, GetOAuthBuildStatus, GetOAuthWarningDisabled, SetOAuthWarningDisabled, GetLastSeenVersion, SetLastSeenVersion, GetAppInfo, SetShowMessagePreviewPane } from '../wailsjs/go/app/App.js'
   // @ts-ignore - wailsjs path
   import { smtp, folder, certificate } from '../wailsjs/go/models'
   // @ts-ignore - wailsjs runtime
@@ -1012,6 +1012,13 @@
   // Resizing state
   let isResizingSidebar = $state(false)
   let isResizingList = $state(false)
+  // Width the list had when a list drag started. Dragging the divider to
+  // the far right edge turns the preview pane off, and the stored width
+  // must stay as it was so re-enabling the pane restores it.
+  let listWidthBeforeDrag = 420
+  // How close to the window's right edge (px) the pointer must get during
+  // a list drag to close the preview pane.
+  const LIST_DRAG_CLOSE_EDGE_PX = 6
 
   function startResizeSidebar(e: MouseEvent) {
     if (isResponsive()) return
@@ -1021,14 +1028,41 @@
 
   function startResizeList(e: MouseEvent) {
     if (isResponsive()) return
+    listWidthBeforeDrag = listWidth
     isResizingList = true
     e.preventDefault()
+  }
+
+  // Turn the preview pane off through the same setting the Settings
+  // toggle uses, so it is persisted and survives a restart.
+  async function turnOffPreviewPane() {
+    try {
+      await SetShowMessagePreviewPane(false)
+      setShowMessagePreviewPane(false)
+    } catch (err) {
+      console.error('Failed to turn off preview pane:', err)
+    }
   }
 
   function handleMouseMove(e: MouseEvent) {
     if (isResizingSidebar) {
       sidebarWidth = Math.max(paneConstraints.sidebar.min, Math.min(paneConstraints.sidebar.max, e.clientX))
     } else if (isResizingList) {
+      // Dragging the divider to the far right edge of the window closes
+      // the preview pane directly. Only while the pane is on and the
+      // layout is the list+preview (full) mode — the divider only exists
+      // in that mode, but check anyway. The stored width is left as it
+      // was, so turning the pane back on restores the previous width.
+      if (
+        getShowMessagePreviewPane() &&
+        getLayoutMode() === 'full' &&
+        e.clientX >= window.innerWidth - LIST_DRAG_CLOSE_EDGE_PX
+      ) {
+        void turnOffPreviewPane()
+        listWidth = listWidthBeforeDrag
+        isResizingList = false
+        return
+      }
       listWidth = Math.max(paneConstraints.list.min, Math.min(paneConstraints.list.max, e.clientX - sidebarWidth))
     }
   }
