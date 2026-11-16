@@ -3275,7 +3275,13 @@ func (s *Store) ExpandToFolderCopies(ids []string) ([]string, error) {
 }
 
 // GetIDsByMessageIDs finds local DB message IDs by RFC822 Message-ID header and folder.
-// Only returns messages with positive UIDs (excludes temp rows from in-flight moves).
+// It deliberately includes rows with negative placeholder UIDs: MoveMessages
+// stamps just-moved rows uid = -rowid until the destination sync replaces
+// them with server-assigned UIDs, and this lookup exists for the undo path,
+// which must find a message in the seconds after its move — while the toast
+// is still up. Filtering uid > 0 here made Undo fail with "messages not
+// found in destination folder" whenever the destination sync had not
+// finished yet (and always, on accounts whose sync cannot complete).
 func (s *Store) GetIDsByMessageIDs(accountID, folderID string, rfc822MessageIDs []string) ([]string, error) {
 	if len(rfc822MessageIDs) == 0 {
 		return nil, nil
@@ -3289,7 +3295,7 @@ func (s *Store) GetIDsByMessageIDs(accountID, folderID string, rfc822MessageIDs 
 	}
 
 	query := fmt.Sprintf(
-		"SELECT id FROM messages WHERE account_id = ? AND folder_id = ? AND uid > 0 AND message_id IN (%s)",
+		"SELECT id FROM messages WHERE account_id = ? AND folder_id = ? AND message_id IN (%s)",
 		strings.Join(placeholders, ", "),
 	)
 
