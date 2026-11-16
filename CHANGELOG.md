@@ -1,5 +1,10 @@
 # CHANGELOG
 
+**v0.7.2 - 16-11-2026**
+---
+
+- The app logo is slightly shorter than in v0.7.1 — still a touch taller than the original
+
 **v0.7.1 - 16-11-2026**
 ---
 
