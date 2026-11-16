@@ -1,5 +1,12 @@
 # CHANGELOG
 
+**v0.7.5 - 17-11-2026**
+---
+
+- Calendar: linking a Google account now includes calendar access, so the calendar works straight away with no separate calendar link step — if calendar access was declined, the calendar shows its own Connect action instead
+- Sidebar divider: it now snaps at the level where it starts hiding accounts or unified folders, and a section scrolls with a visible scrollbar when something in it is hidden
+- Archive, Delete and Undo fixed — archiving falls back to All Mail when there is no Archive folder, and Undo restores a message even seconds after it was moved
+
 **v0.7.4 - 16-11-2026**
 ---
 
