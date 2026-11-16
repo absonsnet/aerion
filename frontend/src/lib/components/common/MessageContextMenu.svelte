@@ -8,6 +8,7 @@
   } from '$lib/components/ui/context-menu'
   import {
     GetAccounts,
+    GetMessage,
     MarkAsRead,
     MarkAsUnread,
     Star,
@@ -21,6 +22,7 @@
     CopyToFolder,
     Undo,
     GetUnsubscribeStatuses,
+    SetSenderCategoryOverride,
   } from '../../../../wailsjs/go/app/App'
   // @ts-ignore - wailsjs path
   import { account, app as appModels } from '../../../../wailsjs/go/models'
@@ -69,6 +71,11 @@
   let unsubscribeStatus = $state<appModels.UnsubscribeStatus | null>(null)
   let unsubscribeLoaded = $state(false)
 
+  // Sender address for the "wrong tab" correction (Phase E): loaded
+  // lazily when the menu opens, single message only. "" = not known yet.
+  let senderEmail = $state('')
+  let senderLoaded = $state(false)
+
   // Reset the per-message unsubscribe state when the menu's target
   // changes (a row component can be reused for another conversation).
   // Compare the id, not the array: callers pass a fresh array literal
@@ -80,6 +87,8 @@
       lastUnsubMessageId = id
       unsubscribeStatus = null
       unsubscribeLoaded = false
+      senderEmail = ''
+      senderLoaded = false
     }
   })
 
@@ -141,11 +150,25 @@
     }
   }
 
+  // Load the sender address when the context menu opens (used by the
+  // "Always treat mail from this sender as …" items). Single message only.
+  async function loadSenderEmail() {
+    if (senderLoaded || !isSingleMessage) return
+    senderLoaded = true
+    try {
+      const msg = await GetMessage(messageIds[0])
+      senderEmail = msg?.fromEmail ?? ''
+    } catch (err) {
+      console.error('Failed to load sender for category override:', err)
+    }
+  }
+
   // Handle menu open
   function handleOpenChange(open: boolean) {
     if (open) {
       loadAccounts()
       loadUnsubscribeStatus()
+      loadSenderEmail()
     }
     onOpenChange?.(open)
   }
@@ -282,6 +305,26 @@
       },
       onMoved: () => onActionComplete?.(),
     })
+  }
+
+  // "Wrong tab" correction (Phase E): file all mail from this sender
+  // under the chosen category from now on, and re-file what is already
+  // stored. The list reloads via onActionComplete; there is nothing to
+  // undo — no mail moves folders.
+  async function handleTreatAs(category: 'personal' | 'automated') {
+    if (!senderEmail) return
+    try {
+      await SetSenderCategoryOverride(senderEmail, category)
+      toasts.success(
+        $_(category === 'personal' ? 'toast.senderTreatedAsPersonal' : 'toast.senderTreatedAsAutomated', {
+          values: { sender: senderEmail },
+        })
+      )
+      onActionComplete?.()
+    } catch (err) {
+      console.error('Failed to set sender category override:', err)
+      toasts.error($_('toast.failedToSetSenderCategory'))
+    }
   }
 
   function openMoveTo() {
@@ -431,6 +474,20 @@
       />
       {$_(isRead ? 'contextMenu.markAsUnread' : 'contextMenu.markAsRead')}
     </ContextMenuItem>
+
+    {#if isSingleMessage && senderEmail}
+      <ContextMenuSeparator />
+      <!-- "Wrong tab" correction (Phase E): the sender override beats
+           every heuristic, for all future mail from this sender. -->
+      <ContextMenuItem onSelect={() => handleTreatAs('personal')}>
+        <Icon icon="mdi:account-outline" class="mr-2 h-4 w-4" />
+        {$_('contextMenu.treatAsPersonal')}
+      </ContextMenuItem>
+      <ContextMenuItem onSelect={() => handleTreatAs('automated')}>
+        <Icon icon="mdi:robot-outline" class="mr-2 h-4 w-4" />
+        {$_('contextMenu.treatAsAutomated')}
+      </ContextMenuItem>
+    {/if}
   </ContextMenuContent>
 </ContextMenuPrimitive.Root>
 

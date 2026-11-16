@@ -506,6 +506,10 @@ export function GetAutostart() {
   return window['go']['app']['App']['GetAutostart']();
 }
 
+export function GetBackfillStatus() {
+  return window['go']['app']['App']['GetBackfillStatus']();
+}
+
 export function GetBergamotEngineStatus() {
   return window['go']['app']['App']['GetBergamotEngineStatus']();
 }
@@ -524,6 +528,10 @@ export function GetBergamotSupportedPairs() {
 
 export function GetCachedTranslation(arg1, arg2, arg3) {
   return window['go']['app']['App']['GetCachedTranslation'](arg1, arg2, arg3);
+}
+
+export function GetCategoryCounts(arg1, arg2) {
+  return window['go']['app']['App']['GetCategoryCounts'](arg1, arg2);
 }
 
 export function GetCodeChipClickMode() {
@@ -578,12 +586,12 @@ export function GetConversation(arg1, arg2) {
   return window['go']['app']['App']['GetConversation'](arg1, arg2);
 }
 
-export function GetConversationCount(arg1, arg2, arg3) {
-  return window['go']['app']['App']['GetConversationCount'](arg1, arg2, arg3);
+export function GetConversationCount(arg1, arg2, arg3, arg4, arg5) {
+  return window['go']['app']['App']['GetConversationCount'](arg1, arg2, arg3, arg4, arg5);
 }
 
-export function GetConversations(arg1, arg2, arg3, arg4, arg5, arg6) {
-  return window['go']['app']['App']['GetConversations'](arg1, arg2, arg3, arg4, arg5, arg6);
+export function GetConversations(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8) {
+  return window['go']['app']['App']['GetConversations'](arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
 }
 
 export function GetCustomOAuthAccounts() {
@@ -644,6 +652,10 @@ export function GetIdentity(arg1) {
 
 export function GetImageAllowlist() {
   return window['go']['app']['App']['GetImageAllowlist']();
+}
+
+export function GetInboxTabDefault() {
+  return window['go']['app']['App']['GetInboxTabDefault']();
 }
 
 export function GetInlineAttachments(arg1) {
@@ -786,6 +798,10 @@ export function GetSearchCountUnifiedInbox(arg1, arg2) {
   return window['go']['app']['App']['GetSearchCountUnifiedInbox'](arg1, arg2);
 }
 
+export function GetSenderCategoryOverrides() {
+  return window['go']['app']['App']['GetSenderCategoryOverrides']();
+}
+
 export function GetShowMessageListCircles() {
   return window['go']['app']['App']['GetShowMessageListCircles']();
 }
@@ -870,12 +886,12 @@ export function GetUndoDescription() {
   return window['go']['app']['App']['GetUndoDescription']();
 }
 
-export function GetUnifiedInboxConversations(arg1, arg2, arg3, arg4) {
-  return window['go']['app']['App']['GetUnifiedInboxConversations'](arg1, arg2, arg3, arg4);
+export function GetUnifiedInboxConversations(arg1, arg2, arg3, arg4, arg5, arg6) {
+  return window['go']['app']['App']['GetUnifiedInboxConversations'](arg1, arg2, arg3, arg4, arg5, arg6);
 }
 
-export function GetUnifiedInboxCount(arg1) {
-  return window['go']['app']['App']['GetUnifiedInboxCount'](arg1);
+export function GetUnifiedInboxCount(arg1, arg2, arg3) {
+  return window['go']['app']['App']['GetUnifiedInboxCount'](arg1, arg2, arg3);
 }
 
 export function GetUnifiedInboxUnreadCount() {
@@ -1302,6 +1318,10 @@ export function RemovePGPKeyServer(arg1) {
   return window['go']['app']['App']['RemovePGPKeyServer'](arg1);
 }
 
+export function RemoveSenderCategoryOverride(arg1) {
+  return window['go']['app']['App']['RemoveSenderCategoryOverride'](arg1);
+}
+
 export function RemoveSpellcheckCustomWord(arg1) {
   return window['go']['app']['App']['RemoveSpellcheckCustomWord'](arg1);
 }
@@ -1320,6 +1340,10 @@ export function ResolveMessageUID(arg1) {
 
 export function RunEnrichmentBackfill() {
   return window['go']['app']['App']['RunEnrichmentBackfill']();
+}
+
+export function RunEnrichmentBackfillNow() {
+  return window['go']['app']['App']['RunEnrichmentBackfillNow']();
 }
 
 export function SaveAllAttachments(arg1) {
@@ -1466,6 +1490,10 @@ export function SetExtensionEnabled(arg1, arg2) {
   return window['go']['app']['App']['SetExtensionEnabled'](arg1, arg2);
 }
 
+export function SetInboxTabDefault(arg1) {
+  return window['go']['app']['App']['SetInboxTabDefault'](arg1);
+}
+
 export function SetLanguage(arg1) {
   return window['go']['app']['App']['SetLanguage'](arg1);
 }
@@ -1540,6 +1568,10 @@ export function SetSMIMESignPolicy(arg1, arg2) {
 
 export function SetSenderAutoDelete(arg1, arg2, arg3) {
   return window['go']['app']['App']['SetSenderAutoDelete'](arg1, arg2, arg3);
+}
+
+export function SetSenderCategoryOverride(arg1, arg2) {
+  return window['go']['app']['App']['SetSenderCategoryOverride'](arg1, arg2);
 }
 
 export function SetShowMessageListCircles(arg1) {

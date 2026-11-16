@@ -61,6 +61,63 @@ func filterWhereClause(filter, prefix string) string {
 	}
 }
 
+// categoryFilterClause returns a WHERE fragment (plus its bound args)
+// restricting a conversation list/count to one category tab (Phase E).
+// category is "" (All — no restriction), "personal" or "automated";
+// subCategory further restricts inside the Automated tab ("" = all
+// automated). prefix is "" or "m." for the outer row's columns, and
+// scopeColumn is the column the thread's latest message must share with
+// the outer row ("folder_id" for a single folder, "account_id" for the
+// Unified Inbox — the list groups by (thread, account) there).
+//
+// A conversation belongs to a tab by its LATEST message's category, so
+// the condition is evaluated per row in WHERE (constant per thread —
+// every row of a thread passes or fails together), never in HAVING,
+// where a correlated subquery would see an arbitrary group row.
+//
+// Rows never classified (category IS NULL) count as Personal: the
+// classifier defaults to Personal, so un-backfilled mail must not vanish
+// from the Personal tab while the backfill is still running.
+func categoryFilterClause(category, subCategory, prefix, scopeColumn string) (string, []any) {
+	switch category {
+	case "", "all":
+		return "", nil
+	case enrich.CategoryPersonal, enrich.CategoryAutomated:
+	default:
+		// Unknown tab value: show nothing rather than the whole folder.
+		return " AND 1 = 0", nil
+	}
+	latestCategory := fmt.Sprintf(
+		`(SELECT m2.category FROM messages m2 WHERE COALESCE(m2.thread_id, m2.id) = COALESCE(%sthread_id, %sid) AND m2.%s = %s%s ORDER BY m2.date DESC LIMIT 1)`,
+		prefix, prefix, scopeColumn, prefix, scopeColumn,
+	)
+	clause := fmt.Sprintf(" AND COALESCE(%s, 'personal') = ?", latestCategory)
+	args := []any{category}
+	if subCategory != "" {
+		if category != enrich.CategoryAutomated {
+			// Sub-categories only exist inside the Automated tab.
+			return " AND 1 = 0", nil
+		}
+		latestSub := fmt.Sprintf(
+			`(SELECT m2.sub_category FROM messages m2 WHERE COALESCE(m2.thread_id, m2.id) = COALESCE(%sthread_id, %sid) AND m2.%s = %s%s ORDER BY m2.date DESC LIMIT 1)`,
+			prefix, prefix, scopeColumn, prefix, scopeColumn,
+		)
+		clause += fmt.Sprintf(" AND %s = ?", latestSub)
+		args = append(args, subCategory)
+	}
+	return clause, args
+}
+
+// CategoryCounts is the per-tab conversation count for one list scope
+// (Phase E): the three category tabs plus, inside Automated, one count
+// per sub-category. NULL (never classified) counts as Personal.
+type CategoryCounts struct {
+	Personal      int            `json:"personal"`
+	Automated     int            `json:"automated"`
+	Total         int            `json:"total"`
+	SubCategories map[string]int `json:"subCategories"`
+}
+
 // ListByFolder returns message headers for a folder with pagination
 func (s *Store) ListByFolder(folderID string, offset, limit int) ([]*MessageHeader, error) {
 	query := `
@@ -123,12 +180,16 @@ func (s *Store) ListByFolder(folderID string, offset, limit int) ([]*MessageHead
 
 // ListConversationsUnifiedInbox returns conversations from all inbox folders across all accounts
 // This is used for the unified inbox view
-func (s *Store) ListConversationsUnifiedInbox(offset, limit int, sortOrder, filter string) ([]*Conversation, error) {
+func (s *Store) ListConversationsUnifiedInbox(offset, limit int, sortOrder, filter, category, subCategory string) ([]*Conversation, error) {
 	// Determine sort direction
 	orderClause := "ORDER BY latest_date DESC"
 	if sortOrder == "oldest" {
 		orderClause = "ORDER BY latest_date ASC"
 	}
+
+	// Phase E: category tab filter ("" = All). A conversation belongs to
+	// a tab by its latest message's category.
+	categoryClause, categoryArgs := categoryFilterClause(category, subCategory, "m.", "account_id")
 
 	// Query conversations from all inbox folders, joining with accounts for name and color
 	query := `
@@ -147,6 +208,8 @@ func (s *Store) ListConversationsUnifiedInbox(offset, limit int, sortOrder, filt
 			(SELECT m2.extract_value FROM messages m2 WHERE COALESCE(m2.thread_id, m2.id) = COALESCE(m.thread_id, m.id) AND m2.account_id = m.account_id ORDER BY m2.date DESC LIMIT 1) as extract_value,
 			(SELECT m2.extract_rule FROM messages m2 WHERE COALESCE(m2.thread_id, m2.id) = COALESCE(m.thread_id, m.id) AND m2.account_id = m.account_id ORDER BY m2.date DESC LIMIT 1) as extract_rule,
 			(SELECT m2.id FROM messages m2 WHERE COALESCE(m2.thread_id, m2.id) = COALESCE(m.thread_id, m.id) AND m2.account_id = m.account_id ORDER BY m2.date DESC LIMIT 1) as extract_message_id,
+			(SELECT m2.category FROM messages m2 WHERE COALESCE(m2.thread_id, m2.id) = COALESCE(m.thread_id, m.id) AND m2.account_id = m.account_id ORDER BY m2.date DESC LIMIT 1) as category,
+			(SELECT m2.sub_category FROM messages m2 WHERE COALESCE(m2.thread_id, m2.id) = COALESCE(m.thread_id, m.id) AND m2.account_id = m.account_id ORDER BY m2.date DESC LIMIT 1) as sub_category,
 			a.id as account_id,
 			a.name as account_name,
 			a.color as account_color,
@@ -155,14 +218,15 @@ func (s *Store) ListConversationsUnifiedInbox(offset, limit int, sortOrder, filt
 		FROM messages m
 		INNER JOIN folders f ON m.folder_id = f.id AND f.folder_type = 'inbox'
 		INNER JOIN accounts a ON f.account_id = a.id AND a.enabled = 1
-		WHERE m.is_hidden = 0
+		WHERE m.is_hidden = 0` + categoryClause + `
 		GROUP BY COALESCE(m.thread_id, m.id), a.id` +
 		filterHavingClause(filter, "m.") + `
 		` + orderClause + `
 		LIMIT ? OFFSET ?
 	`
 
-	rows, err := s.db.Query(query, limit, offset)
+	args := append(append([]any{}, categoryArgs...), limit, offset)
+	rows, err := s.db.Query(query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query unified inbox conversations: %w", err)
 	}
@@ -176,6 +240,7 @@ func (s *Store) ListConversationsUnifiedInbox(offset, limit int, sortOrder, filt
 		var messageIDsStr sql.NullString
 		var participantsJSON sql.NullString
 		var extractKind, extractValue, extractRule, extractMessageID sql.NullString
+		var categoryVal, subCategoryVal sql.NullString
 
 		err := rows.Scan(
 			&c.ThreadID,
@@ -189,6 +254,7 @@ func (s *Store) ListConversationsUnifiedInbox(offset, limit int, sortOrder, filt
 			&messageIDsStr,
 			&c.IsEncrypted,
 			&extractKind, &extractValue, &extractRule, &extractMessageID,
+			&categoryVal, &subCategoryVal,
 			&c.AccountID,
 			&c.AccountName,
 			&c.AccountColor,
@@ -209,6 +275,12 @@ func (s *Store) ListConversationsUnifiedInbox(offset, limit int, sortOrder, filt
 		}
 		if extractMessageID.Valid {
 			c.ExtractMessageID = extractMessageID.String
+		}
+		if categoryVal.Valid {
+			c.Category = categoryVal.String
+		}
+		if subCategoryVal.Valid {
+			c.SubCategory = subCategoryVal.String
 		}
 
 		if snippet.Valid {
@@ -238,12 +310,14 @@ func (s *Store) ListConversationsUnifiedInbox(offset, limit int, sortOrder, filt
 }
 
 // CountConversationsUnifiedInbox returns the total count of conversations across all inbox folders
-func (s *Store) CountConversationsUnifiedInbox(filter string) (int, error) {
+func (s *Store) CountConversationsUnifiedInbox(filter, category, subCategory string) (int, error) {
 	filterCond := filterWhereClause(filter, "m.")
+	categoryClause, categoryArgs := categoryFilterClause(category, subCategory, "m.", "account_id")
 	wherePart := " WHERE m.is_hidden = 0"
 	if filterCond != "" {
 		wherePart += filterCond
 	}
+	wherePart += categoryClause
 
 	query := `
 		SELECT COUNT(DISTINCT COALESCE(m.thread_id, m.id) || '-' || a.id)
@@ -253,7 +327,7 @@ func (s *Store) CountConversationsUnifiedInbox(filter string) (int, error) {
 	` + wherePart
 
 	var count int
-	err := s.db.QueryRow(query).Scan(&count)
+	err := s.db.QueryRow(query, categoryArgs...).Scan(&count)
 	if err != nil {
 		return 0, fmt.Errorf("failed to count unified inbox conversations: %w", err)
 	}
@@ -1485,6 +1559,80 @@ func (s *Store) GetSenderCategoryOverride(email string) (string, bool, error) {
 	return category, true, nil
 }
 
+// SetSenderCategoryOverride records the user's "Always treat mail from
+// this sender as ..." choice (Phase E, rule 1 of the classifier). The
+// address is stored lower-cased; a later call for the same sender
+// replaces the row.
+func (s *Store) SetSenderCategoryOverride(email, category string) error {
+	switch category {
+	case enrich.CategoryPersonal, enrich.CategoryAutomated:
+	default:
+		return fmt.Errorf("invalid category: %s (must be 'personal' or 'automated')", category)
+	}
+	_, err := s.db.Exec(
+		"INSERT INTO sender_category_overrides (sender_address, category) VALUES (?, ?) "+
+			"ON CONFLICT(sender_address) DO UPDATE SET category = excluded.category, created_at = CURRENT_TIMESTAMP",
+		strings.ToLower(strings.TrimSpace(email)), category,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to set sender override: %w", err)
+	}
+	return nil
+}
+
+// DeleteSenderCategoryOverride removes a sender override. Future mail
+// from the sender is classified by the heuristics again; mail already
+// stored keeps its stored category until it is re-enriched.
+func (s *Store) DeleteSenderCategoryOverride(email string) error {
+	_, err := s.db.Exec(
+		"DELETE FROM sender_category_overrides WHERE sender_address = ?",
+		strings.ToLower(strings.TrimSpace(email)),
+	)
+	if err != nil {
+		return fmt.Errorf("failed to delete sender override: %w", err)
+	}
+	return nil
+}
+
+// ApplySenderCategoryOverride re-files every stored message from the
+// sender under the override category, so the "wrong tab" correction
+// takes effect on mail already in the list, not just on future syncs.
+// A Personal override also clears the sub-category and any extracted
+// code/reference (extraction only exists for Automated mail); an
+// Automated override keeps the stored sub-category, if the classifier
+// already computed one. Returns the number of messages re-filed.
+func (s *Store) ApplySenderCategoryOverride(email, category string) (int64, error) {
+	switch category {
+	case enrich.CategoryPersonal, enrich.CategoryAutomated:
+	default:
+		return 0, fmt.Errorf("invalid category: %s (must be 'personal' or 'automated')", category)
+	}
+	addr := strings.ToLower(strings.TrimSpace(email))
+	var res sql.Result
+	var err error
+	if category == enrich.CategoryPersonal {
+		res, err = s.db.Exec(
+			`UPDATE messages SET category = ?, sub_category = NULL,
+				extract_kind = NULL, extract_value = NULL, extract_rule = NULL
+				WHERE lower(from_email) = ?`,
+			category, addr,
+		)
+	} else {
+		res, err = s.db.Exec(
+			`UPDATE messages SET category = ? WHERE lower(from_email) = ?`,
+			category, addr,
+		)
+	}
+	if err != nil {
+		return 0, fmt.Errorf("failed to apply sender override: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("failed to count re-filed messages: %w", err)
+	}
+	return n, nil
+}
+
 // IsKnownPersonalSender reports whether the sender is in contacts and has
 // emailed as a person before (a collected contact with send history).
 func (s *Store) IsKnownPersonalSender(email string) (bool, error) {
@@ -2041,12 +2189,16 @@ func parseTimeString(s string) time.Time {
 
 // ListConversationsByFolder returns conversations (grouped by thread) for a folder with pagination
 // sortOrder can be "newest" (default) or "oldest"
-func (s *Store) ListConversationsByFolder(folderID string, offset, limit int, sortOrder, filter string) ([]*Conversation, error) {
+func (s *Store) ListConversationsByFolder(folderID string, offset, limit int, sortOrder, filter, category, subCategory string) ([]*Conversation, error) {
 	// Determine sort direction
 	orderClause := "ORDER BY latest_date DESC"
 	if sortOrder == "oldest" {
 		orderClause = "ORDER BY latest_date ASC"
 	}
+
+	// Phase E: category tab filter ("" = All). A conversation belongs to
+	// a tab by its latest message's category.
+	categoryClause, categoryArgs := categoryFilterClause(category, subCategory, "m.", "folder_id")
 
 	// Pre-fetch folder type so we can pick the right participants
 	// aggregation. Sent and Drafts folders should surface the recipient
@@ -2088,16 +2240,19 @@ func (s *Store) ListConversationsByFolder(folderID string, offset, limit int, so
 			(SELECT m2.extract_value FROM messages m2 WHERE COALESCE(m2.thread_id, m2.id) = COALESCE(m.thread_id, m.id) AND m2.account_id = m.account_id ORDER BY m2.date DESC LIMIT 1) as extract_value,
 			(SELECT m2.extract_rule FROM messages m2 WHERE COALESCE(m2.thread_id, m2.id) = COALESCE(m.thread_id, m.id) AND m2.account_id = m.account_id ORDER BY m2.date DESC LIMIT 1) as extract_rule,
 			(SELECT m2.id FROM messages m2 WHERE COALESCE(m2.thread_id, m2.id) = COALESCE(m.thread_id, m.id) AND m2.account_id = m.account_id ORDER BY m2.date DESC LIMIT 1) as extract_message_id,
+			(SELECT m2.category FROM messages m2 WHERE COALESCE(m2.thread_id, m2.id) = COALESCE(m.thread_id, m.id) AND m2.account_id = m.account_id ORDER BY m2.date DESC LIMIT 1) as category,
+			(SELECT m2.sub_category FROM messages m2 WHERE COALESCE(m2.thread_id, m2.id) = COALESCE(m.thread_id, m.id) AND m2.account_id = m.account_id ORDER BY m2.date DESC LIMIT 1) as sub_category,
 			%s as participants_json
 		FROM messages m
-		WHERE folder_id = ? AND is_hidden = 0
+		WHERE folder_id = ? AND is_hidden = 0`+categoryClause+`
 		GROUP BY COALESCE(thread_id, id)`+
 		filterHavingClause(filter, "")+`
 		`+orderClause+`
 		LIMIT ? OFFSET ?
 	`, participantsExpr)
 
-	rows, err := s.db.Query(query, folderID, limit, offset)
+	args := append(append([]any{folderID}, categoryArgs...), limit, offset)
+	rows, err := s.db.Query(query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query conversations: %w", err)
 	}
@@ -2112,6 +2267,7 @@ func (s *Store) ListConversationsByFolder(folderID string, offset, limit int, so
 		var participantsJSON sql.NullString
 
 		var extractKind, extractValue, extractRule, extractMessageID sql.NullString
+		var categoryVal, subCategoryVal sql.NullString
 		err := rows.Scan(
 			&c.ThreadID,
 			&c.Subject,
@@ -2124,6 +2280,7 @@ func (s *Store) ListConversationsByFolder(folderID string, offset, limit int, so
 			&messageIDsStr,
 			&c.IsEncrypted,
 			&extractKind, &extractValue, &extractRule, &extractMessageID,
+			&categoryVal, &subCategoryVal,
 			&participantsJSON,
 		)
 		if err != nil {
@@ -2140,6 +2297,12 @@ func (s *Store) ListConversationsByFolder(folderID string, offset, limit int, so
 		}
 		if extractMessageID.Valid {
 			c.ExtractMessageID = extractMessageID.String
+		}
+		if categoryVal.Valid {
+			c.Category = categoryVal.String
+		}
+		if subCategoryVal.Valid {
+			c.SubCategory = subCategoryVal.String
 		}
 
 		if snippet.Valid {
@@ -2250,19 +2413,88 @@ func parseAggregatedToListJSON(s string) []Address {
 }
 
 // CountConversationsByFolder returns the count of conversations in a folder
-func (s *Store) CountConversationsByFolder(folderID, filter string) (int, error) {
+func (s *Store) CountConversationsByFolder(folderID, filter, category, subCategory string) (int, error) {
+	categoryClause, categoryArgs := categoryFilterClause(category, subCategory, "m.", "folder_id")
 	query := `
-		SELECT COUNT(DISTINCT COALESCE(thread_id, id))
-		FROM messages
-		WHERE folder_id = ? AND is_hidden = 0
-	` + filterWhereClause(filter, "")
+		SELECT COUNT(DISTINCT COALESCE(m.thread_id, m.id))
+		FROM messages m
+		WHERE m.folder_id = ? AND m.is_hidden = 0
+	` + filterWhereClause(filter, "m.") + categoryClause
 
+	args := append([]any{folderID}, categoryArgs...)
 	var count int
-	err := s.db.QueryRow(query, folderID).Scan(&count)
+	err := s.db.QueryRow(query, args...).Scan(&count)
 	if err != nil {
 		return 0, fmt.Errorf("failed to count conversations: %w", err)
 	}
 	return count, nil
+}
+
+// GetCategoryCounts returns the Phase E tab counts for one list scope:
+// conversations per category (latest message's category; never-classified
+// rows count as Personal) plus, inside Automated, one count per
+// sub-category. When unified is true the scope is every inbox of every
+// enabled account; otherwise it is the single folderID. Hidden (reaction)
+// rows are excluded, matching the list queries.
+func (s *Store) GetCategoryCounts(folderID string, unified bool) (*CategoryCounts, error) {
+	var query string
+	var args []any
+	if unified {
+		query = `
+			SELECT COALESCE(m.category, 'personal') AS category, m.sub_category, COUNT(*)
+			FROM (
+				SELECT m.category, m.sub_category,
+					ROW_NUMBER() OVER (PARTITION BY COALESCE(m.thread_id, m.id), m.account_id ORDER BY m.date DESC) AS rn
+				FROM messages m
+				INNER JOIN folders f ON m.folder_id = f.id AND f.folder_type = 'inbox'
+				INNER JOIN accounts a ON f.account_id = a.id AND a.enabled = 1
+				WHERE m.is_hidden = 0
+			) m
+			WHERE m.rn = 1
+			GROUP BY category, m.sub_category
+		`
+	} else {
+		query = `
+			SELECT COALESCE(m.category, 'personal') AS category, m.sub_category, COUNT(*)
+			FROM (
+				SELECT m.category, m.sub_category,
+					ROW_NUMBER() OVER (PARTITION BY COALESCE(m.thread_id, m.id), m.account_id ORDER BY m.date DESC) AS rn
+				FROM messages m
+				WHERE m.folder_id = ? AND m.is_hidden = 0
+			) m
+			WHERE m.rn = 1
+			GROUP BY category, m.sub_category
+		`
+		args = []any{folderID}
+	}
+	rows, err := s.db.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query category counts: %w", err)
+	}
+	defer rows.Close()
+	counts := &CategoryCounts{SubCategories: map[string]int{}}
+	for rows.Next() {
+		var category string
+		var subCategory sql.NullString
+		var n int
+		if err := rows.Scan(&category, &subCategory, &n); err != nil {
+			return nil, fmt.Errorf("failed to scan category count: %w", err)
+		}
+		counts.Total += n
+		switch category {
+		case enrich.CategoryAutomated:
+			counts.Automated += n
+			if subCategory.Valid && subCategory.String != "" {
+				counts.SubCategories[subCategory.String] += n
+			}
+		default:
+			// "personal" and anything unexpected count as Personal —
+			// the classifier only ever writes the two values, and an
+			// unknown value must not hide mail from the Personal tab.
+			counts.Personal += n
+		}
+	}
+	return counts, nil
 }
 
 // GetConversation returns messages in a conversation/thread from the specified folder plus Sent and Drafts

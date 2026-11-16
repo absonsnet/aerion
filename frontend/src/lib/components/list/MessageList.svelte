@@ -19,7 +19,7 @@
   import { cn } from '$lib/utils'
   import { Button } from '$lib/components/ui/button'
   // @ts-ignore - wailsjs bindings
-  import { GetConversations, GetConversationCount, SyncFolder, ForceSyncFolder, CancelFolderSync, SetMessageListSortOrder, GetUnifiedInboxConversations, GetUnifiedInboxCount, SearchConversations, SearchUnifiedInbox, GetSearchCount, GetSearchCountUnifiedInbox, GetFTSIndexStatus, IsFTSIndexing, Trash, DeletePermanently, EmptyTrash, EmptySpam, Undo, IMAPSearchFolder, FetchServerMessage, MarkAsRead, MarkAsUnread, Archive, Star, Unstar, MarkAsSpam, MarkAsNotSpam, MoveToFolder, GetAccounts } from '../../../../wailsjs/go/app/App'
+  import { GetConversations, GetConversationCount, SyncFolder, ForceSyncFolder, CancelFolderSync, SetMessageListSortOrder, GetUnifiedInboxConversations, GetUnifiedInboxCount, SearchConversations, SearchUnifiedInbox, GetSearchCount, GetSearchCountUnifiedInbox, GetFTSIndexStatus, IsFTSIndexing, Trash, DeletePermanently, EmptyTrash, EmptySpam, Undo, IMAPSearchFolder, FetchServerMessage, MarkAsRead, MarkAsUnread, Archive, Star, Unstar, MarkAsSpam, MarkAsNotSpam, MoveToFolder, GetAccounts, GetCategoryCounts, GetInboxTabDefault } from '../../../../wailsjs/go/app/App'
   import { toasts } from '$lib/stores/toast'
   import { _ } from '$lib/i18n'
   import { ConfirmDialog } from '$lib/components/ui/confirm-dialog'
@@ -182,6 +182,11 @@
   let isSearching = $state(false)
   let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null
 
+  // Check if we're in search mode with results (declared up here: the
+  // Phase E showCategoryTabs derived below reads it, and $derived
+  // declarations must precede their use).
+  const isSearchMode = $derived(showSearch && searchQuery.trim().length > 0)
+
   // Filter state
   let filterMode = $state<string>('')  // '' | 'unread' | 'starred' | 'attachments'
 
@@ -200,6 +205,91 @@
     { value: 'starred', label: $_('messageList.filterStarred') },
     { value: 'attachments', label: $_('messageList.filterAttachments') },
   ])
+
+  // Category tabs (Phase E): All / Personal / Automated, in that order,
+  // All first and default. A filter over the same folder, not new folders
+  // — no mail moves, nothing to undo, All is always one click away. The
+  // tab bar appears only in Inbox / Unified Inbox, below the Needs
+  // attention bars. The chosen tab is session state; the default comes
+  // from Settings → Categories (inbox_tab_default, default "all").
+  let inboxTab = $state<string>('all') // 'all' | 'personal' | 'automated'
+  let subFilter = $state<string>('') // '' | sub-category, inside Automated only
+  let categoryCounts = $state<message.CategoryCounts | null>(null)
+
+  // Tabs only exist where the classifier files mail: Inbox / Unified
+  // Inbox, and never in search (search results span every folder).
+  const showCategoryTabs = $derived(!isSearchMode && (isUnifiedView || folderType === 'inbox'))
+
+  // List-header scope naming (Phase E): the header always says where you
+  // are — "All Inboxes · All accounts" in the unified view, "Work · Inbox"
+  // for one account's folder.
+  const scopeName = $derived(
+    isUnifiedView
+      ? `${folderName} · ${$_('messageList.allAccounts')}`
+      : (() => {
+          const acc = accountStore.accounts.find((a) => a.account.id === accountId)
+          return acc ? `${acc.account.name} · ${folderName}` : folderName
+        })()
+  )
+
+  const categoryTabs = $derived([
+    { value: 'all', label: $_('messageList.categoryAll'), count: categoryCounts?.total },
+    { value: 'personal', label: $_('messageList.categoryPersonal'), count: categoryCounts?.personal },
+    { value: 'automated', label: $_('messageList.categoryAutomated'), count: categoryCounts?.automated },
+  ])
+
+  // Second-level filter inside the Automated tab only, in the plan's
+  // order. Each chip shows its count; the row wraps instead of scrolling
+  // sideways (flex-wrap below), scrolling only if the window is genuinely
+  // narrow.
+  const subCategoryOrder = ['Transactions', 'Orders', 'Shipping', 'Travel', 'Social', 'Promotions', 'Updates']
+  const subCategoryLabels: Record<string, string> = $derived({
+    Transactions: $_('messageList.subTransactions'),
+    Orders: $_('messageList.subOrders'),
+    Shipping: $_('messageList.subShipping'),
+    Travel: $_('messageList.subTravel'),
+    Social: $_('messageList.subSocial'),
+    Promotions: $_('messageList.subPromotions'),
+    Updates: $_('messageList.subUpdates'),
+  })
+  const subFilterOptions = $derived([
+    { value: '', label: $_('messageList.subAll'), count: categoryCounts?.automated },
+    ...subCategoryOrder.map((sub) => ({
+      value: sub,
+      label: subCategoryLabels[sub] ?? sub,
+      count: categoryCounts?.subCategories?.[sub] ?? 0,
+    })),
+  ])
+
+  // The category/sub-category actually sent to the backend: '' means "no
+  // restriction" (All tab / all automated). A sub-category only applies
+  // inside the Automated tab.
+  const listCategory = $derived(inboxTab === 'all' ? '' : inboxTab)
+  const listSubCategory = $derived(inboxTab === 'automated' ? subFilter : '')
+
+  async function refreshCategoryCounts() {
+    if (!showCategoryTabs) return
+    try {
+      categoryCounts = await GetCategoryCounts(isUnifiedView ? '' : folderId!, isUnifiedView)
+    } catch (err) {
+      console.error('Failed to load category counts:', err)
+    }
+  }
+
+  function setCategoryTab(tab: string) {
+    if (tab === inboxTab) return
+    inboxTab = tab
+    subFilter = ''
+    offset = 0
+    loadConversations()
+  }
+
+  function setSubFilter(sub: string) {
+    if (sub === subFilter) return
+    subFilter = sub
+    offset = 0
+    loadConversations()
+  }
 
   // Server search state
   let serverSearchMode = $state(false)
@@ -339,6 +429,26 @@
       if (listContainerRef) listContainerRef.scrollTop = 0
     })
 
+    // Category tab default (Phase E): the user's Settings → Categories
+    // pick, "all" unless they chose otherwise. If it differs from the
+    // "all" the first load already used, reload under the right tab.
+    GetInboxTabDefault()
+      .then((tab) => {
+        if (tab && tab !== inboxTab) {
+          inboxTab = tab
+          offset = 0
+          loadConversations()
+        }
+      })
+      .catch((err) => console.error('Failed to load default inbox tab:', err))
+
+    // A sender override changed (context menu or Settings): re-file the
+    // list under the new categories.
+    EventsOn('categories:changed', () => {
+      offset = 0
+      loadConversations()
+    })
+
     // Check initial FTS index status for current folder
     checkFTSIndexStatus()
 
@@ -357,6 +467,7 @@
     EventsOff('folder:synced')
     EventsOff('messages:updated')
     EventsOff('messages:readChanged')
+    EventsOff('categories:changed')
     EventsOff('fts:progress')
     EventsOff('fts:complete')
     EventsOff('fts:indexing')
@@ -515,12 +626,12 @@
     try {
       const [convList, count] = isUnifiedView
         ? await Promise.all([
-          GetUnifiedInboxConversations(currentOffset, limit, getMessageListSortOrder(), filterMode),
-          GetUnifiedInboxCount(filterMode),
+          GetUnifiedInboxConversations(currentOffset, limit, getMessageListSortOrder(), filterMode, listCategory, listSubCategory),
+          GetUnifiedInboxCount(filterMode, listCategory, listSubCategory),
         ])
         : await Promise.all([
-          GetConversations(accountId!, folderId!, currentOffset, limit, getMessageListSortOrder(), filterMode),
-          GetConversationCount(accountId!, folderId!, filterMode),
+          GetConversations(accountId!, folderId!, currentOffset, limit, getMessageListSortOrder(), filterMode, listCategory, listSubCategory),
+          GetConversationCount(accountId!, folderId!, filterMode, listCategory, listSubCategory),
         ])
 
       // Discard stale result — folder was switched while this load was in-flight (#200)
@@ -580,6 +691,9 @@
       loading = false
       // New mail may have arrived with the sync — refresh the bars too.
       attentionStripRef?.refresh()
+      // Tab/chip counts follow the scope, not the page: refresh them on
+      // every list load so a re-filed message moves its count at once.
+      if (generation === loadGeneration) void refreshCategoryCounts()
       // Flush any deferred reload (from sync event during load or dialog guard).
       // Only the latest-generation load should drive the flush — otherwise a
       // stale completion could fire scheduleReload redundantly.
@@ -931,9 +1045,6 @@
     }
     clearSearch()
   }
-
-  // Check if we're in search mode with results
-  const isSearchMode = $derived(showSearch && searchQuery.trim().length > 0)
 
   // Active list - either conversations, local search results, or server search results
   const activeList = $derived(
@@ -1941,7 +2052,7 @@
           {/if}
         </div>
       {:else}
-        <h2 class="font-semibold text-foreground">{folderName}</h2>
+        <h2 class="font-semibold text-foreground">{scopeName}</h2>
         <span class="text-sm text-muted-foreground">
           {$_('messageList.unread', { values: { count: unreadCount } })}
         </span>
@@ -2141,6 +2252,48 @@
     />
   {/if}
 
+  <!-- Category tabs (Phase E): All / Personal / Automated, below the
+       Needs attention bars, only in Inbox / Unified Inbox. A filter over
+       the same folder — no mail moves, nothing to undo. -->
+  {#if showCategoryTabs}
+    <div class="flex items-center gap-1 px-4 pt-2 border-b border-border" role="tablist">
+      {#each categoryTabs as tab (tab.value)}
+        <button
+          role="tab"
+          aria-selected={inboxTab === tab.value}
+          class="px-3 py-1.5 text-sm rounded-t-md border-b-2 transition-colors {inboxTab === tab.value
+            ? 'border-primary text-foreground font-medium'
+            : 'border-transparent text-muted-foreground hover:text-foreground'}"
+          onclick={() => setCategoryTab(tab.value)}
+        >
+          {tab.label}
+          {#if tab.count !== undefined}
+            <span class="ml-1 text-xs text-muted-foreground">({tab.count})</span>
+          {/if}
+        </button>
+      {/each}
+    </div>
+    <!-- Automated sub-filter chips: second level inside the Automated tab
+         only. The row wraps instead of scrolling sideways. -->
+    {#if inboxTab === 'automated'}
+      <div class="flex flex-wrap items-center gap-1.5 px-4 py-2 border-b border-border">
+        {#each subFilterOptions as opt (opt.value || 'all')}
+          <button
+            class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs transition-colors {subFilter === opt.value
+              ? 'bg-primary text-primary-foreground'
+              : 'bg-muted text-muted-foreground hover:bg-muted/70 hover:text-foreground'}"
+            onclick={() => setSubFilter(opt.value)}
+          >
+            {opt.label}
+            {#if opt.count !== undefined}
+              <span class="opacity-75">({opt.count})</span>
+            {/if}
+          </button>
+        {/each}
+      </div>
+    {/if}
+  {/if}
+
   <!-- Conversation List -->
   <div bind:this={listContainerRef} class="flex-1 overflow-y-auto scrollbar-thin">
     {#if loading && conversations.length === 0 && !isSearchMode}
@@ -2323,6 +2476,17 @@
           onclick={() => setFilter('')}
         >
           {$_('messageList.filterAll')}
+        </button>
+      </div>
+    {:else if conversations.length === 0 && inboxTab !== 'all' && showCategoryTabs}
+      <div class="flex flex-col items-center justify-center h-full text-center px-6 text-muted-foreground">
+        <Icon icon="mdi:filter-off-outline" class="w-12 h-12 mb-2" />
+        <p>{$_('messageList.noCategoryMessages')}</p>
+        <button
+          class="mt-2 text-sm text-primary hover:underline"
+          onclick={() => setCategoryTab('all')}
+        >
+          {$_('messageList.categoryAll')}
         </button>
       </div>
     {:else if conversations.length === 0}

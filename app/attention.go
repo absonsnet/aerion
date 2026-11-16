@@ -276,7 +276,7 @@ func (a *App) ApplyCodeChipAction(messageID string, mode string) (bool, error) {
 // call repeatedly; a failed run leaves the flag unset and retries on the
 // next launch.
 func (a *App) RunEnrichmentBackfill() (int, error) {
-	const doneKey = "enrichment_backfill_done_v1"
+	doneKey := enrichmentBackfillDoneKey
 	done, err := a.settingsStore.Get(doneKey)
 	if err != nil {
 		return 0, err

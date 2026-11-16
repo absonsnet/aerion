@@ -23,6 +23,7 @@
   import AboutTab from './AboutTab.svelte'
   import MessagesTab from './MessagesTab.svelte'
   import AttentionTab from './AttentionTab.svelte'
+  import CategoriesTab from './CategoriesTab.svelte'
   import TranslationTab from './TranslationTab.svelte'
   import SubscriptionsTab from './SubscriptionsTab.svelte'
 
@@ -74,6 +75,7 @@
   let attentionTypeFlightChanged = $state<boolean>(true)
   let attentionTypePaymentFailed = $state<boolean>(true)
   let attentionTypeDeliveryProblem = $state<boolean>(true)
+  let inboxTabDefault = $state<string>('all')
   let translateEnabled = $state<boolean>(true)
   let translateMode = $state<string>('prefer_offline')
   let translateTargetLanguage = $state<string>('system')
@@ -162,6 +164,7 @@
         GetAttentionTypeEnabled('flight_changed'),
         GetAttentionTypeEnabled('payment_failed'),
         GetAttentionTypeEnabled('delivery_problem'),
+        GetInboxTabDefault(),
         GetTranslationSettings(''),
       ])
       readReceiptResponsePolicy = policy
@@ -202,6 +205,8 @@
       attentionTypeFlightChanged = attnFlight ?? true
       attentionTypePaymentFailed = attnPayment ?? true
       attentionTypeDeliveryProblem = attnDelivery ?? true
+      inboxTabDefault = inboxTab || 'all'
+      if (trSettings) {
         translateEnabled = trSettings.enabled ?? true
         translateMode = trSettings.mode || 'prefer_offline'
         translateTargetLanguage = trSettings.targetLanguage || 'system'
@@ -264,6 +269,7 @@
       await SetAttentionTypeEnabled('flight_changed', attentionTypeFlightChanged)
       await SetAttentionTypeEnabled('payment_failed', attentionTypePaymentFailed)
       await SetAttentionTypeEnabled('delivery_problem', attentionTypeDeliveryProblem)
+      await SetInboxTabDefault(inboxTabDefault)
       await SetTranslationEnabled(translateEnabled)
       await SetTranslationMode(translateMode)
       await SetTranslationTargetLanguage(translateTargetLanguage)
@@ -397,6 +403,10 @@
             <span class="inline-flex w-4 h-4 items-center justify-center shrink-0"><Icon icon="lucide:bell-ring" width="16" height="16" /></span>
             {$_('settings.attention')}
           </Tabs.Trigger>
+          <Tabs.Trigger value="categories" class="flex items-center gap-2">
+            <span class="inline-flex w-4 h-4 items-center justify-center shrink-0"><Icon icon="lucide:layers" width="16" height="16" /></span>
+            {$_('settings.categories')}
+          </Tabs.Trigger>
           <Tabs.Trigger value="translation" class="flex items-center gap-2">
             <span class="inline-flex w-4 h-4 items-center justify-center shrink-0"><Icon icon="lucide:languages" width="16" height="16" /></span>
             {$_('settings.translation')}
@@ -506,6 +516,13 @@
                 if (type === 'payment_failed') attentionTypePaymentFailed = v
                 if (type === 'delivery_problem') attentionTypeDeliveryProblem = v
               }}
+            />
+          </Tabs.Content>
+
+          <Tabs.Content value="categories" class="mt-0">
+            <CategoriesTab
+              bind:inboxTabDefault
+              onInboxTabDefaultChange={(v) => inboxTabDefault = v}
             />
           </Tabs.Content>
 

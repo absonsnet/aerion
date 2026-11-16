@@ -61,14 +61,14 @@ func TestMarkHidden_HidesFromLists(t *testing.T) {
 	if n, err := s.CountUnreadByFolder(folderID); err != nil || n != 1 {
 		t.Errorf("post-hide: CountUnreadByFolder = %d, err = %v, want 1 (only the visible message is unread)", n, err)
 	}
-	convs, err := s.ListConversationsByFolder(folderID, 0, 10, "newest", "")
+	convs, err := s.ListConversationsByFolder(folderID, 0, 10, "newest", "", "", "")
 	if err != nil {
 		t.Fatalf("ListConversationsByFolder (post-hide): %v", err)
 	}
 	if len(convs) != 1 {
 		t.Errorf("post-hide: ListConversationsByFolder returned %d, want 1", len(convs))
 	}
-	if n, err := s.CountConversationsByFolder(folderID, ""); err != nil || n != 1 {
+	if n, err := s.CountConversationsByFolder(folderID, "", "", ""); err != nil || n != 1 {
 		t.Errorf("post-hide: CountConversationsByFolder = %d, err = %v, want 1", n, err)
 	}
 	ids, err := s.GetAllIDsByFolder(folderID)

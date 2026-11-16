@@ -44,6 +44,7 @@ const (
 	KeyShowViewerCircles          = "show_viewer_circles"
 	KeyShowMessagePreviewPane     = "show_message_preview_pane" // show the conversation viewer pane beside the message list (default on)
 	KeyMessageOpenMode            = "message_open_mode"         // how a message opens when the preview pane is off: "tab" | "dialog" | "popup" (default "tab")
+	KeyInboxTabDefault            = "inbox_tab_default"         // default category tab in Inbox / Unified Inbox: "all" | "personal" | "automated" (default "all")
 	KeyLastSeenVersion            = "last_seen_version"         // for "What's new in this version" launch dialog
 	KeyOAuthWarningDisabled       = "oauth_warning_disabled"    // user toggled "Don't show again" on the missing-OAuth-creds launch warning
 	KeySpellcheckEnabled          = "spellcheck_enabled"        // composer spellcheck master toggle (defaults on)
@@ -487,6 +488,44 @@ func (s *Store) SetMessageOpenMode(mode string) error {
 		return s.Set(KeyMessageOpenMode, mode)
 	default:
 		return fmt.Errorf("invalid message open mode: %s (must be 'tab', 'dialog' or 'popup')", mode)
+	}
+}
+
+// Inbox tab values (Phase E). "all" is the default: Daak must not hide
+// mail behind a classifier on day one; the user picks their own default
+// in Settings → Categories once they trust it.
+const (
+	InboxTabAll       = "all"
+	InboxTabPersonal  = "personal"
+	InboxTabAutomated = "automated"
+)
+
+// GetInboxTabDefault returns the default category tab for Inbox /
+// Unified Inbox. Default: "all". An unknown stored value falls back to
+// "all" rather than failing the settings load.
+func (s *Store) GetInboxTabDefault() (string, error) {
+	value, err := s.Get(KeyInboxTabDefault)
+	if err != nil {
+		return InboxTabAll, err
+	}
+	switch value {
+	case "", InboxTabAll, InboxTabPersonal, InboxTabAutomated:
+		if value == "" {
+			return InboxTabAll, nil
+		}
+		return value, nil
+	default:
+		return InboxTabAll, nil
+	}
+}
+
+// SetInboxTabDefault sets the default category tab for Inbox / Unified Inbox.
+func (s *Store) SetInboxTabDefault(tab string) error {
+	switch tab {
+	case InboxTabAll, InboxTabPersonal, InboxTabAutomated:
+		return s.Set(KeyInboxTabDefault, tab)
+	default:
+		return fmt.Errorf("invalid inbox tab: %s (must be 'all', 'personal' or 'automated')", tab)
 	}
 }
 

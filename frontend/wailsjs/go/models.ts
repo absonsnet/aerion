@@ -392,6 +392,20 @@ export namespace app {
 	        this.label = source["label"];
 	    }
 	}
+	export class BackfillStatus {
+	    remaining: number;
+	    done: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new BackfillStatus(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.remaining = source["remaining"];
+	        this.done = source["done"];
+	    }
+	}
 	export class BergamotLegStatus {
 	    from: string;
 	    to: string;
@@ -993,6 +1007,20 @@ export namespace app {
 		    }
 		    return a;
 		}
+	}
+	export class SenderCategoryOverride {
+	    senderEmail: string;
+	    category: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new SenderCategoryOverride(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.senderEmail = source["senderEmail"];
+	        this.category = source["category"];
+	    }
 	}
 	export class SubscriptionSender {
 	    senderEmail: string;
@@ -3054,6 +3082,24 @@ export namespace message {
 	        this.localPath = source["localPath"];
 	    }
 	}
+	export class CategoryCounts {
+	    personal: number;
+	    automated: number;
+	    total: number;
+	    subCategories: Record<string, number>;
+	
+	    static createFrom(source: any = {}) {
+	        return new CategoryCounts(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.personal = source["personal"];
+	        this.automated = source["automated"];
+	        this.total = source["total"];
+	        this.subCategories = source["subCategories"];
+	    }
+	}
 	export class Message {
 	    id: string;
 	    accountId: string;
@@ -3198,6 +3244,8 @@ export namespace message {
 	    extractValue?: string;
 	    extractRule?: string;
 	    extractMessageId?: string;
+	    category?: string;
+	    subCategory?: string;
 	    accountId?: string;
 	    accountName?: string;
 	    accountColor?: string;
@@ -3225,6 +3273,8 @@ export namespace message {
 	        this.extractValue = source["extractValue"];
 	        this.extractRule = source["extractRule"];
 	        this.extractMessageId = source["extractMessageId"];
+	        this.category = source["category"];
+	        this.subCategory = source["subCategory"];
 	        this.accountId = source["accountId"];
 	        this.accountName = source["accountName"];
 	        this.accountColor = source["accountColor"];
@@ -3267,6 +3317,8 @@ export namespace message {
 	    extractValue?: string;
 	    extractRule?: string;
 	    extractMessageId?: string;
+	    category?: string;
+	    subCategory?: string;
 	    accountId?: string;
 	    accountName?: string;
 	    accountColor?: string;
@@ -3299,6 +3351,8 @@ export namespace message {
 	        this.extractValue = source["extractValue"];
 	        this.extractRule = source["extractRule"];
 	        this.extractMessageId = source["extractMessageId"];
+	        this.category = source["category"];
+	        this.subCategory = source["subCategory"];
 	        this.accountId = source["accountId"];
 	        this.accountName = source["accountName"];
 	        this.accountColor = source["accountColor"];

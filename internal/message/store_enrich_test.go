@@ -66,7 +66,7 @@ func TestEnrichment_RoundTrip(t *testing.T) {
 	}
 
 	// The row chip data flows through the conversation list.
-	convs, err := s.ListConversationsByFolder(folderID, 0, 10, "newest", "")
+	convs, err := s.ListConversationsByFolder(folderID, 0, 10, "newest", "", "", "")
 	if err != nil {
 		t.Fatalf("ListConversationsByFolder: %v", err)
 	}

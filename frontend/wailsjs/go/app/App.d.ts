@@ -274,6 +274,8 @@ export function GetAutoDetectedFolders(arg1:string):Promise<Record<string, strin
 
 export function GetAutostart():Promise<boolean>;
 
+export function GetBackfillStatus():Promise<app.BackfillStatus>;
+
 export function GetBergamotEngineStatus():Promise<translate.EngineStatus>;
 
 export function GetBergamotLanguages():Promise<Array<translate.BergamotLanguage>>;
@@ -283,6 +285,8 @@ export function GetBergamotPairStatus(arg1:string,arg2:string):Promise<Array<app
 export function GetBergamotSupportedPairs():Promise<Array<any>>;
 
 export function GetCachedTranslation(arg1:string,arg2:string,arg3:string):Promise<app.CachedTranslationResult>;
+
+export function GetCategoryCounts(arg1:string,arg2:boolean):Promise<message.CategoryCounts>;
 
 export function GetCodeChipClickMode():Promise<string>;
 
@@ -310,9 +314,9 @@ export function GetContext():Promise<context.Context>;
 
 export function GetConversation(arg1:string,arg2:string):Promise<message.Conversation>;
 
-export function GetConversationCount(arg1:string,arg2:string,arg3:string):Promise<number>;
+export function GetConversationCount(arg1:string,arg2:string,arg3:string,arg4:string,arg5:string):Promise<number>;
 
-export function GetConversations(arg1:string,arg2:string,arg3:number,arg4:number,arg5:string,arg6:string):Promise<Array<message.Conversation>>;
+export function GetConversations(arg1:string,arg2:string,arg3:number,arg4:number,arg5:string,arg6:string,arg7:string,arg8:string):Promise<Array<message.Conversation>>;
 
 export function GetCustomOAuthAccounts():Promise<Array<app.LinkedAccountInfo>>;
 
@@ -343,6 +347,8 @@ export function GetIdentities(arg1:string):Promise<Array<account.Identity>>;
 export function GetIdentity(arg1:string):Promise<account.Identity>;
 
 export function GetImageAllowlist():Promise<Array<settings.AllowlistEntry>>;
+
+export function GetInboxTabDefault():Promise<string>;
 
 export function GetInlineAttachments(arg1:string):Promise<Record<string, string>>;
 
@@ -414,6 +420,8 @@ export function GetSearchCount(arg1:string,arg2:string,arg3:string,arg4:string):
 
 export function GetSearchCountUnifiedInbox(arg1:string,arg2:string):Promise<number>;
 
+export function GetSenderCategoryOverrides():Promise<Array<app.SenderCategoryOverride>>;
+
 export function GetShowMessageListCircles():Promise<boolean>;
 
 export function GetShowMessageListProfilePics():Promise<boolean>;
@@ -456,9 +464,9 @@ export function GetUIState():Promise<appstate.UIState>;
 
 export function GetUndoDescription():Promise<string>;
 
-export function GetUnifiedInboxConversations(arg1:number,arg2:number,arg3:string,arg4:string):Promise<Array<message.Conversation>>;
+export function GetUnifiedInboxConversations(arg1:number,arg2:number,arg3:string,arg4:string,arg5:string,arg6:string):Promise<Array<message.Conversation>>;
 
-export function GetUnifiedInboxCount(arg1:string):Promise<number>;
+export function GetUnifiedInboxCount(arg1:string,arg2:string,arg3:string):Promise<number>;
 
 export function GetUnifiedInboxUnreadCount():Promise<number>;
 
@@ -672,6 +680,8 @@ export function RemoveOwnReaction(arg1:string):Promise<void>;
 
 export function RemovePGPKeyServer(arg1:number):Promise<void>;
 
+export function RemoveSenderCategoryOverride(arg1:string):Promise<void>;
+
 export function RemoveSpellcheckCustomWord(arg1:string):Promise<void>;
 
 export function RemoveTrustedCertificate(arg1:string):Promise<void>;
@@ -681,6 +691,8 @@ export function ReorderAccounts(arg1:Array<string>):Promise<void>;
 export function ResolveMessageUID(arg1:string):Promise<number>;
 
 export function RunEnrichmentBackfill():Promise<number>;
+
+export function RunEnrichmentBackfillNow():Promise<number>;
 
 export function SaveAllAttachments(arg1:string):Promise<string>;
 
@@ -754,6 +766,8 @@ export function SetDefaultSMIMECertificate(arg1:string,arg2:string):Promise<void
 
 export function SetExtensionEnabled(arg1:string,arg2:boolean):Promise<void>;
 
+export function SetInboxTabDefault(arg1:string):Promise<void>;
+
 export function SetLanguage(arg1:string):Promise<void>;
 
 export function SetLastSeenVersion(arg1:string):Promise<void>;
@@ -791,6 +805,8 @@ export function SetSMIMEEncryptPolicy(arg1:string,arg2:string):Promise<void>;
 export function SetSMIMESignPolicy(arg1:string,arg2:string):Promise<void>;
 
 export function SetSenderAutoDelete(arg1:string,arg2:string,arg3:boolean):Promise<void>;
+
+export function SetSenderCategoryOverride(arg1:string,arg2:string):Promise<void>;
 
 export function SetShowMessageListCircles(arg1:boolean):Promise<void>;
 

@@ -161,6 +161,13 @@ type Conversation struct {
 	ExtractRule      string `json:"extractRule,omitempty"`
 	ExtractMessageID string `json:"extractMessageId,omitempty"`
 
+	// Category of the latest message in the thread (Phase E): "personal",
+	// "automated", or "" when the thread has never been classified.
+	// SubCategory is the automated sub-category ("Transactions", "Orders",
+	// "Shipping", "Travel", "Social", "Promotions", "Updates") or "".
+	Category    string `json:"category,omitempty"`
+	SubCategory string `json:"subCategory,omitempty"`
+
 	// For unified inbox view - populated when querying across accounts
 	AccountID    string `json:"accountId,omitempty"`
 	AccountName  string `json:"accountName,omitempty"`
