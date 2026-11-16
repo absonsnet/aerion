@@ -52,6 +52,8 @@
     "containsSelection": "Contains the open folder",
     "expandAccount": "Expand account",
     "collapseAccount": "Collapse account",
+    "expandUnified": "Expand unified folders",
+    "collapseUnified": "Collapse unified folders",
     "addAccount": "Add Account",
     "noAccountsYet": "No accounts yet",
     "addFirstAccount": "Add your first email account to get started",

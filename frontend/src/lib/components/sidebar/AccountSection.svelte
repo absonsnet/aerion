@@ -23,8 +23,8 @@
     containsSelection?: boolean
     onFolderSelect?: (accountId: string, folderId: string, folderPath: string, folderName: string, folderType: string) => void
     onToggleExpanded?: () => void
-    // Clicking the account name: opens the account's Inbox (and expands
-    // the account if collapsed). Only the chevron toggles without navigating.
+    // Clicking the account name: opens the account's Inbox. Only the
+    // chevron expands/collapses the account.
     onSelectInbox?: () => void
     onEdit?: () => void
     onDelete?: () => void

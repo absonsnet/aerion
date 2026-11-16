@@ -48,6 +48,9 @@
     selectionSource: 'unified' | 'account' | null
     onSelectAttention: () => void
     onSelectUnifiedFolder: (type: string, label: string) => void
+    // Clicking the UNIFIED heading text opens the unified inbox. Only
+    // the chevron expands/collapses the section (see below).
+    onSelectUnifiedInbox: () => void
     onReorderFolders: (order: string[]) => void
   }
 
@@ -60,6 +63,7 @@
     selectionSource,
     onSelectAttention,
     onSelectUnifiedFolder,
+    onSelectUnifiedInbox,
     onReorderFolders,
   }: Props = $props()
 
@@ -156,21 +160,32 @@
 </script>
 
 <div class="px-2 py-1">
-  <!-- Section label with expand/collapse chevron -->
-  <button
-    type="button"
-    class="w-full flex items-center gap-1 px-2 pb-1 text-left"
-    aria-expanded={sectionExpanded}
-    onclick={toggleSection}
-  >
-    <Icon
-      icon={sectionExpanded ? 'mdi:chevron-down' : 'mdi:chevron-right'}
-      class="w-4 h-4 text-muted-foreground flex-shrink-0"
-    />
-    <span class="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-      {$_('sidebar.unified')}
-    </span>
-  </button>
+  <!-- Section heading: the chevron (and ONLY the chevron) expands or
+       collapses the section; the UNIFIED label opens the unified inbox.
+       Both are real buttons, so Enter/Space work on the chevron too. -->
+  <div class="w-full flex items-center gap-1 px-2 pb-1">
+    <button
+      type="button"
+      class="p-0.5 rounded hover:bg-muted transition-colors flex-shrink-0"
+      aria-label={sectionExpanded ? $_('sidebar.collapseUnified') : $_('sidebar.expandUnified')}
+      aria-expanded={sectionExpanded}
+      onclick={toggleSection}
+    >
+      <Icon
+        icon={sectionExpanded ? 'mdi:chevron-down' : 'mdi:chevron-right'}
+        class="w-4 h-4 text-muted-foreground"
+      />
+    </button>
+    <button
+      type="button"
+      class="flex-1 min-w-0 text-left"
+      onclick={onSelectUnifiedInbox}
+    >
+      <span class="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+        {$_('sidebar.unified')}
+      </span>
+    </button>
+  </div>
 
   {#if sectionExpanded}
     <!-- Unified folders, in the persisted order. Each row opens the

@@ -327,14 +327,12 @@
   }
 
   // Open an account's Inbox (account-name click): navigates to the Inbox
-  // and expands the account if it is collapsed. When the account has no
-  // Inbox folder synced yet, just expands so its state is visible.
+  // only. It deliberately does NOT expand the account — expansion happens
+  // only on the chevron. When the account has no Inbox folder synced yet,
+  // there is nothing to open; the chevron still reveals its state.
   function openAccountInbox(accountId: string) {
     const accWithFolders = accountStore.accounts.find((a) => a.account.id === accountId)
     if (!accWithFolders) return
-    if (!expandedAccounts[accountId]) {
-      setAccountExpandedValue(accountId, true)
-    }
     const inbox = findInboxFolder(accWithFolders.folders || [])
     if (inbox) {
       handleFolderSelect(accountId, inbox.id, inbox.path, inbox.name, 'inbox')
@@ -727,6 +725,7 @@
             {selectionSource}
             onSelectAttention={handleAttentionSelect}
             onSelectUnifiedFolder={handleUnifiedFolderSelect}
+            onSelectUnifiedInbox={handleUnifiedInboxSelect}
             onReorderFolders={handleUnifiedFolderReorder}
           />
           <div class="border-b border-border mx-3 my-1"></div>
