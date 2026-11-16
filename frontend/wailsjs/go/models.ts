@@ -1195,6 +1195,7 @@ export namespace appstate {
 	    selectedConversationFolderId: string;
 	    sidebarWidth: number;
 	    listWidth: number;
+	    accountsHeight: number;
 	    expandedAccounts: Record<string, boolean>;
 	    unifiedInboxExpanded: boolean;
 	    collapsedFolders: Record<string, boolean>;
@@ -1215,6 +1216,7 @@ export namespace appstate {
 	        this.selectedConversationFolderId = source["selectedConversationFolderId"];
 	        this.sidebarWidth = source["sidebarWidth"];
 	        this.listWidth = source["listWidth"];
+	        this.accountsHeight = source["accountsHeight"];
 	        this.expandedAccounts = source["expandedAccounts"];
 	        this.unifiedInboxExpanded = source["unifiedInboxExpanded"];
 	        this.collapsedFolders = source["collapsedFolders"];
