@@ -60,12 +60,13 @@
       </div>
 
       <div class="space-y-4 max-h-[60vh] overflow-y-auto text-sm">
-        <p>🚀 Welcome to {APP_NAME} v0.7.3!</p>
+        <p>🚀 Welcome to {APP_NAME} v0.7.4!</p>
 
-        <p>v0.7.3 adjusts the app logo: it is narrower than in v0.7.2 — width down 10%, height down 5%, back to the original height. Here are the highlights of the release:</p>
+        <p>v0.7.4 changes how the sidebar behaves. Here are the highlights of the release:</p>
 
         <ul class="list-disc pl-6 space-y-1">
-          <li>✉️ The app logo is narrower than in v0.7.2</li>
+          <li>🖱️ Sidebar sections expand only from the chevron — clicking an account name opens its inbox, and clicking the Unified heading opens the unified inbox</li>
+          <li>↕️ The divider just above the Accounts block drags up and down, and never hides accounts while they fit in the window</li>
         </ul>
 
         <p>🏷 See the full change log here:</p>

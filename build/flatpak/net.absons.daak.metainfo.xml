@@ -375,6 +375,14 @@
   </provides>
 
   <releases>
+    <release version="0.7.4" date="2026-11-16">
+      <description>
+        <ul>
+          <li>Sidebar: sections expand only from the chevron — clicking an account name or the Unified heading opens its inbox instead</li>
+          <li>Sidebar: the divider above the Accounts block drags up and down, and never hides accounts while they fit</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.7.3" date="2026-11-16">
       <description>
         <ul>

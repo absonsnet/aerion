@@ -1,5 +1,11 @@
 # CHANGELOG
 
+**v0.7.4 - 16-11-2026**
+---
+
+- Sidebar: sections expand only from the chevron — clicking an account name opens that account's inbox, and clicking the Unified heading opens the unified inbox
+- Sidebar: the divider just above the Accounts block drags up and down to resize the Unified and Accounts sections, and never hides accounts while they fit in the window
+
 **v0.7.3 - 16-11-2026**
 ---
 
