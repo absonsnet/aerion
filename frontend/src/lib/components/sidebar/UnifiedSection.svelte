@@ -1,183 +1,226 @@
-<script lang="ts">
-  import Icon from '@iconify/svelte'
-  // @ts-ignore - wailsjs path
-  import type { account, folder } from '../../../../wailsjs/go/models'
-  import FolderContextMenu from './FolderContextMenu.svelte'
-  import { _ } from '$lib/i18n'
-
-  // One entry of a unified folder-type group: the account's own folder of
-  // that type (e.g. its Sent folder).
-  export interface UnifiedFolderEntry {
-    account: account.Account
-    folder: folder.Folder
-  }
-
-  // A folder type shown in the Unified zone (Starred, Sent, Drafts, Spam,
-  // Trash). There is no cross-account unified view for these types — the
-  // backend only builds one for the Inbox — so each group lists the
-  // per-account folders of that type instead of pretending to merge them.
-  // The badge is the summed unread count across those accounts.
-  export interface UnifiedFolderGroup {
+<script lang="ts" module>
+  // One unified folder: a folder type merged across all accounts.
+  // Clicking it opens the unified view of that type — the same folder
+  // combined across every account. Spam merges each provider's Spam/Junk
+  // folder and Trash merges Trash/Deleted Items/Bin (sync classifies them
+  // to one folder type); Starred is flag-based across all folders; Outbox
+  // is the local Mail Merge send queue, not a server folder.
+  export interface UnifiedFolderDef {
     type: string
     labelKey: string
     icon: string
-    totalUnread: number
-    entries: UnifiedFolderEntry[]
   }
 
+  // Canonical order (Abid's list, v0.7.1). The displayed order is the
+  // persisted unified_folder_order setting; this list only defines the
+  // labels, icons and the first-run default.
+  export const UNIFIED_FOLDER_DEFS: UnifiedFolderDef[] = [
+    { type: 'inbox', labelKey: 'sidebar.inbox', icon: 'mdi:inbox-multiple' },
+    { type: 'starred', labelKey: 'sidebar.starred', icon: 'mdi:star-outline' },
+    { type: 'sent', labelKey: 'sidebar.sent', icon: 'mdi:send' },
+    { type: 'drafts', labelKey: 'sidebar.draft', icon: 'mdi:file-document-edit-outline' },
+    { type: 'spam', labelKey: 'sidebar.spam', icon: 'mdi:alert-octagon-outline' },
+    { type: 'trash', labelKey: 'sidebar.trash', icon: 'mdi:delete-outline' },
+    { type: 'outbox', labelKey: 'sidebar.outbox', icon: 'mdi:send-clock-outline' },
+  ]
+</script>
+
+<script lang="ts">
+  import Icon from '@iconify/svelte'
+  import { _ } from '$lib/i18n'
+  import {
+    getUIStateVersion,
+    isUnifiedInboxExpanded,
+    setUnifiedInboxExpanded,
+  } from '$lib/stores/uiState.svelte'
+
   interface Props {
-    unifiedUnreadCount: number
     attentionCount: number
-    groups: UnifiedFolderGroup[]
-    expandedGroups: Record<string, boolean>
-    focusedGroupType: string | null
-    selectedAccountId: string | null
-    selectedFolderId: string | null
+    // Unread counts per unified folder type (inbox/starred/sent/drafts/
+    // spam/trash), from GetUnifiedFolderUnreadCounts.
+    unreadCounts: Record<string, number>
+    // Queued (not yet sent) Mail Merge items, for the Outbox badge.
+    outboxCount: number
+    // Folder type keys in display order (persisted unified_folder_order).
+    folderOrder: string[]
+    // The currently open unified folder type, if the selection is unified.
+    selectedFolderType: string | null
     selectionSource: 'unified' | 'account' | null
-    onSelectUnified: () => void
     onSelectAttention: () => void
-    onSelectUnifiedFolder: (accountId: string, folderId: string, folderPath: string, folderName: string, folderType: string) => void
-    onToggleGroup: (type: string) => void
+    onSelectUnifiedFolder: (type: string, label: string) => void
+    onReorderFolders: (order: string[]) => void
   }
 
   let {
-    unifiedUnreadCount,
     attentionCount,
-    groups,
-    expandedGroups,
-    focusedGroupType,
-    selectedAccountId,
-    selectedFolderId,
+    unreadCounts,
+    outboxCount,
+    folderOrder,
+    selectedFolderType,
     selectionSource,
-    onSelectUnified,
     onSelectAttention,
     onSelectUnifiedFolder,
-    onToggleGroup,
+    onReorderFolders,
   }: Props = $props()
 
-  // Check if Unified Inbox is selected (All Inboxes)
-  const isUnifiedSelected = $derived(selectedAccountId === 'unified' && selectedFolderId === 'inbox')
+  // Section expand/collapse, persisted in the backend UI state
+  // (unifiedInboxExpanded — the key predates this section, it now drives
+  // the whole Unified zone). Local state mirrors it; the effect below
+  // re-syncs once the persisted state has loaded.
+  let sectionExpanded = $state(true)
+  $effect(() => {
+    // Read version to create dependency - effect re-runs when UI state finishes loading
+    const _version = getUIStateVersion()
+    sectionExpanded = isUnifiedInboxExpanded()
+  })
 
-  // Check if a specific folder is selected IN THE UNIFIED SECTION
-  // Only highlight if selectionSource is 'unified'
-  function isUnifiedFolderSelected(folderId: string): boolean {
-    return selectionSource === 'unified' && selectedFolderId === folderId
+  function toggleSection() {
+    sectionExpanded = !sectionExpanded
+    setUnifiedInboxExpanded(sectionExpanded)
   }
 
-  // Get account color with fallback
-  function getAccountColor(acc: account.Account): string {
-    // @ts-ignore - color field from backend
-    return acc.color || '#6B7280' // Default gray if no color set
+  // Rows in display order: the persisted order, with any def missing from
+  // it (a type added by an upgrade) appended in canonical order.
+  const orderedDefs = $derived.by<UnifiedFolderDef[]>(() => {
+    const byType = new Map(UNIFIED_FOLDER_DEFS.map((d) => [d.type, d]))
+    const seen = new Set<string>()
+    const out: UnifiedFolderDef[] = []
+    for (const type of folderOrder) {
+      const def = byType.get(type)
+      if (def && !seen.has(type)) {
+        seen.add(type)
+        out.push(def)
+      }
+    }
+    for (const def of UNIFIED_FOLDER_DEFS) {
+      if (!seen.has(def.type)) out.push(def)
+    }
+    return out
+  })
+
+  function badgeFor(def: UnifiedFolderDef): number {
+    if (def.type === 'outbox') return outboxCount
+    return unreadCounts[def.type] ?? 0
   }
 
-  // A group "contains the selection" when one of its per-account folders
-  // is open — shown as a dot on the group header while it is collapsed.
-  function groupContainsSelection(group: UnifiedFolderGroup): boolean {
-    return group.entries.some((entry) => isUnifiedFolderSelected(entry.folder.id))
+  function isSelected(def: UnifiedFolderDef): boolean {
+    return selectionSource === 'unified' && selectedFolderType === def.type
+  }
+
+  // Drag-to-reorder: drag a row onto another to move it before that row.
+  // The new order is persisted by the parent (unified_folder_order).
+  let dragType = $state<string | null>(null)
+  let dropTargetType = $state<string | null>(null)
+
+  function onDragStart(type: string, e: DragEvent) {
+    dragType = type
+    if (e.dataTransfer) {
+      e.dataTransfer.effectAllowed = 'move'
+      e.dataTransfer.setData('text/plain', type)
+    }
+  }
+
+  function onDragOver(type: string, e: DragEvent) {
+    if (!dragType || dragType === type) return
+    e.preventDefault()
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'
+    dropTargetType = type
+  }
+
+  function onDrop(type: string, e: DragEvent) {
+    e.preventDefault()
+    if (!dragType || dragType === type) {
+      dragType = null
+      dropTargetType = null
+      return
+    }
+    const order = orderedDefs.map((d) => d.type)
+    const from = order.indexOf(dragType)
+    const to = order.indexOf(type)
+    if (from === -1 || to === -1) {
+      dragType = null
+      dropTargetType = null
+      return
+    }
+    order.splice(from, 1)
+    order.splice(to, 0, dragType)
+    dragType = null
+    dropTargetType = null
+    onReorderFolders(order)
+  }
+
+  function onDragEnd() {
+    dragType = null
+    dropTargetType = null
   }
 </script>
 
 <div class="px-2 py-1">
-  <!-- Section label -->
-  <div class="px-2 pb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-    {$_('sidebar.unified')}
-  </div>
-
-  <!-- Unified Inbox -->
+  <!-- Section label with expand/collapse chevron -->
   <button
-    class="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm transition-colors {isUnifiedSelected
-      ? 'bg-primary/10 text-primary font-medium'
-      : 'hover:bg-muted/50'}"
-    data-sidebar-item="unified"
-    onclick={onSelectUnified}
+    type="button"
+    class="w-full flex items-center gap-1 px-2 pb-1 text-left"
+    aria-expanded={sectionExpanded}
+    onclick={toggleSection}
   >
-    <Icon icon="mdi:inbox-multiple" class="w-4 h-4 flex-shrink-0" />
-    <span class="flex-1 text-left truncate">{$_('sidebar.allInboxes')}</span>
-    {#if unifiedUnreadCount > 0}
-      <span class="px-1.5 py-0.5 text-xs font-medium bg-primary text-primary-foreground rounded-full">
-        {unifiedUnreadCount}
-      </span>
-    {/if}
+    <Icon
+      icon={sectionExpanded ? 'mdi:chevron-down' : 'mdi:chevron-right'}
+      class="w-4 h-4 text-muted-foreground flex-shrink-0"
+    />
+    <span class="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+      {$_('sidebar.unified')}
+    </span>
   </button>
 
-  <!-- Needs attention shortcut: opens Inbox/Unified Inbox with the bars in
-       place (and scrolls the list to them when already there). This is a
-       shortcut to the same bars, not a separate folder. Hidden when empty. -->
-  {#if attentionCount > 0}
-    <button
-      type="button"
-      class="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm transition-colors hover:bg-muted/50"
-      data-sidebar-item="attention"
-      onclick={onSelectAttention}
-    >
-      <Icon icon="mdi:bell-alert-outline" class="w-4 h-4 text-primary flex-shrink-0" />
-      <span class="flex-1 text-left truncate font-medium">{$_('attention.title')}</span>
-      <span class="flex-shrink-0 min-w-5 h-5 px-1 rounded-full bg-primary text-primary-foreground text-xs flex items-center justify-center">
-        {attentionCount}
-      </span>
-    </button>
-  {/if}
-
-  <!-- Unified folder-type groups: Starred / Sent / Drafts / Spam / Trash.
-       Each group lists the per-account folders of that type; the group
-       header itself is not a folder, so clicking it expands/collapses. -->
-  {#each groups as group (group.type)}
-    {@const isExpanded = expandedGroups[group.type] === true}
-    {@const isFocused = focusedGroupType === group.type}
-    {@const containsSelection = groupContainsSelection(group)}
-    <div>
+  {#if sectionExpanded}
+    <!-- Unified folders, in the persisted order. Each row opens the
+         unified view of that folder type across all accounts. -->
+    {#each orderedDefs as def (def.type)}
+      {@const badge = badgeFor(def)}
       <button
-        class="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm transition-colors hover:bg-muted/50 {isFocused ? 'bg-muted ring-1 ring-primary/50' : ''}"
-        data-sidebar-item="unified-group"
-        data-folder-type={group.type}
-        onclick={() => onToggleGroup(group.type)}
+        type="button"
+        draggable="true"
+        class="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm transition-colors {isSelected(def)
+          ? 'bg-primary/10 text-primary font-medium'
+          : 'hover:bg-muted/50'} {dropTargetType === def.type ? 'ring-1 ring-primary' : ''} {dragType === def.type ? 'opacity-50' : ''}"
+        data-sidebar-item="unified-folder"
+        data-folder-type={def.type}
+        title={$_('sidebar.dragToReorder')}
+        onclick={() => onSelectUnifiedFolder(def.type, $_(def.labelKey))}
+        ondragstart={(e) => onDragStart(def.type, e)}
+        ondragover={(e) => onDragOver(def.type, e)}
+        ondragleave={() => {
+          if (dropTargetType === def.type) dropTargetType = null
+        }}
+        ondrop={(e) => onDrop(def.type, e)}
+        ondragend={onDragEnd}
       >
-        <Icon
-          icon={isExpanded ? 'mdi:chevron-down' : 'mdi:chevron-right'}
-          class="w-4 h-4 text-muted-foreground flex-shrink-0"
-        />
-        <Icon icon={group.icon} class="w-4 h-4 flex-shrink-0" />
-        <span class="flex-1 text-left truncate">{$_(group.labelKey)}</span>
-        {#if containsSelection && !isExpanded}
-          <span
-            class="w-1.5 h-1.5 rounded-full bg-primary flex-shrink-0"
-            title={$_('sidebar.containsSelection')}
-          ></span>
-        {/if}
-        {#if group.totalUnread > 0}
+        <Icon icon={def.icon} class="w-4 h-4 flex-shrink-0" />
+        <span class="flex-1 text-left truncate">{$_(def.labelKey)}</span>
+        {#if badge > 0}
           <span class="px-1.5 py-0.5 text-xs font-medium bg-primary text-primary-foreground rounded-full">
-            {group.totalUnread}
+            {badge}
           </span>
         {/if}
       </button>
+    {/each}
 
-      {#if isExpanded}
-        <div class="ml-4 mt-0.5 space-y-0.5">
-          {#each group.entries as entry (entry.account.id)}
-            <FolderContextMenu folderId={entry.folder.id}>
-              <button
-                class="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm transition-colors {isUnifiedFolderSelected(entry.folder.id)
-                  ? 'bg-primary/10 text-primary font-medium'
-                  : 'hover:bg-muted/50 text-muted-foreground hover:text-foreground'}"
-                data-sidebar-item="unified-folder"
-                data-folder-id={entry.folder.id}
-                onclick={() => onSelectUnifiedFolder(entry.account.id, entry.folder.id, entry.folder.path, entry.folder.name, entry.folder.type)}
-              >
-                <span
-                  class="w-2 h-2 rounded-full flex-shrink-0"
-                  style="background-color: {getAccountColor(entry.account)}"
-                ></span>
-                <span class="flex-1 text-left truncate">{entry.account.name}</span>
-                {#if entry.folder.unreadCount > 0}
-                  <span class="px-1.5 py-0.5 text-xs font-medium bg-muted text-muted-foreground rounded-full">
-                    {entry.folder.unreadCount}
-                  </span>
-                {/if}
-              </button>
-            </FolderContextMenu>
-          {/each}
-        </div>
-      {/if}
-    </div>
-  {/each}
+    <!-- Needs attention shortcut: opens Inbox/Unified Inbox with the bars in
+         place (and scrolls the list to them when already there). This is a
+         shortcut to the same bars, not a separate folder. Hidden when empty. -->
+    {#if attentionCount > 0}
+      <button
+        type="button"
+        class="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm transition-colors hover:bg-muted/50"
+        data-sidebar-item="attention"
+        onclick={onSelectAttention}
+      >
+        <Icon icon="mdi:bell-alert-outline" class="w-4 h-4 text-primary flex-shrink-0" />
+        <span class="flex-1 text-left truncate font-medium">{$_('attention.title')}</span>
+        <span class="flex-shrink-0 min-w-5 h-5 px-1 rounded-full bg-primary text-primary-foreground text-xs flex items-center justify-center">
+          {attentionCount}
+        </span>
+      </button>
+    {/if}
+  {/if}
 </div>

@@ -135,6 +135,35 @@ func (a *App) GetUnifiedInboxUnreadCount() (int, error) {
 	return a.messageStore.GetUnifiedInboxUnreadCount()
 }
 
+// GetUnifiedFolderConversations returns conversations from one unified folder
+// view (inbox/starred/sent/drafts/spam/trash) across all accounts
+func (a *App) GetUnifiedFolderConversations(folderType string, offset, limit int, sortOrder, filter, category, subCategory string) ([]*message.Conversation, error) {
+	start := time.Now()
+	convs, err := a.messageStore.ListConversationsUnifiedFolder(folderType, offset, limit, sortOrder, filter, category, subCategory)
+	log := logging.WithComponent("app")
+	log.Info().
+		Str("folderType", folderType).
+		Int("offset", offset).
+		Int("limit", limit).
+		Int("returned", len(convs)).
+		Dur("elapsed", time.Since(start)).
+		Msg("GetUnifiedFolderConversations")
+	return convs, err
+}
+
+// GetUnifiedFolderCount returns the total conversation count in one unified folder view
+func (a *App) GetUnifiedFolderCount(folderType, filter, category, subCategory string) (int, error) {
+	return a.messageStore.CountConversationsUnifiedFolder(folderType, filter, category, subCategory)
+}
+
+// GetUnifiedFolderUnreadCounts returns the unread count per unified folder
+// type (inbox/starred/sent/drafts/spam/trash) in one call, for the sidebar
+// badges. Outbox is not a message folder — its badge comes from the Mail
+// Merge queue stats.
+func (a *App) GetUnifiedFolderUnreadCounts() (map[string]int, error) {
+	return a.messageStore.GetUnifiedFolderUnreadCounts()
+}
+
 // GetConversation returns all messages in a conversation/thread
 func (a *App) GetConversation(threadID, folderID string) (*message.Conversation, error) {
 	log := logging.WithComponent("app")

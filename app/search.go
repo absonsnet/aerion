@@ -37,6 +37,19 @@ func (a *App) GetSearchCountUnifiedInbox(query, filter string) (int, error) {
 	return count, err
 }
 
+// SearchUnifiedFolder searches one unified folder view (inbox/starred/sent/
+// drafts/spam/trash) across all accounts
+func (a *App) SearchUnifiedFolder(folderType, query string, offset, limit int, filter string) ([]*message.ConversationSearchResult, error) {
+	results, _, err := a.messageStore.SearchConversationsUnifiedFolder(folderType, query, offset, limit, filter)
+	return results, err
+}
+
+// GetSearchCountUnifiedFolder returns the total count of search results in one unified folder view
+func (a *App) GetSearchCountUnifiedFolder(folderType, query, filter string) (int, error) {
+	_, count, err := a.messageStore.SearchConversationsUnifiedFolder(folderType, query, 0, 0, filter)
+	return count, err
+}
+
 // GetFTSIndexStatus returns the indexing status for a specific folder
 func (a *App) GetFTSIndexStatus(folderID string) (*message.FTSIndexStatus, error) {
 	return a.ftsIndexer.GetIndexStatus(folderID)

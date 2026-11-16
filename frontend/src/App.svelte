@@ -760,17 +760,12 @@
     })
   }
 
-  // Handle folder selection from unified inbox section
-  function handleUnifiedFolderSelect(
-    accountId: string,
-    folderId: string,
-    folderPath: string,
-    folderName: string,
-    folderType: string
-  ) {
-    selectedAccountId = accountId
-    selectedFolderId = folderId
-    selectedFolderName = folderName
+  // Handle folder selection from the Unified zone: one of the seven
+  // unified folders. The view merges that folder across all accounts.
+  function handleUnifiedFolderSelect(folderType: string, label: string) {
+    selectedAccountId = 'unified'
+    selectedFolderId = folderType
+    selectedFolderName = label
     selectedFolderType = folderType
     selectionSource = 'unified'
     closeAllMessageTabs()
@@ -781,9 +776,9 @@
 
     // Persist state
     saveUIState({
-      selectedAccountId: accountId,
-      selectedFolderId: folderId,
-      selectedFolderName: folderName,
+      selectedAccountId: 'unified',
+      selectedFolderId: folderType,
+      selectedFolderName: label,
       selectedFolderType: folderType,
       selectedThreadId: null,
       selectedConversationAccountId: null,
@@ -791,29 +786,9 @@
     })
   }
 
-  // Handle unified inbox selection from sidebar (All Inboxes)
+  // Handle unified inbox selection from sidebar (Inbox)
   function handleUnifiedInboxSelect() {
-    selectedAccountId = 'unified'
-    selectedFolderId = 'inbox'
-    selectedFolderName = 'All Inboxes'
-    selectedFolderType = 'inbox'
-    selectionSource = 'unified'
-    closeAllMessageTabs()
-    selectedThreadId = null
-    selectedConversationFolderId = null
-    selectedConversationAccountId = null
-    hideSidebar()
-
-    // Persist state
-    saveUIState({
-      selectedAccountId: 'unified',
-      selectedFolderId: 'inbox',
-      selectedFolderName: 'All Inboxes',
-      selectedFolderType: 'inbox',
-      selectedThreadId: null,
-      selectedConversationAccountId: null,
-      selectedConversationFolderId: null,
-    })
+    handleUnifiedFolderSelect('inbox', $_('sidebar.inbox'))
   }
 
   // First run after the upgrade (or fresh install): no persisted folder
@@ -1507,14 +1482,11 @@
       // single residual case.
       switch (e.key) {
         case 'Enter':
-          // Toggle expand/collapse for focused account header, focused
-          // unified group, or selected folder with children
+          // Toggle expand/collapse for focused account header or
+          // selected folder with children
           if (sidebarRef?.hasFocusedAccount()) {
             e.preventDefault()
             sidebarRef.toggleFocusedAccount()
-          } else if (sidebarRef?.hasFocusedUnifiedGroup()) {
-            e.preventDefault()
-            sidebarRef.toggleFocusedUnifiedGroup()
           } else if (sidebarRef?.hasSelectedFolderWithChildren()) {
             e.preventDefault()
             sidebarRef.toggleSelectedFolderCollapse()
@@ -1606,8 +1578,8 @@
     }
 
     // ArrowRight / ArrowLeft in the sidebar — expand / collapse the focused
-    // row (account header, unified folder-type group, or selected folder
-    // with children). Plain arrows only; Alt+arrows cycle panes.
+    // row (account header, or selected folder with children). Plain arrows
+    // only; Alt+arrows cycle panes.
     if (e.key === 'ArrowRight' && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
       if (isMailActive() && focusedPane === 'sidebar') {
         e.preventDefault()
@@ -1645,9 +1617,6 @@
         if (focusedPane === 'sidebar' && sidebarRef?.hasFocusedAccount()) {
           e.preventDefault()
           sidebarRef.openFocusedAccountInbox()
-        } else if (focusedPane === 'sidebar' && sidebarRef?.hasFocusedUnifiedGroup()) {
-          e.preventDefault()
-          sidebarRef.toggleFocusedUnifiedGroup()
         } else if (focusedPane === 'sidebar' && sidebarRef?.hasSelectedFolderWithChildren()) {
           e.preventDefault()
           sidebarRef.toggleSelectedFolderCollapse()
@@ -1671,8 +1640,6 @@
         e.preventDefault()
         if (focusedPane === 'sidebar' && sidebarRef?.hasFocusedAccount()) {
           sidebarRef.toggleFocusedAccount()
-        } else if (focusedPane === 'sidebar' && sidebarRef?.hasFocusedUnifiedGroup()) {
-          sidebarRef.toggleFocusedUnifiedGroup()
         } else if (focusedPane === 'sidebar' && sidebarRef?.hasSelectedFolderWithChildren()) {
           sidebarRef.toggleSelectedFolderCollapse()
         } else if (focusedPane === 'messageList') {

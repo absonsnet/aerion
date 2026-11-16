@@ -19,7 +19,7 @@
   import { cn } from '$lib/utils'
   import { Button } from '$lib/components/ui/button'
   // @ts-ignore - wailsjs bindings
-  import { GetConversations, GetConversationCount, SyncFolder, ForceSyncFolder, CancelFolderSync, SetMessageListSortOrder, GetUnifiedInboxConversations, GetUnifiedInboxCount, SearchConversations, SearchUnifiedInbox, GetSearchCount, GetSearchCountUnifiedInbox, GetFTSIndexStatus, IsFTSIndexing, Trash, DeletePermanently, EmptyTrash, EmptySpam, Undo, IMAPSearchFolder, FetchServerMessage, MarkAsRead, MarkAsUnread, Archive, Star, Unstar, MarkAsSpam, MarkAsNotSpam, MoveToFolder, GetAccounts, GetCategoryCounts, GetInboxTabDefault } from '../../../../wailsjs/go/app/App'
+  import { GetConversations, GetConversationCount, SyncFolder, ForceSyncFolder, CancelFolderSync, SetMessageListSortOrder, GetUnifiedFolderConversations, GetUnifiedFolderCount, SearchConversations, SearchUnifiedFolder, GetSearchCount, GetSearchCountUnifiedFolder, GetFTSIndexStatus, IsFTSIndexing, Trash, DeletePermanently, EmptyTrash, EmptySpam, Undo, IMAPSearchFolder, FetchServerMessage, MarkAsRead, MarkAsUnread, Archive, Star, Unstar, MarkAsSpam, MarkAsNotSpam, MoveToFolder, GetAccounts, GetCategoryCounts, GetInboxTabDefault, MailMerge_ListQueue, MailMerge_SendUnsent, MailMerge_CancelQueuedItem } from '../../../../wailsjs/go/app/App'
   import { toasts } from '$lib/stores/toast'
   import { _ } from '$lib/i18n'
   import { ConfirmDialog } from '$lib/components/ui/confirm-dialog'
@@ -29,6 +29,7 @@
   // @ts-ignore - wailsjs runtime
   import { EventsOn, EventsOff } from '../../../../wailsjs/runtime/runtime'
   import { getMessageListDensity, getMessageListSortOrder, setMessageListSortOrder, getShowMessageListProfilePics } from '$lib/stores/settings.svelte'
+  import { normalizeQueueItems, type MailMergeQueuedItem, type MailMergeDispatchResult } from '$extensions/mail-merge/frontend/lib/mailmerge'
   import { contactPhotos } from '$lib/stores/contactPhotos.svelte'
   import { accountStore } from '$lib/stores/accounts.svelte'
   import { getLayoutMode, hideViewer } from '$lib/stores/layout.svelte'
@@ -86,20 +87,29 @@
   let lastLoadedFolderId = $state<string | null>(null) // Track folder changes
   let loadGeneration = $state(0) // Invalidates stale async results when folder changes mid-load (#200)
 
-  // Check if viewing unified inbox (declared here — the sync deriveds
-  // below depend on it)
-  const isUnifiedView = $derived(accountId === 'unified' && folderId === 'inbox')
+  // Unified views: the sidebar's Unified zone merges one folder type
+  // across all accounts (folderId is the type: inbox/starred/sent/
+  // drafts/spam/trash). Outbox is the local send queue, not a message
+  // folder, so it is a unified selection but not a conversation view.
+  const isUnifiedInboxView = $derived(accountId === 'unified' && folderId === 'inbox')
+  const isUnifiedView = $derived(accountId === 'unified' && !!folderId && folderId !== 'outbox')
+  const isOutboxView = $derived(accountId === 'unified' && folderId === 'outbox')
 
   // Derived: check if this folder is currently syncing (from account store's progress tracking)
-  // In the Unified Inbox, any inbox folder syncing counts — plus folders
+  // In a unified view, any folder of the selected type syncing counts — plus folders
   // this unified refresh started that have not settled yet, which covers
   // the gap before the backend's first sync:progress event lands.
-  function getInboxFolders(): { accountId: string; folderId: string }[] {
-    const inboxes: { accountId: string; folderId: string }[] = []
+  function getUnifiedSyncTargets(): { accountId: string; folderId: string }[] {
+    // Starred flags live in messages across folders, so a Starred refresh
+    // syncs the five folder-type folders of every account.
+    const types = folderId === 'starred'
+      ? ['inbox', 'sent', 'drafts', 'spam', 'trash']
+      : folderId ? [folderId] : []
+    const targets: { accountId: string; folderId: string }[] = []
     const walk = (accountId: string, trees: { folder?: { id: string; type: string }; children?: typeof trees }[]) => {
       for (const tree of trees) {
-        if (tree.folder?.type === 'inbox') {
-          inboxes.push({ accountId, folderId: tree.folder.id })
+        if (tree.folder && types.includes(tree.folder.type)) {
+          targets.push({ accountId, folderId: tree.folder.id })
         }
         if (tree.children) walk(accountId, tree.children)
       }
@@ -107,12 +117,12 @@
     for (const acc of accountStore.accounts) {
       walk(acc.account.id, acc.folders as never)
     }
-    return inboxes
+    return targets
   }
 
-  const inboxFolders = $derived(getInboxFolders())
+  const unifiedFolders = $derived(getUnifiedSyncTargets())
 
-  // Keys ("accountId:folderId") of inbox syncs started by a unified
+  // Keys ("accountId:folderId") of folder syncs started by a unified
   // refresh that have not settled yet. Plain $state array, reassigned on
   // change so the derived syncing flag below stays reactive.
   let unifiedSyncKeys = $state<string[]>([])
@@ -120,7 +130,7 @@
   const unifiedSyncing = $derived(
     isUnifiedView &&
       (unifiedSyncKeys.length > 0 ||
-        inboxFolders.some(
+        unifiedFolders.some(
           (f) => accountStore.syncProgress[f.accountId]?.[f.folderId] !== undefined
         ))
   )
@@ -132,10 +142,10 @@
   )
 
   // Derived: get sync progress for this folder (if syncing). In the unified
-  // view, the first inbox folder currently reporting progress.
+  // view, the first folder of the selected type currently reporting progress.
   const syncProgress = $derived(
     isUnifiedView
-      ? (inboxFolders
+      ? (unifiedFolders
           .map((f) => accountStore.syncProgress[f.accountId]?.[f.folderId])
           .find((p) => p !== undefined) ?? null)
       : accountId && folderId
@@ -144,11 +154,93 @@
   )
 
   // Whether there is anything the refresh control can sync: a selected
-  // folder, or at least one inbox in the Unified Inbox. List loading (DB
+  // folder, or at least one folder of the unified type. List loading (DB
   // load) deliberately does NOT disable refresh.
   const hasSyncTarget = $derived(
-    isUnifiedView ? inboxFolders.length > 0 : !!(accountId && folderId)
+    isUnifiedView ? unifiedFolders.length > 0 : !!(accountId && folderId)
   )
+
+  // Outbox (local Mail Merge send queue): the only "emails being sent"
+  // state in the app. Normal sends transmit immediately; only Mail Merge
+  // "Send later" runs queue here. ListQueue returns nil when the
+  // extension is disabled, so a disabled extension reads as an empty
+  // outbox — the empty state says what the Outbox is for, not why it is
+  // empty.
+  let queueItems = $state<MailMergeQueuedItem[]>([])
+  let queueLoading = $state(false)
+  let queueError = $state<string | null>(null)
+  let expandedQueueId = $state<string | null>(null)
+  let queueActionBusy = $state('')
+
+  const waitingQueueItems = $derived(queueItems.filter((i) => i.status === 'queued' || i.status === 'sending'))
+  const failedQueueItems = $derived(queueItems.filter((i) => i.status === 'failed'))
+  const doneQueueItems = $derived(queueItems.filter((i) => i.status === 'sent' || i.status === 'cancelled'))
+
+  // Waiting, then failed, then sent/cancelled — each group only when
+  // non-empty (the template skips empty groups).
+  const queueGroups = $derived([
+    { key: 'waiting', label: $_('messageList.outboxStatusQueued'), items: waitingQueueItems },
+    { key: 'failed', label: $_('messageList.outboxStatusFailed'), items: failedQueueItems },
+    { key: 'done', label: $_('messageList.outboxHistory'), items: doneQueueItems },
+  ].filter((g) => g.items.length > 0))
+
+  async function loadQueue() {
+    queueLoading = true
+    queueError = null
+    try {
+      const items = await MailMerge_ListQueue()
+      queueItems = normalizeQueueItems((items as MailMergeQueuedItem[] | null) ?? [])
+    } catch (err) {
+      console.error('Failed to load outbox queue:', err)
+      queueError = $_('viewer.failedToLoadMessages')
+    } finally {
+      queueLoading = false
+    }
+  }
+
+  function queueStatusLabel(status: string): string {
+    switch (status) {
+      case 'queued': return $_('messageList.outboxStatusQueued')
+      case 'sending': return $_('messageList.outboxStatusSending')
+      case 'sent': return $_('messageList.outboxStatusSent')
+      case 'failed': return $_('messageList.outboxStatusFailed')
+      case 'cancelled': return $_('messageList.outboxStatusCancelled')
+      default: return status
+    }
+  }
+
+  function formatQueueTime(value: string): string {
+    if (!value) return ''
+    const d = new Date(value)
+    return Number.isNaN(d.getTime()) ? value : d.toLocaleString()
+  }
+
+  async function sendUnsentNow() {
+    queueActionBusy = 'send-unsent'
+    try {
+      const res = (await MailMerge_SendUnsent()) as MailMergeDispatchResult
+      toasts.success(`Send unsent: ${res.sent} sent, ${res.failed} failed, ${res.remaining} still queued.`)
+      await loadQueue()
+    } catch (err) {
+      console.error('Send unsent failed:', err)
+      toasts.error((err as Error)?.message ?? String(err))
+    } finally {
+      queueActionBusy = ''
+    }
+  }
+
+  async function cancelQueuedItem(id: string) {
+    queueActionBusy = `cancel-${id}`
+    try {
+      await MailMerge_CancelQueuedItem(id)
+      await loadQueue()
+    } catch (err) {
+      console.error('Cancel queued item failed:', err)
+      toasts.error((err as Error)?.message ?? String(err))
+    } finally {
+      queueActionBusy = ''
+    }
+  }
 
   // Multi-select state
   let checkedThreadIds = $state<Set<string>>(new Set())
@@ -218,7 +310,7 @@
 
   // Tabs only exist where the classifier files mail: Inbox / Unified
   // Inbox, and never in search (search results span every folder).
-  const showCategoryTabs = $derived(!isSearchMode && (isUnifiedView || folderType === 'inbox'))
+  const showCategoryTabs = $derived(!isSearchMode && (isUnifiedInboxView || folderType === 'inbox'))
 
   // List-header scope naming (Phase E): the header always says where you
   // are — "All Inboxes · All accounts" in the unified view, "Work · Inbox"
@@ -263,14 +355,15 @@
 
   // The category/sub-category actually sent to the backend: '' means "no
   // restriction" (All tab / all automated). A sub-category only applies
-  // inside the Automated tab.
-  const listCategory = $derived(inboxTab === 'all' ? '' : inboxTab)
-  const listSubCategory = $derived(inboxTab === 'automated' ? subFilter : '')
+  // inside the Automated tab. Forced to '' where the tabs don't exist, so
+  // a stale Personal tab never filters Sent/Spam/etc.
+  const listCategory = $derived(showCategoryTabs && inboxTab !== 'all' ? inboxTab : '')
+  const listSubCategory = $derived(showCategoryTabs && inboxTab === 'automated' ? subFilter : '')
 
   async function refreshCategoryCounts() {
     if (!showCategoryTabs) return
     try {
-      categoryCounts = await GetCategoryCounts(isUnifiedView ? '' : folderId!, isUnifiedView)
+      categoryCounts = await GetCategoryCounts(isUnifiedInboxView ? '' : folderId!, isUnifiedInboxView)
     } catch (err) {
       console.error('Failed to load category counts:', err)
     }
@@ -306,17 +399,27 @@
   let isIndexing = $state(false)
   let searchInputRef = $state<HTMLInputElement | null>(null)
 
-  // Check if a folder is an inbox by looking it up in the account store
-  function isInboxFolder(acctId: string, fldId: string): boolean {
-    const acct = accountStore.accounts.find(a => a.account.id === acctId)
+  // Check if a synced folder belongs to the current unified view, by
+  // looking its type up in the account store. Starred flags live in
+  // messages across folders, so a Starred refresh follows any of the
+  // five folder-type folders.
+  function isUnifiedSyncFolder(acctId: string, fldId: string): boolean {
+    const acct = accountStore.accounts.find((a) => a.account.id === acctId)
     if (!acct) return false
-    for (const tree of acct.folders) {
-      if (tree.folder?.id === fldId) return tree.folder.type === 'inbox'
-      for (const child of tree.children || []) {
-        if (child.folder?.id === fldId) return child.folder.type === 'inbox'
+    const findType = (trees: { folder?: { id: string; type: string }; children?: typeof trees }[]): string | null => {
+      for (const tree of trees) {
+        if (tree.folder?.id === fldId) return tree.folder.type
+        if (tree.children) {
+          const found = findType(tree.children)
+          if (found) return found
+        }
       }
+      return null
     }
-    return false
+    const type = findType(acct.folders as never)
+    if (!type) return false
+    if (folderId === 'starred') return ['inbox', 'sent', 'drafts', 'spam', 'trash'].includes(type)
+    return type === folderId
   }
 
   // Schedule a debounced reload — coalesces rapid sync events from multiple accounts
@@ -354,16 +457,18 @@
   // Listen for folder sync events from backend
   onMount(() => {
     EventsOn('folder:synced', (data: { accountId: string; folderId: string }) => {
-      // Reload if this is the current folder, or unified inbox when an inbox folder synced
-      if ((isUnifiedView && isInboxFolder(data.accountId, data.folderId)) || (!isUnifiedView && accountId && folderId && data.accountId === accountId && data.folderId === folderId)) {
+      // Reload if this is the current folder, or a folder of the current
+      // unified type synced
+      if ((isUnifiedView && isUnifiedSyncFolder(data.accountId, data.folderId)) || (!isUnifiedView && accountId && folderId && data.accountId === accountId && data.folderId === folderId)) {
         scheduleReload()
       }
     })
 
     // Listen for messages:updated events (e.g., from IDLE push notifications)
     EventsOn('messages:updated', (data: { accountId: string; folderId: string }) => {
-      // Reload if this is the current folder, or unified inbox when an inbox folder updated
-      if ((isUnifiedView && isInboxFolder(data.accountId, data.folderId)) || (!isUnifiedView && accountId && folderId && data.accountId === accountId && data.folderId === folderId)) {
+      // Reload if this is the current folder, or a folder of the current
+      // unified type updated
+      if ((isUnifiedView && isUnifiedSyncFolder(data.accountId, data.folderId)) || (!isUnifiedView && accountId && folderId && data.accountId === accountId && data.folderId === folderId)) {
         scheduleReload()
       }
     })
@@ -429,6 +534,11 @@
       if (listContainerRef) listContainerRef.scrollTop = 0
     })
 
+    // Outbox: reload the queue when the Mail Merge runner reports a change.
+    EventsOn('mailmerge:queue-updated', () => {
+      if (isOutboxView) void loadQueue()
+    })
+
     // Category tab default (Phase E): the user's Settings → Categories
     // pick, "all" unless they chose otherwise. If it differs from the
     // "all" the first load already used, reload under the right tab.
@@ -468,6 +578,7 @@
     EventsOff('messages:updated')
     EventsOff('messages:readChanged')
     EventsOff('categories:changed')
+    EventsOff('mailmerge:queue-updated')
     EventsOff('fts:progress')
     EventsOff('fts:complete')
     EventsOff('fts:indexing')
@@ -477,9 +588,10 @@
     if (dialogGuardInterval) clearInterval(dialogGuardInterval)
   })
 
-  // Check FTS index status for current folder
+  // Check FTS index status for current folder (single-folder views only —
+  // a unified view has no single folder ID to check).
   async function checkFTSIndexStatus() {
-    if (!folderId) return
+    if (!folderId || isUnifiedView) return
     try {
       const status = await GetFTSIndexStatus(folderId)
       if (status) {
@@ -512,7 +624,7 @@
   // Clear selection and search when folder changes
   $effect(() => {
     const currentAccount = isUnifiedView ? 'unified' : accountId
-    const currentFolder = isUnifiedView ? 'inbox' : folderId
+    const currentFolder = folderId
 
     if (!isUnifiedView && (!accountId || !folderId)) {
       rememberListState()
@@ -606,6 +718,12 @@
   }
 
   async function loadConversations(customLimit?: number) {
+    // Outbox is the local send queue, not a conversation list.
+    if (isOutboxView) {
+      await loadQueue()
+      return
+    }
+
     // For unified view, we don't need accountId/folderId
     if (!isUnifiedView && (!accountId || !folderId)) return
 
@@ -626,8 +744,8 @@
     try {
       const [convList, count] = isUnifiedView
         ? await Promise.all([
-          GetUnifiedInboxConversations(currentOffset, limit, getMessageListSortOrder(), filterMode, listCategory, listSubCategory),
-          GetUnifiedInboxCount(filterMode, listCategory, listSubCategory),
+          GetUnifiedFolderConversations(folderId!, currentOffset, limit, getMessageListSortOrder(), filterMode, listCategory, listSubCategory),
+          GetUnifiedFolderCount(folderId!, filterMode, listCategory, listSubCategory),
         ])
         : await Promise.all([
           GetConversations(accountId!, folderId!, currentOffset, limit, getMessageListSortOrder(), filterMode, listCategory, listSubCategory),
@@ -707,12 +825,19 @@
   export async function syncFolder() {
     error = null
 
-    // Unified Inbox: sync EVERY account's inbox folder. SyncFolder is
-    // per account+folder and concurrent-safe, so fire them all at once;
-    // the account store's per-folder progress keeps the spinner correct
-    // (unifiedSyncKeys covers the gap before the first progress event).
+    // Outbox has nothing to sync — refresh just reloads the queue.
+    if (isOutboxView) {
+      await loadQueue()
+      return
+    }
+
+    // Unified view: sync EVERY account's folder of the selected type.
+    // SyncFolder is per account+folder and concurrent-safe, so fire them
+    // all at once; the account store's per-folder progress keeps the
+    // spinner correct (unifiedSyncKeys covers the gap before the first
+    // progress event).
     if (isUnifiedView) {
-      const targets = getInboxFolders()
+      const targets = getUnifiedSyncTargets()
       if (targets.length === 0) return
 
       const keys = targets.map((f) => `${f.accountId}:${f.folderId}`)
@@ -774,12 +899,12 @@
 
   // Cancel folder sync
   export async function cancelFolderSync() {
-    // Unified Inbox: cancel every inbox sync started by this refresh
-    // (still in-flight keys) plus any inbox currently reporting progress
-    // (its body-fetch phase, started by this refresh, outlives the
-    // SyncFolder call that began it).
+    // Unified view: cancel every folder sync of the selected type started
+    // by this refresh (still in-flight keys) plus any folder of the type
+    // currently reporting progress (its body-fetch phase, started by this
+    // refresh, outlives the SyncFolder call that began it).
     if (isUnifiedView) {
-      const targets = getInboxFolders().filter(
+      const targets = getUnifiedSyncTargets().filter(
         (f) =>
           unifiedSyncKeys.includes(`${f.accountId}:${f.folderId}`) ||
           accountStore.syncProgress[f.accountId]?.[f.folderId] !== undefined
@@ -876,8 +1001,8 @@
 
       if (isUnifiedView) {
         ;[results, count] = await Promise.all([
-          SearchUnifiedInbox(query, 0, PAGE_SIZE, filterMode),
-          GetSearchCountUnifiedInbox(query, filterMode),
+          SearchUnifiedFolder(folderId!, query, 0, PAGE_SIZE, filterMode),
+          GetSearchCountUnifiedFolder(folderId!, query, filterMode),
         ])
       } else if (accountId && folderId) {
         ;[results, count] = await Promise.all([
@@ -917,7 +1042,7 @@
     try {
       let results: any[] = []
       if (isUnifiedView) {
-        results = await SearchUnifiedInbox(query, newOffset, PAGE_SIZE, filterMode)
+        results = await SearchUnifiedFolder(folderId!, query, newOffset, PAGE_SIZE, filterMode)
       } else if (accountId && folderId) {
         results = await SearchConversations(accountId, folderId, query, newOffset, PAGE_SIZE, filterMode)
       }
@@ -2053,11 +2178,26 @@
         </div>
       {:else}
         <h2 class="font-semibold text-foreground">{scopeName}</h2>
-        <span class="text-sm text-muted-foreground">
-          {$_('messageList.unread', { values: { count: unreadCount } })}
-        </span>
+        {#if !isOutboxView}
+          <span class="text-sm text-muted-foreground">
+            {$_('messageList.unread', { values: { count: unreadCount } })}
+          </span>
+        {/if}
       {/if}
     </div>
+    {#if isOutboxView}
+      <div class="flex items-center gap-1">
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={queueActionBusy !== '' || waitingQueueItems.length === 0}
+          onclick={sendUnsentNow}
+        >
+          <Icon icon="mdi:send" class="w-4 h-4 mr-1.5" />
+          {$_('messageList.outboxSendUnsent')}
+        </Button>
+      </div>
+    {:else}
     <div class="flex items-center gap-1">
       {#if syncing}
         <!-- While syncing, show spinning icon that cancels on click -->
@@ -2194,6 +2334,7 @@
       </button>
     </div>
     {/if}
+    {/if}
   </div>
 
   <!-- Active filter chip -->
@@ -2210,8 +2351,10 @@
     </div>
   {/if}
 
-  <!-- Empty Trash/Spam bar (only shown when viewing trash or spam folder with messages, not in search mode) -->
-  {#if (folderType === 'trash' || folderType === 'spam') && totalCount > 0 && !isSearchMode}
+  <!-- Empty Trash/Spam bar (only shown when viewing one account's trash or
+       spam folder with messages, not in search mode and never for a
+       unified view — emptying spans accounts and has no single target). -->
+  {#if !isUnifiedView && (folderType === 'trash' || folderType === 'spam') && totalCount > 0 && !isSearchMode}
     <div class="flex items-center justify-end px-4 py-2 bg-muted/50 border-b border-border">
       <Button
         size="sm"
@@ -2243,11 +2386,11 @@
 
   <!-- Needs attention bars (Phase A): only Inbox / Unified Inbox, never
        Spam/Trash or search. They push the list down, never overlay. -->
-  {#if !isSearchMode && (isUnifiedView || folderType === 'inbox')}
+  {#if !isSearchMode && (isUnifiedInboxView || folderType === 'inbox')}
     <NeedsAttentionStrip
       bind:this={attentionStripRef}
-      folderId={isUnifiedView ? null : folderId}
-      unified={isUnifiedView}
+      folderId={isUnifiedInboxView ? null : folderId}
+      unified={isUnifiedInboxView}
       onOpenItem={openAttentionItem}
     />
   {/if}
@@ -2296,7 +2439,85 @@
 
   <!-- Conversation List -->
   <div bind:this={listContainerRef} class="flex-1 overflow-y-auto scrollbar-thin">
-    {#if loading && conversations.length === 0 && !isSearchMode}
+    {#if isOutboxView}
+      <!-- Outbox: the local Mail Merge send queue. Rows expand inline to
+           show the queued message's details; nothing here is a
+           conversation, so no row actions, tabs or viewer apply. -->
+      {#if queueLoading && queueItems.length === 0}
+        <div class="flex items-center justify-center h-32">
+          <Icon icon="mdi:loading" class="w-6 h-6 animate-spin text-muted-foreground" />
+        </div>
+      {:else if queueError}
+        <div class="flex flex-col items-center justify-center h-32 text-center px-4">
+          <Icon icon="mdi:alert-circle-outline" class="w-8 h-8 text-destructive mb-2" />
+          <p class="text-sm text-destructive">{queueError}</p>
+          <button
+            class="mt-2 text-sm text-primary hover:underline"
+            onclick={() => loadQueue()}
+          >
+            {$_('messageList.tryAgain')}
+          </button>
+        </div>
+      {:else if queueItems.length === 0}
+        <div class="flex flex-col items-center justify-center h-full text-center px-6 text-muted-foreground">
+          <Icon icon="mdi:send-clock-outline" class="w-12 h-12 mb-2" />
+          <p>{$_('messageList.outboxEmpty')}</p>
+          <p class="text-xs mt-1">{$_('messageList.outboxEmptyHint')}</p>
+        </div>
+      {:else}
+        {#each queueGroups as group (group.key)}
+          <div class="px-4 pt-3 pb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            {group.label} ({group.items.length})
+          </div>
+          {#each group.items as item (item.id)}
+            <div class="border-b border-border">
+              <button
+                type="button"
+                class="w-full flex items-center gap-2 px-4 py-2.5 text-left hover:bg-muted/50"
+                onclick={() => { expandedQueueId = expandedQueueId === item.id ? null : item.id }}
+              >
+                <Icon icon="mdi:send-clock-outline" class="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                <span class="flex-1 min-w-0">
+                  <span class="block truncate text-sm font-medium">{item.subject || $_('messageList.noContent')}</span>
+                  <span class="block truncate text-xs text-muted-foreground">{item.recipient}</span>
+                </span>
+                <span class="flex-shrink-0 px-1.5 py-0.5 text-xs font-medium rounded-full {item.status === 'failed' ? 'bg-destructive/10 text-destructive' : item.status === 'sent' ? 'bg-emerald-500/10 text-emerald-600' : 'bg-muted text-muted-foreground'}">
+                  {queueStatusLabel(item.status)}
+                </span>
+              </button>
+              {#if expandedQueueId === item.id}
+                <div class="px-4 pb-3 text-xs text-muted-foreground space-y-1">
+                  <p class="truncate">From: {item.fromAddress}</p>
+                  <p class="break-words">To: {item.to.join(', ')}</p>
+                  <p>{$_('messageList.outboxAttempts', { values: { attempts: item.attempts, max: item.maxAttempts } })}</p>
+                  {#if item.status === 'queued' && item.nextAttemptAt}
+                    <p>{$_('messageList.outboxNextAttempt', { values: { time: formatQueueTime(item.nextAttemptAt) } })}</p>
+                  {/if}
+                  {#if item.sentAt}
+                    <p>Sent: {formatQueueTime(item.sentAt)}</p>
+                  {/if}
+                  {#if item.lastError}
+                    <p class="text-destructive break-words">{$_('messageList.outboxLastError', { values: { error: item.lastError } })}</p>
+                  {/if}
+                  {#if item.status === 'queued'}
+                    <div class="pt-1">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={queueActionBusy !== ''}
+                        onclick={() => cancelQueuedItem(item.id)}
+                      >
+                        {$_('messageList.outboxCancel')}
+                      </Button>
+                    </div>
+                  {/if}
+                </div>
+              {/if}
+            </div>
+          {/each}
+        {/each}
+      {/if}
+    {:else if loading && conversations.length === 0 && !isSearchMode}
       <div class="flex items-center justify-center h-32">
         <Icon icon="mdi:loading" class="w-6 h-6 animate-spin text-muted-foreground" />
       </div>

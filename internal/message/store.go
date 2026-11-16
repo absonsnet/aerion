@@ -178,9 +178,40 @@ func (s *Store) ListByFolder(folderID string, offset, limit int) ([]*MessageHead
 	return messages, nil
 }
 
-// ListConversationsUnifiedInbox returns conversations from all inbox folders across all accounts
-// This is used for the unified inbox view
-func (s *Store) ListConversationsUnifiedInbox(offset, limit int, sortOrder, filter, category, subCategory string) ([]*Conversation, error) {
+// unifiedFolderJoin returns the folders JOIN for a unified folder view.
+// Folder types (inbox/sent/drafts/spam/trash) restrict the join to folders
+// of that type — which is how providers' differently-named folders combine:
+// sync classifies each account's Spam/Junk folder as 'spam' and its
+// Trash/Deleted Items/Bin folder as 'trash'. Starred is flag-based, not
+// folder-based: every starred message across all folders.
+func unifiedFolderJoin(folderType string) (string, []any, error) {
+	switch folderType {
+	case "inbox", "sent", "drafts", "spam", "trash":
+		return "INNER JOIN folders f ON m.folder_id = f.id AND f.folder_type = ?", []any{folderType}, nil
+	case "starred":
+		return "INNER JOIN folders f ON m.folder_id = f.id", nil, nil
+	default:
+		return "", nil, fmt.Errorf("unknown unified folder type %q", folderType)
+	}
+}
+
+// unifiedFolderStarredWhere is the extra WHERE fragment for the Starred
+// view (flag-based); empty for folder-type views.
+func unifiedFolderStarredWhere(folderType string) string {
+	if folderType == "starred" {
+		return " AND m.is_starred = 1"
+	}
+	return ""
+}
+
+// ListConversationsUnifiedFolder returns conversations from all folders of
+// one type across all accounts (inbox/sent/drafts/spam/trash), or all
+// starred conversations across all folders ("starred").
+func (s *Store) ListConversationsUnifiedFolder(folderType string, offset, limit int, sortOrder, filter, category, subCategory string) ([]*Conversation, error) {
+	folderJoin, folderArgs, err := unifiedFolderJoin(folderType)
+	if err != nil {
+		return nil, err
+	}
 	// Determine sort direction
 	orderClause := "ORDER BY latest_date DESC"
 	if sortOrder == "oldest" {
@@ -191,7 +222,7 @@ func (s *Store) ListConversationsUnifiedInbox(offset, limit int, sortOrder, filt
 	// a tab by its latest message's category.
 	categoryClause, categoryArgs := categoryFilterClause(category, subCategory, "m.", "account_id")
 
-	// Query conversations from all inbox folders, joining with accounts for name and color
+	// Query conversations from all folders of the unified type, joining with accounts for name and color
 	query := `
 		SELECT 
 			COALESCE(m.thread_id, m.id) as conv_thread_id,
@@ -216,19 +247,19 @@ func (s *Store) ListConversationsUnifiedInbox(offset, limit int, sortOrder, filt
 			f.id as folder_id,
 			json_group_array(json_object('name', m.from_name, 'email', m.from_email, 'date', m.date, 'snippet', m.snippet)) as participants_json
 		FROM messages m
-		INNER JOIN folders f ON m.folder_id = f.id AND f.folder_type = 'inbox'
+		` + folderJoin + `
 		INNER JOIN accounts a ON f.account_id = a.id AND a.enabled = 1
-		WHERE m.is_hidden = 0` + categoryClause + `
+		WHERE m.is_hidden = 0` + unifiedFolderStarredWhere(folderType) + categoryClause + `
 		GROUP BY COALESCE(m.thread_id, m.id), a.id` +
 		filterHavingClause(filter, "m.") + `
 		` + orderClause + `
 		LIMIT ? OFFSET ?
 	`
 
-	args := append(append([]any{}, categoryArgs...), limit, offset)
+	args := append(append(append([]any{}, folderArgs...), categoryArgs...), limit, offset)
 	rows, err := s.db.Query(query, args...)
 	if err != nil {
-		return nil, fmt.Errorf("failed to query unified inbox conversations: %w", err)
+		return nil, fmt.Errorf("failed to query unified folder conversations: %w", err)
 	}
 	defer rows.Close()
 
@@ -262,7 +293,7 @@ func (s *Store) ListConversationsUnifiedInbox(offset, limit int, sortOrder, filt
 			&participantsJSON,
 		)
 		if err != nil {
-			return nil, fmt.Errorf("failed to scan unified inbox conversation: %w", err)
+			return nil, fmt.Errorf("failed to scan unified folder conversation: %w", err)
 		}
 		if extractKind.Valid {
 			c.ExtractKind = extractKind.String
@@ -309,11 +340,22 @@ func (s *Store) ListConversationsUnifiedInbox(offset, limit int, sortOrder, filt
 	return conversations, nil
 }
 
-// CountConversationsUnifiedInbox returns the total count of conversations across all inbox folders
-func (s *Store) CountConversationsUnifiedInbox(filter, category, subCategory string) (int, error) {
+// ListConversationsUnifiedInbox returns conversations from all inbox folders across all accounts
+// This is used for the unified inbox view
+func (s *Store) ListConversationsUnifiedInbox(offset, limit int, sortOrder, filter, category, subCategory string) ([]*Conversation, error) {
+	return s.ListConversationsUnifiedFolder("inbox", offset, limit, sortOrder, filter, category, subCategory)
+}
+
+// CountConversationsUnifiedFolder returns the total count of conversations
+// in a unified folder view (see ListConversationsUnifiedFolder).
+func (s *Store) CountConversationsUnifiedFolder(folderType, filter, category, subCategory string) (int, error) {
+	folderJoin, folderArgs, err := unifiedFolderJoin(folderType)
+	if err != nil {
+		return 0, err
+	}
 	filterCond := filterWhereClause(filter, "m.")
 	categoryClause, categoryArgs := categoryFilterClause(category, subCategory, "m.", "account_id")
-	wherePart := " WHERE m.is_hidden = 0"
+	wherePart := " WHERE m.is_hidden = 0" + unifiedFolderStarredWhere(folderType)
 	if filterCond != "" {
 		wherePart += filterCond
 	}
@@ -322,16 +364,22 @@ func (s *Store) CountConversationsUnifiedInbox(filter, category, subCategory str
 	query := `
 		SELECT COUNT(DISTINCT COALESCE(m.thread_id, m.id) || '-' || a.id)
 		FROM messages m
-		INNER JOIN folders f ON m.folder_id = f.id AND f.folder_type = 'inbox'
+		` + folderJoin + `
 		INNER JOIN accounts a ON f.account_id = a.id AND a.enabled = 1
 	` + wherePart
 
+	args := append(append([]any{}, folderArgs...), categoryArgs...)
 	var count int
-	err := s.db.QueryRow(query, categoryArgs...).Scan(&count)
+	err = s.db.QueryRow(query, args...).Scan(&count)
 	if err != nil {
-		return 0, fmt.Errorf("failed to count unified inbox conversations: %w", err)
+		return 0, fmt.Errorf("failed to count unified folder conversations: %w", err)
 	}
 	return count, nil
+}
+
+// CountConversationsUnifiedInbox returns the total count of conversations across all inbox folders
+func (s *Store) CountConversationsUnifiedInbox(filter, category, subCategory string) (int, error) {
+	return s.CountConversationsUnifiedFolder("inbox", filter, category, subCategory)
 }
 
 // GetUnifiedInboxUnreadCount returns the total unread message count across all inbox folders
@@ -379,6 +427,53 @@ func (s *Store) GetUnifiedInboxUnreadCount() (int, error) {
 
 	s.log.Debug().Int("unreadCount", count).Msg("GetUnifiedInboxUnreadCount (sum of folder counts)")
 	return count, nil
+}
+
+// GetUnifiedFolderUnreadCounts returns the unread message count per unified
+// folder type (inbox/starred/sent/drafts/spam/trash) in one call, for the
+// sidebar badges. Folder types use the cached folder.unread_count sums;
+// Starred counts unread starred messages across all folders (there is no
+// starred folder). Outbox is not a message folder — its badge comes from
+// the Mail Merge queue stats instead.
+func (s *Store) GetUnifiedFolderUnreadCounts() (map[string]int, error) {
+	counts := map[string]int{
+		"inbox": 0, "starred": 0, "sent": 0, "drafts": 0, "spam": 0, "trash": 0,
+	}
+	rows, err := s.db.Query(`
+		SELECT f.folder_type, COALESCE(SUM(f.unread_count), 0)
+		FROM folders f
+		INNER JOIN accounts a ON f.account_id = a.id AND a.enabled = 1
+		WHERE f.folder_type IN ('inbox', 'sent', 'drafts', 'spam', 'trash')
+		GROUP BY f.folder_type
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("failed to count unified folder unread: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var folderType string
+		var count int
+		if err := rows.Scan(&folderType, &count); err != nil {
+			return nil, fmt.Errorf("failed to scan unified folder unread: %w", err)
+		}
+		counts[folderType] = count
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("failed to read unified folder unread: %w", err)
+	}
+
+	var starred int
+	err = s.db.QueryRow(`
+		SELECT COUNT(*)
+		FROM messages m
+		INNER JOIN accounts a ON m.account_id = a.id AND a.enabled = 1
+		WHERE m.is_starred = 1 AND m.is_read = 0 AND m.is_hidden = 0
+	`).Scan(&starred)
+	if err != nil {
+		return nil, fmt.Errorf("failed to count unified starred unread: %w", err)
+	}
+	counts["starred"] = starred
+	return counts, nil
 }
 
 // CountUnreadByFolder returns the unread message count for a folder
@@ -3560,24 +3655,32 @@ func (s *Store) SearchConversations(folderID, query string, offset, limit int, f
 }
 
 // SearchConversationsUnifiedInbox searches across all inbox folders for all accounts
-func (s *Store) SearchConversationsUnifiedInbox(query string, offset, limit int, filter string) ([]*ConversationSearchResult, int, error) {
+// SearchConversationsUnifiedFolder searches one unified folder view (see
+// ListConversationsUnifiedFolder).
+func (s *Store) SearchConversationsUnifiedFolder(folderType, query string, offset, limit int, filter string) ([]*ConversationSearchResult, int, error) {
 	if query == "" {
 		return nil, 0, nil
 	}
 
+	folderJoin, folderArgs, err := unifiedFolderJoin(folderType)
+	if err != nil {
+		return nil, 0, err
+	}
+
 	ftsQuery := prepareFTSQuery(query)
 
-	// Count total results across all inbox folders
+	// Count total results across all folders of the unified type
 	countQuery := `
 		SELECT COUNT(DISTINCT COALESCE(m.thread_id, m.id) || '-' || a.id)
 		FROM messages m
 		JOIN messages_fts fts ON m.rowid = fts.rowid
-		INNER JOIN folders f ON m.folder_id = f.id AND f.folder_type = 'inbox'
+		` + folderJoin + `
 		INNER JOIN accounts a ON f.account_id = a.id AND a.enabled = 1
-		WHERE m.is_hidden = 0 AND messages_fts MATCH ?
+		WHERE m.is_hidden = 0 AND messages_fts MATCH ?` + unifiedFolderStarredWhere(folderType) + `
 	` + filterWhereClause(filter, "m.")
 	var totalCount int
-	err := s.db.QueryRow(countQuery, ftsQuery).Scan(&totalCount)
+	countArgs := append(append([]any{}, folderArgs...), ftsQuery)
+	err = s.db.QueryRow(countQuery, countArgs...).Scan(&totalCount)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to count unified search results: %w", err)
 	}
@@ -3613,18 +3716,19 @@ func (s *Store) SearchConversationsUnifiedInbox(query string, offset, limit int,
 			json_group_array(json_object('name', m.from_name, 'email', m.from_email, 'date', m.date, 'snippet', m.snippet)) as participants_json
 		FROM messages m
 		JOIN messages_fts fts ON m.rowid = fts.rowid
-		INNER JOIN folders f ON m.folder_id = f.id AND f.folder_type = 'inbox'
+		` + folderJoin + `
 		INNER JOIN accounts a ON f.account_id = a.id AND a.enabled = 1
-		WHERE m.is_hidden = 0 AND messages_fts MATCH ?
+		WHERE m.is_hidden = 0 AND messages_fts MATCH ?` + unifiedFolderStarredWhere(folderType) + `
 		GROUP BY COALESCE(m.thread_id, m.id), a.id` +
 		filterHavingClause(filter, "m.") + `
 		ORDER BY latest_date DESC
 		LIMIT ? OFFSET ?
 	`
 
-	rows, err := s.db.Query(searchQuery, ftsQuery, limit, offset)
+	searchArgs := append(append([]any{}, folderArgs...), ftsQuery, limit, offset)
+	rows, err := s.db.Query(searchQuery, searchArgs...)
 	if err != nil {
-		return nil, 0, fmt.Errorf("failed to search unified inbox: %w", err)
+		return nil, 0, fmt.Errorf("failed to search unified folder: %w", err)
 	}
 	defer rows.Close()
 
@@ -3706,6 +3810,11 @@ func (s *Store) SearchConversationsUnifiedInbox(query string, offset, limit int,
 	}
 
 	return results, totalCount, nil
+}
+
+// SearchConversationsUnifiedInbox searches across all inbox folders for all accounts
+func (s *Store) SearchConversationsUnifiedInbox(query string, offset, limit int, filter string) ([]*ConversationSearchResult, int, error) {
+	return s.SearchConversationsUnifiedFolder("inbox", query, offset, limit, filter)
 }
 
 // prepareFTSQuery prepares a user query for FTS5
