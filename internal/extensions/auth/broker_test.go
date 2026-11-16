@@ -284,3 +284,119 @@ func TestBrokerSMTPClient_Unimplemented(t *testing.T) {
 		t.Fatalf("expected ErrUnimplemented, got %v", err)
 	}
 }
+
+// Calendar routing tests: the calendar manifest lists the Google calendar
+// scope as core-routed, so it reuses the linked account's mail grant.
+//
+// TestHTTPClientForExtension_CalendarRoutesToCoreWhenMailTokenCarriesScope
+// covers the linked-after-this-change case: the mail token carries the
+// calendar scope, so the calendar extension gets a client with no extra
+// consent step.
+func TestHTTPClientForExtension_CalendarRoutesToCoreWhenMailTokenCarriesScope(t *testing.T) {
+	broker, credStore, db := newTestBroker(t)
+	insertTestAccount(t, db, "acct-cal-core")
+
+	if err := credStore.SetOAuthTokens("acct-cal-core", &credentials.OAuthTokens{
+		Provider:     "google",
+		AccessToken:  "mail-access",
+		RefreshToken: "mail-refresh",
+		Scopes: []string{
+			"https://mail.google.com/",
+			"https://www.googleapis.com/auth/calendar",
+			"https://www.googleapis.com/auth/contacts.readonly",
+		},
+	}); err != nil {
+		t.Fatalf("set mail tokens: %v", err)
+	}
+
+	manifest := coreapi.Manifest{
+		ID: "calendar",
+		OAuth: &coreapi.ManifestOAuth{
+			FirstPartyUsesCoreForScopes: []string{
+				"https://www.googleapis.com/auth/calendar",
+			},
+		},
+	}
+
+	client, err := broker.HTTPClientForExtension("calendar", manifest, "acct-cal-core", []coreapi.AuthScope{
+		{Resource: "https://www.googleapis.com/auth/calendar"},
+	})
+	if err != nil {
+		t.Fatalf("expected success routing through mail config, got: %v", err)
+	}
+	if client == nil {
+		t.Fatal("expected *http.Client, got nil")
+	}
+}
+
+// TestHTTPClientForExtension_CalendarPartialGrant is the partial-consent
+// case: the user granted Gmail + contacts but NOT calendar (or linked
+// before the mail flow requested the calendar scope, or later revoked it).
+// Mail and contacts must keep working on the same token, while calendar
+// reports exactly the missing scope under the mail client config so the
+// extension can offer its own "Connect calendar" step — nothing blocks,
+// nothing else errors.
+func TestHTTPClientForExtension_CalendarPartialGrant(t *testing.T) {
+	broker, credStore, db := newTestBroker(t)
+	insertTestAccount(t, db, "acct-cal-partial")
+
+	// Mail-only token: Gmail + contacts, no calendar scope.
+	if err := credStore.SetOAuthTokens("acct-cal-partial", &credentials.OAuthTokens{
+		Provider:     "google",
+		AccessToken:  "mail-access",
+		RefreshToken: "mail-refresh",
+		Scopes: []string{
+			"https://mail.google.com/",
+			"https://www.googleapis.com/auth/contacts.readonly",
+			"https://www.googleapis.com/auth/contacts.other.readonly",
+		},
+	}); err != nil {
+		t.Fatalf("set mail tokens: %v", err)
+	}
+
+	calendarManifest := coreapi.Manifest{
+		ID: "calendar",
+		OAuth: &coreapi.ManifestOAuth{
+			FirstPartyUsesCoreForScopes: []string{
+				"https://www.googleapis.com/auth/calendar",
+			},
+		},
+	}
+
+	// Calendar stays unconnected with exactly the missing scope named.
+	_, err := broker.HTTPClientForExtension("calendar", calendarManifest, "acct-cal-partial", []coreapi.AuthScope{
+		{Resource: "https://www.googleapis.com/auth/calendar"},
+	})
+	if err == nil {
+		t.Fatal("expected ErrAdditionalConsentRequired for the missing calendar scope, got nil")
+	}
+	consentErr, ok := err.(*coreapi.ErrAdditionalConsentRequired)
+	if !ok {
+		t.Fatalf("expected *ErrAdditionalConsentRequired, got %T: %v", err, err)
+	}
+	if string(consentErr.ClientConfigID) != "google-mail" {
+		t.Errorf("ClientConfigID: got %q, want google-mail", consentErr.ClientConfigID)
+	}
+	if len(consentErr.MissingScopes) != 1 || consentErr.MissingScopes[0].Resource != "https://www.googleapis.com/auth/calendar" {
+		t.Errorf("MissingScopes: got %v, want exactly the calendar scope", consentErr.MissingScopes)
+	}
+
+	// Contacts keeps working on the same token.
+	contactsManifest := coreapi.Manifest{
+		ID: "contacts",
+		OAuth: &coreapi.ManifestOAuth{
+			FirstPartyUsesCoreForScopes: []string{
+				"https://www.googleapis.com/auth/contacts.readonly",
+			},
+		},
+	}
+	client, err := broker.HTTPClientForExtension("contacts", contactsManifest, "acct-cal-partial", []coreapi.AuthScope{
+		{Resource: "https://www.googleapis.com/auth/contacts.readonly"},
+	})
+	if err != nil {
+		t.Fatalf("contacts must keep working on a partial grant, got: %v", err)
+	}
+	if client == nil {
+		t.Fatal("expected *http.Client for contacts, got nil")
+	}
+}

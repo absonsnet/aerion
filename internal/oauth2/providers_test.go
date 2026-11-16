@@ -17,6 +17,30 @@ func TestGoogleProvider(t *testing.T) {
 	if len(p.Scopes) == 0 {
 		t.Error("Scopes is empty, want at least one scope")
 	}
+	// The mail link requests the calendar scope too, so the calendar
+	// extension reuses the linked account's grant instead of asking for a
+	// separate calendar authorization.
+	wantCalendar := "https://www.googleapis.com/auth/calendar"
+	found := false
+	for _, s := range p.Scopes {
+		if s == wantCalendar {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("Scopes = %v, want it to contain %q", p.Scopes, wantCalendar)
+	}
+}
+
+// TestGoogleProviderAuthURLIncludesCalendarScope verifies the authorization
+// URL a new Gmail link opens actually asks Google for the calendar scope
+// (a UI pass up to the auth URL — no live Google round-trip).
+func TestGoogleProviderAuthURLIncludesCalendarScope(t *testing.T) {
+	p := GoogleProvider()
+	u := buildAuthURL(p, "test-state", "test-challenge", 8080)
+	if !strings.Contains(u, "https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fcalendar") {
+		t.Errorf("auth URL = %q, want the scope parameter to include the calendar scope", u)
+	}
 }
 
 func TestMicrosoftProvider(t *testing.T) {
@@ -45,7 +69,9 @@ func TestGetProvider(t *testing.T) {
 		wantErr  bool
 	}{
 		{name: "google", provider: "google", wantErr: false},
+		{name: "google-mail", provider: "google-mail", wantErr: false},
 		{name: "microsoft", provider: "microsoft", wantErr: false},
+		{name: "microsoft-mail", provider: "microsoft-mail", wantErr: false},
 		{name: "unknown", provider: "unknown", wantErr: true},
 	}
 
