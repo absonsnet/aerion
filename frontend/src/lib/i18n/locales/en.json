@@ -49,6 +49,7 @@
     "trash": "Trash",
     "outbox": "Outbox",
     "dragToReorder": "Drag to reorder",
+    "dividerLabel": "Drag to resize the unified and accounts sections",
     "containsSelection": "Contains the open folder",
     "expandAccount": "Expand account",
     "collapseAccount": "Collapse account",

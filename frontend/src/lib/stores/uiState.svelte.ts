@@ -16,6 +16,10 @@ export interface UIState {
   selectedConversationFolderId: string | null
   sidebarWidth: number
   listWidth: number
+  // Accounts pane height (px) in the sidebar — the divider between the
+  // Unified zone and the Accounts block. 0 = unset, the pane sizes to
+  // its content (divider just above the first account).
+  accountsHeight: number
   // Sidebar section expand/collapse states
   expandedAccounts: Record<string, boolean>  // accountId -> isExpanded (default: true)
   unifiedInboxExpanded: boolean              // Unified Inbox section (default: true)
@@ -51,6 +55,7 @@ const defaultState: UIState = {
   selectedConversationFolderId: null,
   sidebarWidth: 240,
   listWidth: 420,
+  accountsHeight: 0,
   expandedAccounts: {},
   unifiedInboxExpanded: true,
   collapsedFolders: {},
@@ -93,6 +98,8 @@ export async function loadUIState(): Promise<UIState> {
         // Validate and clamp pane widths
         sidebarWidth: clamp(state.sidebarWidth || 240, SIDEBAR_MIN, SIDEBAR_MAX),
         listWidth: clamp(state.listWidth || 420, LIST_MIN, getListMaxWidth(state.sidebarWidth || 240)),
+        // Accounts pane height: 0 = unset (size to content). Never negative.
+        accountsHeight: Math.max(0, state.accountsHeight || 0),
         // Sidebar expand/collapse states
         expandedAccounts: state.expandedAccounts || {},
         unifiedInboxExpanded: state.unifiedInboxExpanded !== false, // default true
@@ -144,6 +151,7 @@ export function saveUIState(updates: Partial<UIState>): void {
         selectedConversationFolderId: currentState.selectedConversationFolderId || '',
         sidebarWidth: currentState.sidebarWidth,
         listWidth: currentState.listWidth,
+        accountsHeight: currentState.accountsHeight,
         expandedAccounts: currentState.expandedAccounts,
         unifiedInboxExpanded: currentState.unifiedInboxExpanded,
         collapsedFolders: currentState.collapsedFolders,

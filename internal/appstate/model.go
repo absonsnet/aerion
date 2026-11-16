@@ -17,6 +17,11 @@ type UIState struct {
 	SidebarWidth int `json:"sidebarWidth"`
 	ListWidth    int `json:"listWidth"`
 
+	// Accounts pane height (px) in the sidebar: the divider between the
+	// Unified zone and the Accounts block. 0 = unset, the pane sizes to
+	// its content (divider just above the first account).
+	AccountsHeight int `json:"accountsHeight"`
+
 	// Sidebar section expand/collapse states
 	ExpandedAccounts     map[string]bool `json:"expandedAccounts"`     // accountID -> isExpanded (default: true)
 	UnifiedInboxExpanded bool            `json:"unifiedInboxExpanded"` // Unified Inbox section (default: true)

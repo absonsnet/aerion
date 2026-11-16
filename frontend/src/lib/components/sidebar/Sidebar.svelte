@@ -298,6 +298,110 @@
     onUnifiedFolderSelect?.(folderType, label)
   }
 
+  // --- Sidebar divider: Unified zone vs Accounts block ---
+  // The divider sits just above the first account and is draggable up and
+  // down. It sets the Accounts pane height (px); the Unified pane takes
+  // the rest and scrolls internally. The position persists in the backend
+  // UI state (accountsHeight, 0 = unset → size to content).
+  const DIVIDER_HEIGHT = 9
+  // Hard floor for the Accounts pane in a too-short window: label + one
+  // account header + Add Account button, roughly. The content-driven
+  // floor (every account row visible) rules whenever it fits.
+  const ACCOUNTS_MIN_PANE = 96
+
+  let unifiedContent = $state<HTMLDivElement | null>(null)
+  let accountsContent = $state<HTMLDivElement | null>(null)
+
+  // Live Accounts pane height (px). 0 until measured — before that the
+  // pane sizes to its content.
+  let accountsHeightPx = $state(0)
+  // Drag bounds, recomputed from the measured content heights.
+  let accountsFloor = $state(0)
+  let accountsCeiling = $state(0)
+
+  let dividerDragging = $state(false)
+  let dividerDragStartY = 0
+  let dividerDragStartHeight = 0
+
+  function clampNum(value: number, min: number, max: number): number {
+    return Math.max(min, Math.min(max, value))
+  }
+
+  // Re-measure content heights and re-clamp the divider bounds + position.
+  // Floor: every account row visible (when the window allows it); the pane
+  // scrolls internally only when the window is too short even with the
+  // Unified pane at its minimum.
+  function measureDividerBounds() {
+    if (!scrollContainer || !accountsContent) return
+    const columnH = scrollContainer.getBoundingClientRect().height
+    const unifiedContentH = unifiedContent?.scrollHeight ?? 0
+    const accountsContentH = accountsContent.scrollHeight
+    const unifiedMin = Math.min(
+      unifiedContentH,
+      Math.max(0, columnH - DIVIDER_HEIGHT - ACCOUNTS_MIN_PANE)
+    )
+    const maxAccounts = Math.max(0, columnH - DIVIDER_HEIGHT - unifiedMin)
+    accountsFloor = Math.min(accountsContentH, maxAccounts)
+    accountsCeiling = maxAccounts
+    const persisted = getUIState().accountsHeight || 0
+    if (accountsHeightPx === 0 && persisted > 0) {
+      accountsHeightPx = clampNum(persisted, accountsFloor, accountsCeiling)
+    } else if (accountsHeightPx === 0) {
+      accountsHeightPx = accountsFloor
+    } else {
+      accountsHeightPx = clampNum(accountsHeightPx, accountsFloor, accountsCeiling)
+    }
+  }
+
+  // Re-measure when anything that changes the content heights changes.
+  // The effect runs after the DOM updates, so the measurements are fresh.
+  // Skipped while dragging (the drag handler owns the height then).
+  $effect(() => {
+    const _version = getUIStateVersion()
+    const _accounts = accountStore.accounts
+    const _expanded = expandedAccounts
+    const _attention = attentionCount
+    const _order = unifiedFolderOrder
+    const _showUnified = showUnified
+    if (dividerDragging) return
+    measureDividerBounds()
+  })
+
+  function startResizeDivider(e: MouseEvent) {
+    e.preventDefault()
+    dividerDragStartY = e.clientY
+    dividerDragStartHeight = accountsHeightPx
+    dividerDragging = true
+  }
+
+  function handleDividerMouseMove(e: MouseEvent) {
+    if (!dividerDragging) return
+    // Dragging up (pointer moves up) grows the Accounts pane.
+    accountsHeightPx = clampNum(
+      dividerDragStartHeight + (dividerDragStartY - e.clientY),
+      accountsFloor,
+      accountsCeiling
+    )
+  }
+
+  function handleDividerMouseUp() {
+    if (!dividerDragging) return
+    dividerDragging = false
+    // Persist through the same setting the list/sidebar widths use.
+    saveUIState({ accountsHeight: Math.round(accountsHeightPx) })
+  }
+
+  // Keyboard: arrows move the divider 10px (Shift: 50px), persisted.
+  function handleDividerKeyDown(e: KeyboardEvent) {
+    let delta = 0
+    if (e.key === 'ArrowUp') delta = e.shiftKey ? 50 : 10
+    else if (e.key === 'ArrowDown') delta = -(e.shiftKey ? 50 : 10)
+    else return
+    e.preventDefault()
+    accountsHeightPx = clampNum(accountsHeightPx + delta, accountsFloor, accountsCeiling)
+    saveUIState({ accountsHeight: Math.round(accountsHeightPx) })
+  }
+
   // Sync status: { accountName, label, percentage } — accountName + percentage are populated only when a sync is active
   let syncStatus = $derived.by<{ accountName: string | null; label: string; percentage: number | null }>(() => {
     if (accountStore.isAnySyncing) {
@@ -662,6 +766,12 @@
   }
 </script>
 
+<svelte:window
+  onmousemove={handleDividerMouseMove}
+  onmouseup={handleDividerMouseUp}
+  onresize={() => measureDividerBounds()}
+/>
+
 <div class="flex flex-col h-full {isFlashing ? 'pane-focus-flash' : ''}">
   <!-- Header with Compose Button -->
   <div class="px-4 py-3 border-b border-border">
@@ -686,13 +796,12 @@
     </div>
   </div>
 
-  <!-- Sidebar column: one scrollable column. Zone 1 (Unified) sits at the
-       top; a flexible spacer docks Zone 2 (Accounts) at the bottom when the
-       column is shorter than the window. When the column overflows, the
-       whole sidebar scrolls as one column — nothing is clipped to preserve
-       the docking. -->
-  <div class="flex-1 overflow-y-auto scrollbar-thin py-2" bind:this={scrollContainer}>
-    <div class="flex flex-col min-h-full">
+  <!-- Sidebar column: two panes split by a draggable divider. The Unified
+       pane fills the space above the divider and scrolls internally; the
+       Accounts pane below the divider is sized by the divider position
+       (persisted accountsHeight, 0 = size to content) and scrolls
+       internally when the window is too short to show everything. -->
+  <div class="flex-1 min-h-0 flex flex-col overflow-hidden" bind:this={scrollContainer}>
       {#if accountStore.loading}
         <div class="flex items-center justify-center py-8">
           <Icon icon="mdi:loading" class="w-6 h-6 animate-spin text-muted-foreground" />
@@ -716,27 +825,58 @@
              only with a single account when the
              sidebar_hide_unified_single_account setting is on. -->
         {#if showUnified}
-          <UnifiedSection
-            {attentionCount}
-            unreadCounts={unifiedUnreadCounts}
-            {outboxCount}
-            folderOrder={unifiedFolderOrder}
-            selectedFolderType={selectionSource === 'unified' ? selectedFolderId : null}
-            {selectionSource}
-            onSelectAttention={handleAttentionSelect}
-            onSelectUnifiedFolder={handleUnifiedFolderSelect}
-            onSelectUnifiedInbox={handleUnifiedInboxSelect}
-            onReorderFolders={handleUnifiedFolderReorder}
-          />
-          <div class="border-b border-border mx-3 my-1"></div>
-        {/if}
+          <!-- Zone 1 — Unified: fills the space above the divider. -->
+          <div class="flex-1 min-h-0 overflow-y-auto scrollbar-thin">
+            <div class="py-2" bind:this={unifiedContent}>
+              <UnifiedSection
+                {attentionCount}
+                unreadCounts={unifiedUnreadCounts}
+                {outboxCount}
+                folderOrder={unifiedFolderOrder}
+                selectedFolderType={selectionSource === 'unified' ? selectedFolderId : null}
+                {selectionSource}
+                onSelectAttention={handleAttentionSelect}
+                onSelectUnifiedFolder={handleUnifiedFolderSelect}
+                onSelectUnifiedInbox={handleUnifiedInboxSelect}
+                onReorderFolders={handleUnifiedFolderReorder}
+              />
+            </div>
+          </div>
 
-        <!-- Flexible spacer: docks the accounts block at the bottom -->
-        <div class="flex-1"></div>
+          <!-- Divider: draggable up/down; the Accounts block moves with
+               it. Its lowest position is floored so accounts are never
+               hidden while they fit in the window. A focusable separator
+               with value attributes is the splitter pattern, and
+               ArrowUp/ArrowDown move it. svelte-ignore: the checker does
+               not treat role=separator as interactive, but this element
+               has mouse + keyboard handlers by design. -->
+          <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+          <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+          <div
+            class="flex-shrink-0 relative cursor-row-resize group select-none"
+            style="height: {DIVIDER_HEIGHT}px"
+            role="separator"
+            aria-orientation="horizontal"
+            aria-label={$_('sidebar.dividerLabel')}
+            aria-valuenow={Math.round(accountsHeightPx)}
+            aria-valuemin={Math.round(accountsFloor)}
+            aria-valuemax={Math.round(accountsCeiling)}
+            tabindex="0"
+            onmousedown={startResizeDivider}
+            onkeydown={handleDividerKeyDown}
+          >
+            <div class="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-px bg-border group-hover:bg-primary/50 {dividerDragging ? 'bg-primary/50' : ''}"></div>
+            <div class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-1 rounded-full bg-border group-hover:bg-primary/70 {dividerDragging ? 'bg-primary/70' : ''}"></div>
+          </div>
+        {/if}
 
         <!-- Zone 2 — Accounts: docked at the bottom of the column, in
              normal order (first account on top, second below it). -->
-        <div class="pt-1">
+        <div
+          class="shrink-0 overflow-y-auto scrollbar-thin {showUnified ? '' : 'flex-1 min-h-0'}"
+          style={showUnified && accountsHeightPx > 0 ? `height: ${accountsHeightPx}px` : ''}
+        >
+          <div class="pt-1" bind:this={accountsContent}>
           <div class="px-4 pb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
             {$_('sidebar.accounts')}
           </div>
@@ -781,8 +921,8 @@
             </button>
           </div>
         </div>
-      {/if}
-    </div>
+      </div>
+    {/if}
   </div>
 
   <!-- Footer: Sync Status + Settings. Chrome (padding/border/min-height)
