@@ -5,6 +5,7 @@
   import { GetAppInfo } from '../../../../wailsjs/go/app/App.js'
   import { BrowserOpenURL } from '../../../../wailsjs/runtime/runtime'
   import { _ } from '$lib/i18n'
+  import DaakLogo from '$lib/components/kit/DaakLogo.svelte'
 
   interface AppInfo {
     name: string
@@ -52,15 +53,7 @@
     <!-- Logo + App Name & Version -->
     <div class="flex flex-col items-center space-y-2">
       <!-- Daak logo: envelope in #0C5EF6 (inline vector of the approved mark) -->
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" class="w-24 h-24" role="img" aria-label="{appInfo.name} Logo">
-        <defs>
-          <mask id="daak-flap">
-            <rect width="512" height="512" fill="#FFFFFF" />
-            <polyline points="26,149 256,315 486,149" fill="none" stroke="#000000" stroke-width="41" stroke-linejoin="round" />
-          </mask>
-        </defs>
-        <rect x="26" y="67" width="461" height="378" rx="68" ry="75" fill="#0C5EF6" mask="url(#daak-flap)" />
-      </svg>
+      <DaakLogo class="w-24 h-24" label="{appInfo.name} Logo" />
       <div class="text-center space-y-1">
         <h2 class="text-2xl font-bold text-foreground">{appInfo.name}</h2>
         <p class="text-sm text-muted-foreground">{$_('settingsAbout.version', { values: { version: appInfo.version } })}</p>
