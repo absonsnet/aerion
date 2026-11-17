@@ -65,6 +65,10 @@ jobs:
           # Wails detects NSIS via exec.LookPath("makensis") — make sure subsequent steps see it.
           Add-Content -Path $env:GITHUB_PATH -Value "C:\Program Files (x86)\NSIS"
 
+      - name: Install create-dmg (macOS)
+        if: matrix.platform == 'darwin'
+        run: brew install create-dmg
+
       - name: Install frontend dependencies
         run: |
           cd frontend
@@ -132,10 +136,36 @@ jobs:
           # *arm64* runners are capacity-constrained, and the Intel pool
           # is separate. (Cross-compiling to Mac from Linux is not an
           # option — Wails 2.16 refuses it outright.)
+          # Mac ships as a DMG only (no zip): create-dmg builds a
+          # drag-to-install image with the app icon on the left, an
+          # Applications drop link on the right, and the background in
+          # build/macos/dmg-background.png (1320x800, 2x the 660x400
+          # window). The .app is removed after each DMG so only the DMG
+          # is uploaded as an artifact.
           GOARCH=amd64 make build
-          (cd build/bin && zip -r Daak-darwin-amd64.zip Daak.app && rm -rf Daak.app)
+          create-dmg \
+            --volname "Daak" \
+            --window-pos 200 120 \
+            --window-size 660 400 \
+            --icon-size 128 \
+            --icon "Daak.app" 180 200 \
+            --app-drop-link 480 200 \
+            --background "build/macos/dmg-background.png" \
+            "build/bin/Daak-MacOS-intel.dmg" \
+            "build/bin/Daak.app"
+          rm -rf build/bin/Daak.app
           GOARCH=arm64 make build
-          (cd build/bin && zip -r Daak-darwin-arm64.zip Daak.app && rm -rf Daak.app)
+          create-dmg \
+            --volname "Daak" \
+            --window-pos 200 120 \
+            --window-size 660 400 \
+            --icon-size 128 \
+            --icon "Daak.app" 180 200 \
+            --app-drop-link 480 200 \
+            --background "build/macos/dmg-background.png" \
+            "build/bin/Daak-MacOS-silicon.dmg" \
+            "build/bin/Daak.app"
+          rm -rf build/bin/Daak.app
 
       - name: Build (Windows)
         if: matrix.platform == 'windows'
