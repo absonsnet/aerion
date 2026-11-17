@@ -1,7 +1,7 @@
 <script lang="ts">
-  import Icon from '@iconify/svelte'
   import { _ } from '$lib/i18n'
   import { APP_NAME } from '$lib/config/brand'
+  import DaakLogo from '$lib/components/kit/DaakLogo.svelte'
   import { WindowMinimise, WindowToggleMaximise, Quit } from '../../../../wailsjs/runtime/runtime'
   import { getEffectiveWindowControls, type WindowControlButton } from '$lib/stores/windowControls.svelte'
 
@@ -86,7 +86,7 @@
       }
     }}
   >
-    <Icon icon="mdi:email-fast-outline" class="w-5 h-5 text-primary" />
+    <DaakLogo class="w-5 h-5 shrink-0" />
     <span class="text-sm font-medium text-foreground">{APP_NAME}</span>
   </div>
 {/snippet}

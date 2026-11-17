@@ -60,11 +60,13 @@
       </div>
 
       <div class="space-y-4 max-h-[60vh] overflow-y-auto text-sm">
-        <p>🚀 Welcome to {APP_NAME} v0.7.7!</p>
+        <p>🚀 Welcome to {APP_NAME} v0.7.8!</p>
 
-        <p>v0.7.7 restyles the Mac DMG background and trims the Windows downloads to the setup installer only. Here are the highlights of the release:</p>
+        <p>v0.7.8 puts the real Daak envelope in the title bar and fixes the unread dot in the message list. It also includes the Mac DMG background restyle and the Windows setup-only downloads from v0.7.7. Here are the highlights of the release:</p>
 
         <ul class="list-disc pl-6 space-y-1">
+          <li>✉️ Title bar now shows the real Daak envelope logo next to "Daak"</li>
+          <li>🔵 Unread dot now sits between the checkbox and the contact photo, fully visible</li>
           <li>💿 Mac DMG background restyled: dark background, big Daak title, the app tile, an orange drag arrow and the Applications tile</li>
           <li>🪟 Windows now ships the setup installer only — one file per processor: Daak-windows-setup-x64.exe and Daak-windows-setup-arm64.exe</li>
         </ul>

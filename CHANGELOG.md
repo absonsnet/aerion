@@ -1,5 +1,12 @@
 # CHANGELOG
 
+**v0.7.8 - 17-11-2026**
+---
+
+- Title bar: the real Daak envelope logo is now shown next to "Daak" instead of the generic outline icon
+- Message list: the unread dot is now shown between the checkbox and the contact photo, fully visible instead of clipped at the edge
+- Also includes the v0.7.7 changes — the restyled Mac DMG background and Windows shipping the setup installer only (v0.7.7's release was withdrawn before publishing)
+
 **v0.7.7 - 17-11-2026**
 ---
 
