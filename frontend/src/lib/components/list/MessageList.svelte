@@ -711,6 +711,24 @@
       .some((c: any) => (c.unreadCount || 0) > 0)
   )
 
+  // Read/unread counts for the single Mark read/unread toggle button in
+  // the selection bar. A conversation counts as read when it has no unread
+  // messages. Majority read -> the button reads "Mark unread"; majority
+  // unread, or an exact tie, -> it reads "Mark read". Derived, so the
+  // label follows the selection and flips right after the action (the
+  // readChanged listener updates unreadCount in place).
+  const selectedReadCount = $derived(
+    [...conversations, ...searchResults]
+      .filter((c) => checkedThreadIds.has(c.threadId))
+      .reduce((n: number, c: any) => n + ((c.unreadCount || 0) === 0 ? 1 : 0), 0)
+  )
+  const selectedUnreadCount = $derived(
+    [...conversations, ...searchResults]
+      .filter((c) => checkedThreadIds.has(c.threadId))
+      .reduce((n: number, c: any) => n + ((c.unreadCount || 0) > 0 ? 1 : 0), 0)
+  )
+  const selectedMajorityRead = $derived(selectedReadCount > selectedUnreadCount)
+
   // Clear multi-select (called when right-clicking on unchecked row)
   function clearSelection() {
     checkedThreadIds = new Set()
@@ -1504,12 +1522,16 @@
     }
   }
 
+  // Single toggle for the selection bar: marks ALL selected messages the
+  // opposite of the majority status. The selection is deliberately kept
+  // after the action (unlike the other bulk actions) so the button flips
+  // to the new majority label right away; the user dismisses the bar with
+  // the × button or Esc.
   async function handleBulkMarkRead() {
     try {
       await MarkAsRead(selectedMessageIds)
       toasts.success($_('toast.markedAsRead'))
       handleActionComplete()
-      clearChecked()
     } catch (err) {
       console.error('Bulk mark as read failed:', err)
       toasts.error($_('toast.failedToUpdateReadStatus'))
@@ -1521,7 +1543,6 @@
       await MarkAsUnread(selectedMessageIds)
       toasts.success($_('toast.markedAsUnread'))
       handleActionComplete()
-      clearChecked()
     } catch (err) {
       console.error('Bulk mark as unread failed:', err)
       toasts.error($_('toast.failedToUpdateReadStatus'))
@@ -2070,19 +2091,11 @@
       <div class="flex items-center gap-1 shrink-0">
         <button
           class="p-1.5 shrink-0 rounded-md hover:bg-muted transition-colors"
-          title={$_('contextMenu.markAsRead')}
-          aria-label={$_('contextMenu.markAsRead')}
-          onclick={handleBulkMarkRead}
+          title={selectedMajorityRead ? $_('contextMenu.markAsUnread') : $_('contextMenu.markAsRead')}
+          aria-label={selectedMajorityRead ? $_('contextMenu.markAsUnread') : $_('contextMenu.markAsRead')}
+          onclick={selectedMajorityRead ? handleBulkMarkUnread : handleBulkMarkRead}
         >
-          <Icon icon="mdi:email-open-outline" class="w-5 h-5 text-muted-foreground" />
-        </button>
-        <button
-          class="p-1.5 shrink-0 rounded-md hover:bg-muted transition-colors"
-          title={$_('contextMenu.markAsUnread')}
-          aria-label={$_('contextMenu.markAsUnread')}
-          onclick={handleBulkMarkUnread}
-        >
-          <Icon icon="mdi:email-outline" class="w-5 h-5 text-muted-foreground" />
+          <Icon icon={selectedMajorityRead ? "mdi:email-outline" : "mdi:email-open-outline"} class="w-5 h-5 text-muted-foreground" />
         </button>
         <button
           class="p-1.5 shrink-0 rounded-md hover:bg-muted transition-colors"
