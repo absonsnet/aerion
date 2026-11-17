@@ -4,7 +4,7 @@
   // Viewer bindings: dispatches to App in the main window and to
   // ViewerApp in a detached popup window (see viewerBindings.ts).
   import { GetConversation, GetReadReceiptResponsePolicy, SendReadReceipt, IgnoreReadReceipt, GetMarkAsReadDelay, GetMessageSource, ProcessSMIMEMessage, ProcessPGPMessage, FetchMessageBody } from '$lib/viewerBindings'
-  import { MarkAsRead, MarkAsUnread, Star, Unstar, Archive, Trash, MarkAsSpam, MarkAsNotSpam, DeletePermanently, Undo, GetMessageReactions, SendReaction, RemoveOwnReaction, GetUnsubscribeStatuses } from '$lib/viewerBindings'
+  import { MarkAsRead, MarkAsUnread, Star, Unstar, Archive, Trash, MarkAsSpam, MarkAsNotSpam, DeletePermanently, Undo, GetMessageReactions, SendReaction, RemoveOwnReaction, GetUnsubscribeStatuses, GetSpecialFolder } from '$lib/viewerBindings'
   import { runUnsubscribeFlow } from '$lib/unsubscribe'
   // @ts-ignore - wailsjs path
   import { EventsOn } from '../../../../wailsjs/runtime/runtime'
@@ -32,6 +32,11 @@
     onComposeToAddress?: (toAddress: string) => void
     onEditDraft?: (draftId: string) => void
     onActionComplete?: (autoSelectNext?: boolean) => void
+    // Called when the open conversation was deleted (moved to Trash or
+    // permanently deleted), from anywhere — the viewer itself, the list,
+    // another tab. The host closes the view (tab / dialog / popup window);
+    // archive and other moves do NOT call this.
+    onConversationDeleted?: () => void
     isFocused?: boolean
     isFlashing?: boolean
     showBackButton?: boolean
@@ -53,6 +58,7 @@
     onComposeToAddress,
     onEditDraft,
     onActionComplete,
+    onConversationDeleted,
     isFocused = false,
     isFlashing = false,
     showBackButton = false,
@@ -254,14 +260,27 @@
     )
 
     cleanupFunctions.push(
-      EventsOn('messages:moved', (data: { messageIds: string[], destFolderId: string }) => {
+      EventsOn('messages:moved', async (data: { messageIds: string[], destFolderId: string }) => {
         if (!conversation?.messages?.some(m => data.messageIds.includes(m.id))) return
 
         const movedCount = conversation.messages.filter(m => data.messageIds.includes(m.id)).length
         const remainingCount = conversation.messages.length - movedCount
 
         if (remainingCount === 0) {
-          // All messages moved out — dismiss and auto-select next
+          // All messages moved out — if the destination is Trash, the
+          // conversation was deleted: close its tab/dialog/popup too.
+          // Archive, spam and other moves keep the dismiss-only behaviour.
+          const ownerAccountId = accountId ?? conversation.messages[0]?.accountId ?? null
+          if (ownerAccountId) {
+            try {
+              const trashFolder = await GetSpecialFolder(ownerAccountId, 'trash')
+              if (trashFolder?.id && data.destFolderId === trashFolder.id) {
+                onConversationDeleted?.()
+              }
+            } catch (err) {
+              console.error('Failed to resolve Trash folder for delete check:', err)
+            }
+          }
           dismissConversation(true)
           return
         }
@@ -280,8 +299,9 @@
           const remainingCount = conversation.messages.length - deletedCount
 
           if (remainingCount === 0) {
-            // All messages deleted - navigate away
+            // All messages deleted - navigate away and close the view
             conversation = null
+            onConversationDeleted?.()
             onActionComplete?.(true)
           } else {
             // Some messages remain - reload conversation
@@ -1006,6 +1026,7 @@
         const toastMsg = movedToTrash ? $_('toast.movedToTrash') : $_('toast.deletedFromFolder')
         const actions = movedToTrash ? [{ label: $_('common.undo'), onClick: handleUndo }] : []
         toasts.success(toastMsg, actions)
+        onConversationDeleted?.()
         onActionComplete?.(true)
       } catch (err) {
         console.error('Delete failed:', err)
@@ -1022,6 +1043,7 @@
       await DeletePermanently(messageIds)
       toasts.success($_('toast.permanentlyDeleted'))
       showDeleteConfirm = false
+      onConversationDeleted?.()
       onActionComplete?.(true)
     } catch (err) {
       console.error('Permanent delete failed:', err)

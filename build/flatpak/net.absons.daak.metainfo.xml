@@ -375,6 +375,16 @@
   </provides>
 
   <releases>
+    <release version="0.7.6" date="2026-11-17">
+      <description>
+        <ul>
+          <li>Bulk delete Undo: deleting several messages and pressing Undo now restores all of them, not just one</li>
+          <li>Selection bar: Mark read and Mark unread are now a single toggle button that follows the majority</li>
+          <li>Deleting an opened message now closes its view too — the tab closes, the dialog dismisses, and the separate popup window closes</li>
+          <li>Mac versions now ship as a DMG: open it and drag Daak onto the Applications shortcut — no more zip</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.7.5" date="2026-11-17">
       <description>
         <ul>

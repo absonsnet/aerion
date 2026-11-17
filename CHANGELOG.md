@@ -1,5 +1,13 @@
 # CHANGELOG
 
+**v0.7.6 - 17-11-2026**
+---
+
+- Bulk delete Undo: deleting several messages and pressing Undo now restores all of them, not just one
+- Selection bar: Mark read and Mark unread are now a single toggle button that follows the majority — it reads "Mark unread" when most selected messages are read, and flips to "Mark read" once they are all unread
+- Deleting an opened message now closes its view too — the tab closes, the dialog dismisses, and the separate popup window closes (archiving still leaves the view open)
+- Mac versions now ship as a DMG: open it and drag Daak onto the Applications shortcut — no more zip
+
 **v0.7.5 - 17-11-2026**
 ---
 

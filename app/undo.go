@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/absonsnet/daak/internal/imap"
+	"github.com/absonsnet/daak/internal/undo"
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
@@ -45,6 +46,28 @@ func (a *App) GetUndoDescription() string {
 		return ""
 	}
 	return cmd.Description()
+}
+
+// pushUndoCommands records one user action on the undo stack: the undo
+// commands the action produced, plus the destination folder name for the
+// toast description. A single command is pushed as-is; several commands
+// are wrapped in one CompositeCommand so a single Undo reverses the whole
+// action. Without this, one bulk action pushed a command per source folder
+// and per account partition, and one Undo popped only the most recent —
+// so deleting several messages restored only one batch.
+func (a *App) pushUndoCommands(destName string, cmds []undo.Command) {
+	if len(cmds) == 0 {
+		return
+	}
+	description := cmds[0].Description()
+	if destName != "" {
+		description = "Move to " + destName
+	}
+	if len(cmds) == 1 {
+		a.undoStack.Push(cmds[0])
+		return
+	}
+	a.undoStack.Push(undo.NewCompositeCommand(description, cmds...))
 }
 
 // ============================================================================

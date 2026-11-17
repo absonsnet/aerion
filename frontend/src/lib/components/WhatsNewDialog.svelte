@@ -60,14 +60,15 @@
       </div>
 
       <div class="space-y-4 max-h-[60vh] overflow-y-auto text-sm">
-        <p>🚀 Welcome to {APP_NAME} v0.7.5!</p>
+        <p>🚀 Welcome to {APP_NAME} v0.7.6!</p>
 
-        <p>v0.7.5 connects your calendar when you link Google, refines the sidebar divider, and fixes Archive, Delete and Undo. Here are the highlights of the release:</p>
+        <p>v0.7.6 fixes bulk-delete Undo, turns Mark read/unread into one toggle button, closes the view when its message is deleted, and ships the Mac version as a DMG. Here are the highlights of the release:</p>
 
         <ul class="list-disc pl-6 space-y-1">
-          <li>📅 Calendar works as soon as a Google account is linked — no separate calendar link step (if calendar access was declined, the calendar offers its own Connect action)</li>
-          <li>↕️ The sidebar divider now snaps at the level where it starts hiding accounts or unified folders, and a clipped section scrolls with a visible scrollbar</li>
-          <li>↩️ Archive, Delete and Undo fixed — archiving falls back to All Mail, and Undo restores a message even seconds after it was moved</li>
+          <li>↩️ Bulk delete Undo: deleting several messages and pressing Undo now restores all of them, not just one</li>
+          <li>✉️ The selection bar's Mark read / Mark unread buttons are now a single toggle that follows the majority — "Mark unread" when most selected messages are read, "Mark read" otherwise</li>
+          <li>🗑️ Deleting an opened message now closes its view too — the tab closes, the dialog dismisses, and the separate popup window closes</li>
+          <li>💿 Mac versions now ship as a DMG: open it and drag Daak onto the Applications shortcut</li>
         </ul>
 
         <p>🏷 See the full change log here:</p>

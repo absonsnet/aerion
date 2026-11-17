@@ -210,6 +210,7 @@
         onComposeToAddress={handleComposeToAddress}
         onEditDraft={handleEditDraft}
         onActionComplete={handleActionComplete}
+        onConversationDeleted={() => handleClose()}
         showBackButton={false}
       />
     {/if}

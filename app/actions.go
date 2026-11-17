@@ -385,11 +385,26 @@ func (a *App) syncFlagsToIMAP(messages []*message.Message, folderID, flagType st
 }
 
 // MoveToFolder moves messages to a specified folder
+// MoveToFolder moves messages to the destination folder. One call is one
+// undoable action: whatever the move fans out into (one command per source
+// folder, one per account partition, a cross-account Trash), a single Undo
+// reverses all of it — see pushUndoCommands.
 func (a *App) MoveToFolder(messageIDs []string, destFolderID string) error {
+	cmds, destName, err := a.moveToFolderCmds(messageIDs, destFolderID)
+	a.pushUndoCommands(destName, cmds)
+	return err
+}
+
+// moveToFolderCmds performs the move and returns the undo commands it
+// created, without pushing them. Callers (MoveToFolder and the
+// cross-account helpers) push them as a single undoable action. Commands
+// for completed parts are returned alongside an error, so a partial move
+// stays undoable.
+func (a *App) moveToFolderCmds(messageIDs []string, destFolderID string) ([]undo.Command, string, error) {
 	log := logging.WithComponent("app")
 
 	if len(messageIDs) == 0 {
-		return nil
+		return nil, "", nil
 	}
 	messageIDs = a.expandToFolderCopies(messageIDs)
 
@@ -400,20 +415,20 @@ func (a *App) MoveToFolder(messageIDs []string, destFolderID string) error {
 	// fires exactly once per partition with a correct full-batch
 	// classification.
 	if spans, _ := a.messageStore.SpansMultipleAccounts(messageIDs); spans {
-		return a.moveToFolderCrossAccount(messageIDs, destFolderID)
+		return a.moveToFolderCrossAccountCmds(messageIDs, destFolderID)
 	}
 
 	messages, err := a.messageStore.GetByIDs(messageIDs)
 	if err != nil {
-		return fmt.Errorf("failed to get messages: %w", err)
+		return nil, "", fmt.Errorf("failed to get messages: %w", err)
 	}
 	if len(messages) == 0 {
-		return nil
+		return nil, "", nil
 	}
 
 	destFolder, err := a.folderStore.Get(destFolderID)
 	if err != nil || destFolder == nil {
-		return fmt.Errorf("destination folder not found: %s", destFolderID)
+		return nil, "", fmt.Errorf("destination folder not found: %s", destFolderID)
 	}
 
 	// Cross-account move: APPEND raw bytes to destination first, then route source
@@ -423,15 +438,15 @@ func (a *App) MoveToFolder(messageIDs []string, destFolderID string) error {
 	// APPEND fails, source stays untouched.
 	if messages[0].AccountID != destFolder.AccountID {
 		if err := a.copyMessagesAcrossAccounts(messages, destFolder); err != nil {
-			return fmt.Errorf("cross-account move: append failed: %w", err)
+			return nil, destFolder.Name, fmt.Errorf("cross-account move: append failed: %w", err)
 		}
-		_, trashErr := a.Trash(messageIDs)
+		_, trashCmds, _, trashErr := a.trashCmds(messageIDs)
 		// Sync destination so appended messages get correct UIDs locally.
 		go func() {
 			defer recoverPanic("app.actions", "cross-account move dest sync")
 			_ = a.SyncFolder(destFolder.AccountID, destFolder.ID)
 		}()
-		return trashErr
+		return trashCmds, destFolder.Name, trashErr
 	}
 
 	// Group by source folder
@@ -448,7 +463,7 @@ func (a *App) MoveToFolder(messageIDs []string, destFolderID string) error {
 
 	// Update local DB first
 	if err := a.messageStore.MoveMessages(messageIDs, destFolderID); err != nil {
-		return fmt.Errorf("failed to move messages locally: %w", err)
+		return nil, "", fmt.Errorf("failed to move messages locally: %w", err)
 	}
 
 	wailsRuntime.EventsEmit(a.ctx, "messages:moved", map[string]interface{}{
@@ -506,7 +521,9 @@ func (a *App) MoveToFolder(messageIDs []string, destFolderID string) error {
 		}
 	}()
 
-	// Create undo command for each source folder
+	// Create one undo command per source folder; the caller pushes them
+	// as a single undoable action.
+	var cmds []undo.Command
 	for sourceFolderID, msgs := range byFolder {
 		rfc822IDs := make([]string, 0, len(msgs))
 		for _, m := range msgs {
@@ -526,10 +543,10 @@ func (a *App) MoveToFolder(messageIDs []string, destFolderID string) error {
 			destFolderID,
 			fmt.Sprintf("Move to %s", destFolder.Name),
 		)
-		a.undoStack.Push(cmd)
+		cmds = append(cmds, cmd)
 	}
 
-	return nil
+	return cmds, destFolder.Name, nil
 }
 
 // isGmailAccount checks if the account uses Gmail's IMAP server.
@@ -831,10 +848,17 @@ func (a *App) copyMessagesAcrossAccounts(messages []*message.Message, destFolder
 	})
 }
 
-// Archive moves messages to the Archive folder
+// Archive moves messages to the Archive folder. One call is one undoable
+// action — see pushUndoCommands.
 func (a *App) Archive(messageIDs []string) error {
+	cmds, destName, err := a.archiveCmds(messageIDs)
+	a.pushUndoCommands(destName, cmds)
+	return err
+}
+
+func (a *App) archiveCmds(messageIDs []string) ([]undo.Command, string, error) {
 	if len(messageIDs) == 0 {
-		return nil
+		return nil, "", nil
 	}
 	messageIDs = a.expandToFolderCopies(messageIDs)
 
@@ -843,32 +867,39 @@ func (a *App) Archive(messageIDs []string) error {
 	// single-account slices. SpansMultipleAccounts errors fall through
 	// to the fast path so a metadata hiccup never breaks what works.
 	if spans, _ := a.messageStore.SpansMultipleAccounts(messageIDs); spans {
-		return a.archiveCrossAccount(messageIDs)
+		return a.archiveCrossAccountCmds(messageIDs)
 	}
 
 	// Get first message to determine account
 	messages, err := a.messageStore.GetByIDs(messageIDs[:1])
 	if err != nil || len(messages) == 0 {
-		return fmt.Errorf("failed to get message")
+		return nil, "", fmt.Errorf("failed to get message")
 	}
 
 	archiveFolder, err := a.GetSpecialFolder(messages[0].AccountID, folder.TypeArchive)
 	if err != nil {
-		return fmt.Errorf("failed to get archive folder: %w", err)
+		return nil, "", fmt.Errorf("failed to get archive folder: %w", err)
 	}
 	if archiveFolder == nil {
-		return fmt.Errorf("no archive folder configured")
+		return nil, "", fmt.Errorf("no archive folder configured")
 	}
 
-	return a.MoveToFolder(messageIDs, archiveFolder.ID)
+	return a.moveToFolderCmds(messageIDs, archiveFolder.ID)
 }
 
 // Trash moves messages to the Trash folder.
 // Returns true if at least one message was moved to trash (show undo toast).
 // Returns false if all messages were just label-removed on Gmail (no undo).
+// One call is one undoable action — see pushUndoCommands.
 func (a *App) Trash(messageIDs []string) (bool, error) {
+	moved, cmds, destName, err := a.trashCmds(messageIDs)
+	a.pushUndoCommands(destName, cmds)
+	return moved, err
+}
+
+func (a *App) trashCmds(messageIDs []string) (bool, []undo.Command, string, error) {
 	if len(messageIDs) == 0 {
-		return false, nil
+		return false, nil, "", nil
 	}
 	messageIDs = a.expandToFolderCopies(messageIDs)
 
@@ -877,46 +908,50 @@ func (a *App) Trash(messageIDs []string) (bool, error) {
 	// single-account slices. SpansMultipleAccounts errors fall through
 	// to the fast path so a metadata hiccup never breaks what works.
 	if spans, _ := a.messageStore.SpansMultipleAccounts(messageIDs); spans {
-		return a.trashCrossAccount(messageIDs)
+		return a.trashCrossAccountCmds(messageIDs)
 	}
 
 	messages, err := a.messageStore.GetByIDs(messageIDs[:1])
 	if err != nil || len(messages) == 0 {
-		return false, fmt.Errorf("failed to get message")
+		return false, nil, "", fmt.Errorf("failed to get message")
 	}
 
 	accountID := messages[0].AccountID
 
 	trashFolder, err := a.GetSpecialFolder(accountID, folder.TypeTrash)
 	if err != nil {
-		return false, fmt.Errorf("failed to get trash folder: %w", err)
+		return false, nil, "", fmt.Errorf("failed to get trash folder: %w", err)
 	}
 	if trashFolder == nil {
-		return false, fmt.Errorf("no trash folder configured")
+		return false, nil, "", fmt.Errorf("no trash folder configured")
 	}
 
 	// Non-Gmail: normal move to trash for all messages
 	if !a.isGmailAccount(accountID) {
-		return true, a.MoveToFolder(messageIDs, trashFolder.ID)
+		cmds, _, err := a.moveToFolderCmds(messageIDs, trashFolder.ID)
+		return true, cmds, trashFolder.Name, err
 	}
 
 	// Gmail: partition messages into copies (label-remove) vs sole copies (move to trash)
-	return a.gmailTrashOrSpam(messageIDs, trashFolder)
+	moved, cmds, err := a.gmailTrashOrSpamCmds(messageIDs, trashFolder)
+	return moved, cmds, trashFolder.Name, err
 }
 
-// gmailTrashOrSpam handles Gmail-specific trash/spam behavior.
+// gmailTrashOrSpamCmds handles Gmail-specific trash/spam behavior.
 // Messages with copies in other folders get label-removed (DELETE only).
 // Messages without copies get moved to the destination folder (COPY + DELETE).
-// Returns true if at least one message was moved to dest (show undo toast).
-func (a *App) gmailTrashOrSpam(messageIDs []string, destFolder *folder.Folder) (bool, error) {
+// Returns true if at least one message was moved to dest (show undo toast),
+// plus the undo commands the move created (label-removed copies create
+// none — they have no undo entry, see the Trash doc comment).
+func (a *App) gmailTrashOrSpamCmds(messageIDs []string, destFolder *folder.Folder) (bool, []undo.Command, error) {
 	log := logging.WithComponent("app.gmailTrashOrSpam")
 
 	allMessages, err := a.messageStore.GetByIDs(messageIDs)
 	if err != nil {
-		return false, fmt.Errorf("failed to get messages: %w", err)
+		return false, nil, fmt.Errorf("failed to get messages: %w", err)
 	}
 	if len(allMessages) == 0 {
-		return false, nil
+		return false, nil, nil
 	}
 
 	accountID := allMessages[0].AccountID
@@ -950,18 +985,20 @@ func (a *App) gmailTrashOrSpam(messageIDs []string, destFolder *folder.Folder) (
 	if len(copyIDs) > 0 {
 		if err := a.gmailRemoveLabel(copyMsgs); err != nil {
 			log.Error().Err(err).Msg("Failed to remove Gmail labels for copies")
-			return len(nonCopyIDs) > 0, err
+			return len(nonCopyIDs) > 0, nil, err
 		}
 	}
 
 	// Handle non-copies: normal move to trash/spam
 	if len(nonCopyIDs) > 0 {
-		if err := a.MoveToFolder(nonCopyIDs, destFolder.ID); err != nil {
-			return true, err
+		cmds, _, err := a.moveToFolderCmds(nonCopyIDs, destFolder.ID)
+		if err != nil {
+			return true, cmds, err
 		}
+		return true, cmds, nil
 	}
 
-	return len(nonCopyIDs) > 0, nil
+	return len(nonCopyIDs) > 0, nil, nil
 }
 
 // gmailRemoveLabel removes messages from their current folder (label) on Gmail.
@@ -1060,8 +1097,14 @@ func (a *App) removeFromIMAPFolder(messages []*message.Message, folderID string)
 // Returns true if at least one message was moved to spam (show undo toast).
 // Returns false if all messages were just label-removed on Gmail (no undo).
 func (a *App) MarkAsSpam(messageIDs []string) (bool, error) {
+	moved, cmds, destName, err := a.markAsSpamCmds(messageIDs)
+	a.pushUndoCommands(destName, cmds)
+	return moved, err
+}
+
+func (a *App) markAsSpamCmds(messageIDs []string) (bool, []undo.Command, string, error) {
 	if len(messageIDs) == 0 {
-		return false, nil
+		return false, nil, "", nil
 	}
 	messageIDs = a.expandToFolderCopies(messageIDs)
 
@@ -1069,37 +1112,46 @@ func (a *App) MarkAsSpam(messageIDs []string) (bool, error) {
 	// helper that recurses through this same function with uniform
 	// single-account slices.
 	if spans, _ := a.messageStore.SpansMultipleAccounts(messageIDs); spans {
-		return a.markAsSpamCrossAccount(messageIDs)
+		return a.markAsSpamCrossAccountCmds(messageIDs)
 	}
 
 	messages, err := a.messageStore.GetByIDs(messageIDs[:1])
 	if err != nil || len(messages) == 0 {
-		return false, fmt.Errorf("failed to get message")
+		return false, nil, "", fmt.Errorf("failed to get message")
 	}
 
 	accountID := messages[0].AccountID
 
 	spamFolder, err := a.GetSpecialFolder(accountID, folder.TypeSpam)
 	if err != nil {
-		return false, fmt.Errorf("failed to get spam folder: %w", err)
+		return false, nil, "", fmt.Errorf("failed to get spam folder: %w", err)
 	}
 	if spamFolder == nil {
-		return false, fmt.Errorf("no spam folder configured")
+		return false, nil, "", fmt.Errorf("no spam folder configured")
 	}
 
 	// Non-Gmail: normal move to spam
 	if !a.isGmailAccount(accountID) {
-		return true, a.MoveToFolder(messageIDs, spamFolder.ID)
+		cmds, _, err := a.moveToFolderCmds(messageIDs, spamFolder.ID)
+		return true, cmds, spamFolder.Name, err
 	}
 
 	// Gmail: partition messages into copies (label-remove) vs sole copies (move to spam)
-	return a.gmailTrashOrSpam(messageIDs, spamFolder)
+	moved, cmds, err := a.gmailTrashOrSpamCmds(messageIDs, spamFolder)
+	return moved, cmds, spamFolder.Name, err
 }
 
-// MarkAsNotSpam moves messages from Spam to Inbox
+// MarkAsNotSpam moves messages from Spam to Inbox. One call is one
+// undoable action — see pushUndoCommands.
 func (a *App) MarkAsNotSpam(messageIDs []string) error {
+	cmds, destName, err := a.markAsNotSpamCmds(messageIDs)
+	a.pushUndoCommands(destName, cmds)
+	return err
+}
+
+func (a *App) markAsNotSpamCmds(messageIDs []string) ([]undo.Command, string, error) {
 	if len(messageIDs) == 0 {
-		return nil
+		return nil, "", nil
 	}
 	messageIDs = a.expandToFolderCopies(messageIDs)
 
@@ -1107,23 +1159,23 @@ func (a *App) MarkAsNotSpam(messageIDs []string) error {
 	// helper that recurses through this same function with uniform
 	// single-account slices.
 	if spans, _ := a.messageStore.SpansMultipleAccounts(messageIDs); spans {
-		return a.markAsNotSpamCrossAccount(messageIDs)
+		return a.markAsNotSpamCrossAccountCmds(messageIDs)
 	}
 
 	messages, err := a.messageStore.GetByIDs(messageIDs[:1])
 	if err != nil || len(messages) == 0 {
-		return fmt.Errorf("failed to get message")
+		return nil, "", fmt.Errorf("failed to get message")
 	}
 
 	inboxFolder, err := a.folderStore.GetByType(messages[0].AccountID, folder.TypeInbox)
 	if err != nil {
-		return fmt.Errorf("failed to get inbox folder: %w", err)
+		return nil, "", fmt.Errorf("failed to get inbox folder: %w", err)
 	}
 	if inboxFolder == nil {
-		return fmt.Errorf("no inbox folder found")
+		return nil, "", fmt.Errorf("no inbox folder found")
 	}
 
-	return a.MoveToFolder(messageIDs, inboxFolder.ID)
+	return a.moveToFolderCmds(messageIDs, inboxFolder.ID)
 }
 
 // EmptyTrash permanently deletes all messages in a trash folder
@@ -1267,10 +1319,12 @@ func (a *App) deleteMessagesFromIMAP(messages []*message.Message, folderID strin
 // multiple accounts. The public entry points (Trash, Archive, MarkAsSpam,
 // MarkAsNotSpam, MoveToFolder, CopyToFolder) detect this up front via
 // messageStore.SpansMultipleAccounts and route here. Each helper partitions
-// the IDs by AccountID, then loops by re-invoking the public function with
-// each partition's single-account slice. The recursive call takes the
-// untouched single-account fast path. Recursion depth is bounded at 1 by
-// construction (partition slices are uniform-account by definition).
+// the IDs by AccountID, then loops by re-invoking the internal *Cmds
+// variant with each partition's single-account slice, aggregating the undo
+// commands. The public wrapper pushes the aggregate as ONE undoable action
+// (see pushUndoCommands), so a single Undo reverses the whole bulk action.
+// Recursion depth is bounded at 1 by construction (partition slices are
+// uniform-account by definition).
 // ============================================================================
 
 // partitionByAccount groups message IDs by their owning account. Invalid
@@ -1288,102 +1342,139 @@ func (a *App) partitionByAccount(messageIDs []string) (map[string][]string, erro
 	return byAccount, nil
 }
 
-// trashCrossAccount fan-outs Trash() per account partition. Aggregates the
-// (bool, error) returns: anyMoved is OR'd across partitions, firstErr wins.
-func (a *App) trashCrossAccount(messageIDs []string) (bool, error) {
+// trashCrossAccountCmds fan-outs trashCmds per account partition. Aggregates
+// the (bool, error) returns: anyMoved is OR'd across partitions, firstErr wins.
+// The undo commands from every partition are aggregated for the caller to
+// push as one undoable action.
+func (a *App) trashCrossAccountCmds(messageIDs []string) (bool, []undo.Command, string, error) {
 	byAccount, err := a.partitionByAccount(messageIDs)
 	if err != nil {
-		return false, err
+		return false, nil, "", err
 	}
 	var anyMoved bool
+	var cmds []undo.Command
+	var destName string
 	var firstErr error
 	for _, ids := range byAccount {
-		moved, err := a.Trash(ids)
+		moved, partCmds, partDest, err := a.trashCmds(ids)
 		if moved {
 			anyMoved = true
+		}
+		cmds = append(cmds, partCmds...)
+		if destName == "" {
+			destName = partDest
 		}
 		if err != nil && firstErr == nil {
 			firstErr = err
 		}
 	}
-	return anyMoved, firstErr
+	return anyMoved, cmds, destName, firstErr
 }
 
-// archiveCrossAccount fan-outs Archive() per account partition. Aggregates
-// first error encountered.
-func (a *App) archiveCrossAccount(messageIDs []string) error {
+// archiveCrossAccountCmds fan-outs archiveCmds per account partition.
+// Aggregates first error encountered, and the undo commands for the caller
+// to push as one undoable action.
+func (a *App) archiveCrossAccountCmds(messageIDs []string) ([]undo.Command, string, error) {
 	byAccount, err := a.partitionByAccount(messageIDs)
 	if err != nil {
-		return err
+		return nil, "", err
 	}
+	var cmds []undo.Command
+	var destName string
 	var firstErr error
 	for _, ids := range byAccount {
-		if err := a.Archive(ids); err != nil && firstErr == nil {
-			firstErr = err
-		}
-	}
-	return firstErr
-}
-
-// markAsSpamCrossAccount fan-outs MarkAsSpam() per account partition.
-func (a *App) markAsSpamCrossAccount(messageIDs []string) (bool, error) {
-	byAccount, err := a.partitionByAccount(messageIDs)
-	if err != nil {
-		return false, err
-	}
-	var anyMoved bool
-	var firstErr error
-	for _, ids := range byAccount {
-		moved, err := a.MarkAsSpam(ids)
-		if moved {
-			anyMoved = true
+		partCmds, partDest, err := a.archiveCmds(ids)
+		cmds = append(cmds, partCmds...)
+		if destName == "" {
+			destName = partDest
 		}
 		if err != nil && firstErr == nil {
 			firstErr = err
 		}
 	}
-	return anyMoved, firstErr
+	return cmds, destName, firstErr
 }
 
-// markAsNotSpamCrossAccount fan-outs MarkAsNotSpam() per account partition.
-func (a *App) markAsNotSpamCrossAccount(messageIDs []string) error {
+// markAsSpamCrossAccountCmds fan-outs markAsSpamCmds per account partition.
+func (a *App) markAsSpamCrossAccountCmds(messageIDs []string) (bool, []undo.Command, string, error) {
 	byAccount, err := a.partitionByAccount(messageIDs)
 	if err != nil {
-		return err
+		return false, nil, "", err
 	}
+	var anyMoved bool
+	var cmds []undo.Command
+	var destName string
 	var firstErr error
 	for _, ids := range byAccount {
-		if err := a.MarkAsNotSpam(ids); err != nil && firstErr == nil {
+		moved, partCmds, partDest, err := a.markAsSpamCmds(ids)
+		if moved {
+			anyMoved = true
+		}
+		cmds = append(cmds, partCmds...)
+		if destName == "" {
+			destName = partDest
+		}
+		if err != nil && firstErr == nil {
 			firstErr = err
 		}
 	}
-	return firstErr
+	return anyMoved, cmds, destName, firstErr
 }
 
-// moveToFolderCrossAccount fan-outs MoveToFolder() per source-account
-// partition. Each recursive call hits the public MoveToFolder with a
+// markAsNotSpamCrossAccountCmds fan-outs markAsNotSpamCmds per account partition.
+func (a *App) markAsNotSpamCrossAccountCmds(messageIDs []string) ([]undo.Command, string, error) {
+	byAccount, err := a.partitionByAccount(messageIDs)
+	if err != nil {
+		return nil, "", err
+	}
+	var cmds []undo.Command
+	var destName string
+	var firstErr error
+	for _, ids := range byAccount {
+		partCmds, partDest, err := a.markAsNotSpamCmds(ids)
+		cmds = append(cmds, partCmds...)
+		if destName == "" {
+			destName = partDest
+		}
+		if err != nil && firstErr == nil {
+			firstErr = err
+		}
+	}
+	return cmds, destName, firstErr
+}
+
+// moveToFolderCrossAccountCmds fan-outs moveToFolderCmds per source-account
+// partition. Each recursive call hits the internal variant with a
 // uniform-source-account slice; the existing
 // `messages[0].AccountID != destFolder.AccountID` guard in that function
 // then classifies the WHOLE partition correctly:
 //   - partition's account == dest's account → same-account move path.
 //   - partition's account != dest's account → existing cross-account
 //     APPEND-then-Trash path (copyMessagesAcrossAccounts + recursive
-//     Trash on the partition's IDs).
+//     trashCmds on the partition's IDs).
 //
 // Each partition's outcome is independent — a Gmail partition's failure
-// doesn't block an IMAP partition's success.
-func (a *App) moveToFolderCrossAccount(messageIDs []string, destFolderID string) error {
+// doesn't block an IMAP partition's success. The undo commands from every
+// partition are aggregated for the caller to push as one undoable action.
+func (a *App) moveToFolderCrossAccountCmds(messageIDs []string, destFolderID string) ([]undo.Command, string, error) {
 	byAccount, err := a.partitionByAccount(messageIDs)
 	if err != nil {
-		return err
+		return nil, "", err
 	}
+	var cmds []undo.Command
+	var destName string
 	var firstErr error
 	for _, ids := range byAccount {
-		if err := a.MoveToFolder(ids, destFolderID); err != nil && firstErr == nil {
+		partCmds, partDest, err := a.moveToFolderCmds(ids, destFolderID)
+		cmds = append(cmds, partCmds...)
+		if destName == "" {
+			destName = partDest
+		}
+		if err != nil && firstErr == nil {
 			firstErr = err
 		}
 	}
-	return firstErr
+	return cmds, destName, firstErr
 }
 
 // copyToFolderCrossAccount fan-outs CopyToFolder() per source-account

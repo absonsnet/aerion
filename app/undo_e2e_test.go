@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"path/filepath"
 	"testing"
+	"time"
 
-	imapPkg "github.com/absonsnet/daak/internal/imap"
 	"github.com/absonsnet/daak/internal/database"
+	imapPkg "github.com/absonsnet/daak/internal/imap"
 	"github.com/absonsnet/daak/internal/message"
 	"github.com/absonsnet/daak/internal/undo"
 )
@@ -126,5 +127,107 @@ func TestMoveCommandUndoEndToEnd(t *testing.T) {
 	}
 	if got := folderOf("msg-2"); got != "inbox-1" {
 		t.Fatalf("after undo, msg-2 folder = %q, want inbox-1", got)
+	}
+}
+
+// TestBulkUndoRestoresAll drives the item-1 fix: a bulk delete spanning
+// two source folders produces two MoveCommands, but pushUndoCommands must
+// record them as ONE undoable action, so a single Undo restores both
+// messages. Pre-fix, the two commands were pushed separately and one Undo
+// popped only the most recent — deleting several messages restored only
+// one batch (the cross-account case pushed one command per partition the
+// same way, so the same grouping covers it).
+func TestBulkUndoRestoresAll(t *testing.T) {
+	db, err := database.Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Migrate(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { db.Close() })
+
+	if _, err := db.Exec(`INSERT INTO accounts (id, name, email, imap_host, smtp_host, username) VALUES ('acc-1', 'Me', 'me@example.com', 'imap.example.com', 'smtp.example.com', 'me@example.com')`); err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range [][3]string{
+		{"inbox-1", "INBOX", "inbox"},
+		{"sent-1", "Sent", "sent"},
+		{"trash-1", "Trash", "trash"},
+	} {
+		if _, err := db.Exec(`INSERT INTO folders (id, account_id, name, path, folder_type) VALUES (?, 'acc-1', ?, ?, ?)`, f[0], f[1], f[1], f[2]); err != nil {
+			t.Fatal(err)
+		}
+	}
+	seed := func(id, msgID, folderID string, uid int) {
+		if _, err := db.Exec(`INSERT INTO messages (id, account_id, folder_id, uid, message_id, subject, from_name, from_email, to_list, cc_list, bcc_list) VALUES (?, 'acc-1', ?, ?, ?, 'Subject', 'Me', 'me@example.com', '[]', '[]', '[]')`, id, folderID, uid, msgID); err != nil {
+			t.Fatalf("seed %s: %v", id, err)
+		}
+	}
+	seed("msg-1", "<m1@example.com>", "inbox-1", 42)
+	seed("msg-2", "<m2@example.com>", "sent-1", 43)
+
+	ms := message.NewStore(db)
+	a := &App{messageStore: ms, undoStack: undo.NewStack(50, 30*time.Second)}
+	fake := &localUndoContext{app: a, messageStore: ms}
+	folderOf := func(id string) string {
+		var folderID string
+		if err := db.QueryRow(`SELECT folder_id FROM messages WHERE id = ?`, id).Scan(&folderID); err != nil {
+			t.Fatalf("folderOf %s: %v", id, err)
+		}
+		return folderID
+	}
+
+	// Bulk delete: both messages land in Trash (local move, temp UIDs).
+	if err := ms.MoveMessages([]string{"msg-1", "msg-2"}, "trash-1"); err != nil {
+		t.Fatalf("move to Trash: %v", err)
+	}
+
+	// One MoveCommand per source folder, as moveToFolderCmds builds them.
+	cmd1 := undo.NewMoveCommand(fake, "acc-1", []string{"<m1@example.com>"}, "inbox-1", "trash-1", "Move to Trash")
+	cmd2 := undo.NewMoveCommand(fake, "acc-1", []string{"<m2@example.com>"}, "sent-1", "trash-1", "Move to Trash")
+	a.pushUndoCommands("Trash", []undo.Command{cmd1, cmd2})
+
+	if got := a.undoStack.Size(); got != 1 {
+		t.Fatalf("after bulk delete, undo stack size = %d, want 1 (one undoable action)", got)
+	}
+	popped := a.undoStack.Pop()
+	if popped == nil {
+		t.Fatal("expected one undoable action on the stack")
+	}
+	if _, isComposite := popped.(*undo.CompositeCommand); !isComposite {
+		t.Fatalf("expected the bulk action to be a CompositeCommand, got %T", popped)
+	}
+	if err := popped.Undo(); err != nil {
+		t.Fatalf("Undo of bulk delete: %v", err)
+	}
+	if got := folderOf("msg-1"); got != "inbox-1" {
+		t.Fatalf("after undo, msg-1 folder = %q, want inbox-1", got)
+	}
+	if got := folderOf("msg-2"); got != "sent-1" {
+		t.Fatalf("after undo, msg-2 folder = %q, want sent-1", got)
+	}
+	if got := a.undoStack.Size(); got != 0 {
+		t.Fatalf("undo stack not empty after undo: %d", got)
+	}
+
+	// Single-message delete stays a plain MoveCommand (no composite wrap).
+	if err := ms.MoveMessages([]string{"msg-1"}, "trash-1"); err != nil {
+		t.Fatalf("move msg-1 to Trash: %v", err)
+	}
+	single := undo.NewMoveCommand(fake, "acc-1", []string{"<m1@example.com>"}, "inbox-1", "trash-1", "Move to Trash")
+	a.pushUndoCommands("Trash", []undo.Command{single})
+	if got := a.undoStack.Size(); got != 1 {
+		t.Fatalf("after single delete, undo stack size = %d, want 1", got)
+	}
+	popped = a.undoStack.Pop()
+	if _, isComposite := popped.(*undo.CompositeCommand); isComposite {
+		t.Fatalf("single delete must not be wrapped in a CompositeCommand, got %T", popped)
+	}
+	if err := popped.Undo(); err != nil {
+		t.Fatalf("Undo of single delete: %v", err)
+	}
+	if got := folderOf("msg-1"); got != "inbox-1" {
+		t.Fatalf("after undo, msg-1 folder = %q, want inbox-1", got)
 	}
 }

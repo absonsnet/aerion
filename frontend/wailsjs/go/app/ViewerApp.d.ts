@@ -4,6 +4,7 @@ import {context} from '../models';
 import {app} from '../models';
 import {message} from '../models';
 import {translate} from '../models';
+import {folder} from '../models';
 
 export function AddImageAllowlist(arg1:string,arg2:string):Promise<void>;
 
@@ -74,6 +75,8 @@ export function GetOtpClipboardClearSeconds():Promise<number>;
 export function GetReadReceiptResponsePolicy():Promise<string>;
 
 export function GetShowTitleBar():Promise<boolean>;
+
+export function GetSpecialFolder(arg1:string,arg2:folder.Type):Promise<folder.Folder>;
 
 export function GetSubscriptions():Promise<Array<app.SubscriptionSender>>;
 
