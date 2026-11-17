@@ -178,9 +178,13 @@ jobs:
           # Windows ships as the setup installer only: the plain portable
           # daak.exe is removed so it cannot land in the release — the
           # publish job uploads everything under build/bin/.
+          # The installer is named with the familiar arch label: amd64
+          # becomes x64 (arm64 stays as-is).
           make build-windows-installer
           Remove-Item build/bin/daak.exe
-          Move-Item build/bin/daak-${{ matrix.arch }}-installer.exe build/bin/Daak-windows-setup-${{ matrix.arch }}.exe
+          $arch = "${{ matrix.arch }}"
+          if ($arch -eq "amd64") { $arch = "x64" }
+          Move-Item build/bin/daak-${{ matrix.arch }}-installer.exe build/bin/Daak-windows-setup-$arch.exe
 
       - uses: actions/upload-artifact@v7
         with:
