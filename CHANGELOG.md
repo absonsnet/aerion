@@ -1,5 +1,11 @@
 # CHANGELOG
 
+**v0.7.7 - 17-11-2026**
+---
+
+- Mac DMG background restyled in the StableBar style: dark background, big Daak title with the "Your mail. Your way." tagline, the app icon in a tile on the left, an orange drag arrow, and the Applications folder in a tile on the right
+- Windows now ships the setup installer only — the plain portable exe is gone, so each processor has exactly one file: Daak-windows-setup-x64.exe and Daak-windows-setup-arm64.exe
+
 **v0.7.6 - 17-11-2026**
 ---
 

@@ -60,15 +60,13 @@
       </div>
 
       <div class="space-y-4 max-h-[60vh] overflow-y-auto text-sm">
-        <p>🚀 Welcome to {APP_NAME} v0.7.6!</p>
+        <p>🚀 Welcome to {APP_NAME} v0.7.7!</p>
 
-        <p>v0.7.6 fixes bulk-delete Undo, turns Mark read/unread into one toggle button, closes the view when its message is deleted, and ships the Mac version as a DMG. Here are the highlights of the release:</p>
+        <p>v0.7.7 restyles the Mac DMG background and trims the Windows downloads to the setup installer only. Here are the highlights of the release:</p>
 
         <ul class="list-disc pl-6 space-y-1">
-          <li>↩️ Bulk delete Undo: deleting several messages and pressing Undo now restores all of them, not just one</li>
-          <li>✉️ The selection bar's Mark read / Mark unread buttons are now a single toggle that follows the majority — "Mark unread" when most selected messages are read, "Mark read" otherwise</li>
-          <li>🗑️ Deleting an opened message now closes its view too — the tab closes, the dialog dismisses, and the separate popup window closes</li>
-          <li>💿 Mac versions now ship as a DMG: open it and drag Daak onto the Applications shortcut</li>
+          <li>💿 Mac DMG background restyled: dark background, big Daak title, the app tile, an orange drag arrow and the Applications tile</li>
+          <li>🪟 Windows now ships the setup installer only — one file per processor: Daak-windows-setup-x64.exe and Daak-windows-setup-arm64.exe</li>
         </ul>
 
         <p>🏷 See the full change log here:</p>
