@@ -375,6 +375,15 @@
   </provides>
 
   <releases>
+    <release version="0.7.8" date="2026-11-17">
+      <description>
+        <ul>
+          <li>Title bar shows the real Daak envelope logo instead of the generic icon</li>
+          <li>Unread dot now sits between the checkbox and the contact photo, fully visible</li>
+          <li>Also includes the v0.7.7 changes: restyled Mac DMG background and Windows setup installers only</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.7.7" date="2026-11-17">
       <description>
         <ul>
