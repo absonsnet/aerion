@@ -139,11 +139,13 @@ jobs:
           # Mac ships as a DMG only (no zip): create-dmg builds a
           # drag-to-install image with the app icon on the left, an
           # Applications drop link on the right, and the background in
-          # build/macos/dmg-background.png (1320x800, 2x the 660x400
-          # window). The icon positions (177,240) and (482,240) are the
-          # centres of the two dark tiles in the background, so Finder
-          # renders each icon centred on its tile. The .app is removed
-          # after each DMG so only the DMG is uploaded as an artifact.
+          # build/macos/dmg-background.png (660x400, exactly the window
+          # size — Finder shows the background at 1:1 pixels, so a
+          # larger image is cropped to its top-left corner). The icon
+          # positions (177,240) and (482,240) are the centres of the
+          # two dark tiles in the background, so Finder renders each
+          # icon centred on its tile. The .app is removed after each
+          # DMG so only the DMG is uploaded as an artifact.
           GOARCH=amd64 make build
           create-dmg \
             --volname "Daak" \
