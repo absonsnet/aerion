@@ -47,7 +47,7 @@
   import { dispatchExtensionShortcut } from '$lib/stores/extensionShortcuts.svelte'
   import { initLayout, getLayoutMode, getResponsiveView, showViewer, hideViewer, showSidebar, hideSidebar, isResponsive } from '$lib/stores/layout.svelte'
   // @ts-ignore - wailsjs path
-  import { PrepareReply, GetPendingMailto, GetDraft, MarkAsRead, MarkAsUnread, Star, Unstar, Archive, MarkAsSpam, MarkAsNotSpam, Undo, GetTermsAccepted, SetTermsAccepted, RefreshWindowConstraints, AcceptCertificate, GetStartHiddenActive, CloseWindow, QuitApp, OpenComposerWindow, OpenViewerWindow, GetSystemTheme, NotifyStartupComplete, GetOAuthBuildStatus, GetOAuthWarningDisabled, SetOAuthWarningDisabled, GetLastSeenVersion, SetLastSeenVersion, GetAppInfo, SetShowMessagePreviewPane } from '../wailsjs/go/app/App.js'
+  import { PrepareReply, GetPendingMailto, GetDraft, MarkAsRead, MarkAsUnread, Star, Unstar, Archive, MarkAsSpam, MarkAsNotSpam, Undo, GetTermsAccepted, SetTermsAccepted, RefreshWindowConstraints, AcceptCertificate, GetStartHiddenActive, CloseWindow, QuitApp, OpenComposerWindow, OpenViewerWindow, GetSystemTheme, NotifyStartupComplete, GetOAuthBuildStatus, GetOAuthWarningDisabled, SetOAuthWarningDisabled, GetLastSeenVersion, SetLastSeenVersion, GetAppInfo, SetShowMessagePreviewPane, GetConversation, GetSpecialFolder } from '../wailsjs/go/app/App.js'
   // @ts-ignore - wailsjs path
   import { smtp, folder, certificate } from '../wailsjs/go/models'
   // @ts-ignore - wailsjs runtime
@@ -216,6 +216,55 @@
 
   function closeMessageDialog() {
     dialogMessage = null
+  }
+
+  // A deleted message must close every open view showing it — including
+  // INACTIVE tabs. A tab's viewer only mounts while the tab is active, so
+  // the viewer itself cannot hear a delete issued elsewhere; the app
+  // listens for the delete/move events here and closes any tab/dialog
+  // whose conversation is gone. Archive, spam and other moves never close
+  // a view — only a move to Trash (or a permanent delete) does.
+  async function conversationIsGone(
+    threadId: string,
+    folderId: string,
+    accountId: string,
+    deletedIds: Set<string>,
+    destFolderId: string | null
+  ): Promise<boolean> {
+    if (destFolderId !== null) {
+      // A move only counts as a delete when the destination is Trash.
+      try {
+        const trashFolder = await GetSpecialFolder(accountId, 'trash')
+        if (!trashFolder?.id || destFolderId !== trashFolder.id) return false
+      } catch (err) {
+        console.error('Failed to resolve Trash folder for delete check:', err)
+        return false
+      }
+    }
+    try {
+      const conv = await GetConversation(threadId, folderId)
+      const remaining = (conv?.messages ?? []).filter(m => !deletedIds.has(m.id))
+      return remaining.length === 0
+    } catch {
+      // Conversation no longer loadable — gone.
+      return true
+    }
+  }
+
+  async function closeViewsForDeletedMessages(messageIds: string[], destFolderId: string | null) {
+    if (messageIds.length === 0) return
+    const deletedIds = new Set(messageIds)
+    for (const tab of [...messageTabs]) {
+      if (await conversationIsGone(tab.threadId, tab.folderId, tab.accountId, deletedIds, destFolderId)) {
+        closeMessageTab(tab.threadId)
+      }
+    }
+    if (
+      dialogMessage &&
+      (await conversationIsGone(dialogMessage.threadId, dialogMessage.folderId, dialogMessage.accountId, deletedIds, destFolderId))
+    ) {
+      closeMessageDialog()
+    }
   }
 
   function moveDialogMessageTo(mode: MessageOpenMode) {
@@ -567,6 +616,17 @@
       } else if (data.mode === 'dialog') {
         openMessageDialog(data.threadId, data.folderId, data.accountId)
       }
+    })
+
+    // Deleting a message closes every open view of it — tabs (including
+    // inactive ones, whose viewers are not mounted) and the dialog. A
+    // move only closes when the destination is Trash; archive, spam and
+    // other moves leave the view open. See closeViewsForDeletedMessages.
+    EventsOn('messages:deleted', (messageIds: string[]) => {
+      closeViewsForDeletedMessages(messageIds, null)
+    })
+    EventsOn('messages:moved', (data: { messageIds: string[]; destFolderId: string }) => {
+      closeViewsForDeletedMessages(data.messageIds, data.destFolderId)
     })
 
     // Listen for escape-iframe-focus event (from EmailBody when navigating away from iframe)
