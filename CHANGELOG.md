@@ -1,5 +1,19 @@
 # CHANGELOG
 
+**v0.7.9 - 17-11-2026**
+---
+
+- Mac DMG background fixed: the background is now drawn at the window's exact size, so the "Daak" title, the "Your mail. Your way." tagline, the tiles and the drag arrow are all fully visible instead of cut off at the edges
+- Also included from v0.7.6, v0.7.7 and v0.7.8:
+  - Title bar: the real Daak envelope logo is now shown next to "Daak" instead of the generic outline icon
+  - Message list: the unread dot is now shown between the checkbox and the contact photo, fully visible instead of clipped at the edge
+  - Mac DMG background restyled in the StableBar style: dark background, big Daak title with the "Your mail. Your way." tagline, the app icon in a tile on the left, an orange drag arrow, and the Applications folder in a tile on the right
+  - Windows now ships the setup installer only — the plain portable exe is gone, so each processor has exactly one file: Daak-windows-setup-x64.exe and Daak-windows-setup-arm64.exe
+  - Bulk delete Undo: deleting several messages and pressing Undo now restores all of them, not just one
+  - Selection bar: Mark read and Mark unread are now a single toggle button that follows the majority — it reads "Mark unread" when most selected messages are read, and flips to "Mark read" once they are all unread
+  - Deleting an opened message now closes its view too — the tab closes, the dialog dismisses, and the separate popup window closes (archiving still leaves the view open)
+  - Mac versions now ship as a DMG: open it and drag Daak onto the Applications shortcut — no more zip
+
 **v0.7.8 - 17-11-2026**
 ---
 
