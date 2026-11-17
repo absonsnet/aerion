@@ -140,16 +140,18 @@ jobs:
           # drag-to-install image with the app icon on the left, an
           # Applications drop link on the right, and the background in
           # build/macos/dmg-background.png (1320x800, 2x the 660x400
-          # window). The .app is removed after each DMG so only the DMG
-          # is uploaded as an artifact.
+          # window). The icon positions (177,240) and (482,240) are the
+          # centres of the two dark tiles in the background, so Finder
+          # renders each icon centred on its tile. The .app is removed
+          # after each DMG so only the DMG is uploaded as an artifact.
           GOARCH=amd64 make build
           create-dmg \
             --volname "Daak" \
             --window-pos 200 120 \
             --window-size 660 400 \
             --icon-size 128 \
-            --icon "Daak.app" 180 200 \
-            --app-drop-link 480 200 \
+            --icon "Daak.app" 177 240 \
+            --app-drop-link 482 240 \
             --background "build/macos/dmg-background.png" \
             "build/bin/Daak-MacOS-intel.dmg" \
             "build/bin/Daak.app"
@@ -160,8 +162,8 @@ jobs:
             --window-pos 200 120 \
             --window-size 660 400 \
             --icon-size 128 \
-            --icon "Daak.app" 180 200 \
-            --app-drop-link 480 200 \
+            --icon "Daak.app" 177 240 \
+            --app-drop-link 482 240 \
             --background "build/macos/dmg-background.png" \
             "build/bin/Daak-MacOS-silicon.dmg" \
             "build/bin/Daak.app"
@@ -173,9 +175,16 @@ jobs:
         env:
           GOARCH: ${{ matrix.arch }}
         run: |
+          # Windows ships as the setup installer only: the plain portable
+          # daak.exe is removed so it cannot land in the release — the
+          # publish job uploads everything under build/bin/.
+          # The installer is named with the familiar arch label: amd64
+          # becomes x64 (arm64 stays as-is).
           make build-windows-installer
-          Move-Item build/bin/daak.exe build/bin/Daak-windows-${{ matrix.arch }}.exe
-          Move-Item build/bin/daak-${{ matrix.arch }}-installer.exe build/bin/Daak-windows-setup-${{ matrix.arch }}.exe
+          Remove-Item build/bin/daak.exe
+          $arch = "${{ matrix.arch }}"
+          if ($arch -eq "amd64") { $arch = "x64" }
+          Move-Item build/bin/daak-${{ matrix.arch }}-installer.exe build/bin/Daak-windows-setup-$arch.exe
 
       - uses: actions/upload-artifact@v7
         with:

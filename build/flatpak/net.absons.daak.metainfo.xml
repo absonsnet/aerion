@@ -375,6 +375,14 @@
   </provides>
 
   <releases>
+    <release version="0.7.7" date="2026-11-17">
+      <description>
+        <ul>
+          <li>Mac DMG background restyled: dark background with the Daak title, the app tile, a drag arrow and the Applications tile</li>
+          <li>Windows now ships the setup installer only — the plain portable exe is gone; the installers are named x64 and arm64</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.7.6" date="2026-11-17">
       <description>
         <ul>
