@@ -375,6 +375,13 @@
   </provides>
 
   <releases>
+    <release version="0.7.9" date="2026-11-17">
+      <description>
+        <ul>
+          <li>Mac DMG background fixed: drawn at the window's exact size, so the title, tagline, tiles and drag arrow are all fully visible</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.7.8" date="2026-11-17">
       <description>
         <ul>
