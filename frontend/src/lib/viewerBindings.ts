@@ -11,7 +11,7 @@
 // so its missing `window.go` namespace is never dereferenced there.
 import * as AppBindings from '../../wailsjs/go/app/App.js'
 import * as ViewerBindings from '../../wailsjs/go/app/ViewerApp.js'
-import type { message, app, translate } from '../../wailsjs/go/models'
+import type { message, app, translate, folder } from '../../wailsjs/go/models'
 
 export function isViewerWindow(): boolean {
   return (
@@ -77,6 +77,13 @@ export const MarkAsNotSpam = (messageIds: string[]): Promise<void> =>
 export const DeletePermanently = (messageIds: string[]): Promise<void> =>
   call('DeletePermanently', messageIds)
 export const Undo = (): Promise<string> => call('Undo')
+// Resolves the account's Trash folder — the viewer uses it to tell a move
+// to Trash apart from archive/move/spam when deciding whether the open
+// conversation was deleted.
+export const GetSpecialFolder = (
+  accountId: string,
+  folderType: string
+): Promise<folder.Folder> => call('GetSpecialFolder', accountId, folderType)
 // — Code chips (Phase A) —
 export const ApplyCodeChipAction = (
   messageId: string,

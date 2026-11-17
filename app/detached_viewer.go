@@ -570,6 +570,14 @@ func (v *ViewerApp) GetConversation(threadID, folderID string) (*message.Convers
 	return v.messageStore.GetConversation(threadID, folderID)
 }
 
+// GetSpecialFolder returns the account's special folder of the given type
+// (trash, archive, ...). Exposed so the popup viewer can tell a move to
+// Trash apart from other moves when deciding whether its conversation was
+// deleted.
+func (v *ViewerApp) GetSpecialFolder(accountID string, folderType folder.Type) (*folder.Folder, error) {
+	return v.composeOps.getSpecialFolder(accountID, folderType)
+}
+
 // GetMessage returns a single message by internal ID.
 func (v *ViewerApp) GetMessage(id string) (*message.Message, error) {
 	return v.messageStore.Get(id)

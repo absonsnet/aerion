@@ -142,6 +142,10 @@ export function GetShowTitleBar() {
   return window['go']['app']['ViewerApp']['GetShowTitleBar']();
 }
 
+export function GetSpecialFolder(arg1, arg2) {
+  return window['go']['app']['ViewerApp']['GetSpecialFolder'](arg1, arg2);
+}
+
 export function GetSubscriptions() {
   return window['go']['app']['ViewerApp']['GetSubscriptions']();
 }

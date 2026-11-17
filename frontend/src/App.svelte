@@ -2008,6 +2008,7 @@
             onComposeToAddress={handleComposeToAddress}
             onEditDraft={handleEditDraft}
             onActionComplete={(autoSelectNext) => messageListRef?.handleActionComplete(autoSelectNext)}
+            onConversationDeleted={() => closeMessageTab(activeMessageTab.threadId)}
             isFocused={getFocusedPane() === 'viewer'}
             isFlashing={isPaneFlashing('viewer')}
             showBackButton={false}
@@ -2134,6 +2135,7 @@
             messageListRef?.handleActionComplete(autoSelectNext)
             if (autoSelectNext) closeMessageDialog()
           }}
+          onConversationDeleted={closeMessageDialog}
           showBackButton={false}
           inFocusMode={false}
           focusModeKind={null}
