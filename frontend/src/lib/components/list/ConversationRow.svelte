@@ -524,15 +524,6 @@
     role="button"
     tabindex="0"
   >
-    {#if getAccentBarUnread() && hasUnread && getAccentUnreadStyle() !== 'bar'}
-      <!-- Unread accent, dot variants: absolute so it never shifts row content
-           (unlike the 2px bar border); glow via inline style — theme primary -->
-      <span
-        class="pointer-events-none absolute -left-0.5 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-primary"
-        style={getAccentUnreadStyle() === 'glowdot' ? 'box-shadow: 0 0 6px 1px hsl(var(--primary) / 0.7)' : ''}
-      ></span>
-    {/if}
-
     {#if swipeAnim === 'select'}
       <!-- Swipe feedback: select/deselect bubble pops in at the left edge
            while the row nudges right, fading out as the row settles -->
@@ -573,6 +564,26 @@
         {/if}
       </button>
     </div>
+
+    <!-- Unread accent dot, dot variants only: its own fixed-width column
+         between the checkbox and the avatar. The old absolute -left-0.5
+         placement sat half outside the row and was clipped by the list's
+         overflow, reading as a broken sliver at the edge. The column always
+         reserves its width so read and unread rows stay aligned, and it
+         stays visible regardless of the checkbox column's width-clipped
+         hidden state; the dot itself renders only for unread rows. Glow
+         via inline style — theme primary. The 'bar' style keeps its left
+         border instead (see the row classes above). -->
+    {#if getAccentBarUnread() && getAccentUnreadStyle() !== 'bar'}
+      <div class="flex-shrink-0 w-2 self-stretch flex items-center justify-center">
+        {#if hasUnread}
+          <span
+            class="pointer-events-none w-1.5 h-1.5 rounded-full bg-primary"
+            style={getAccentUnreadStyle() === 'glowdot' ? 'box-shadow: 0 0 6px 1px hsl(var(--primary) / 0.7)' : ''}
+          ></span>
+        {/if}
+      </div>
+    {/if}
 
     <!-- Sender avatar: colored circle, or the contact's photo when enabled
          (falling back to the colored circle when the contact has no photo) -->
