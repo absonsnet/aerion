@@ -175,8 +175,11 @@ jobs:
         env:
           GOARCH: ${{ matrix.arch }}
         run: |
+          # Windows ships as the setup installer only: the plain portable
+          # daak.exe is removed so it cannot land in the release — the
+          # publish job uploads everything under build/bin/.
           make build-windows-installer
-          Move-Item build/bin/daak.exe build/bin/Daak-windows-${{ matrix.arch }}.exe
+          Remove-Item build/bin/daak.exe
           Move-Item build/bin/daak-${{ matrix.arch }}-installer.exe build/bin/Daak-windows-setup-${{ matrix.arch }}.exe
 
       - uses: actions/upload-artifact@v7
