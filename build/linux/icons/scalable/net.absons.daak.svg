@@ -1,16 +1,22 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
-  <!-- Daak app icon: envelope in #0C5EF6, transparent background.
+  <!-- Daak app icon: envelope in a mint-to-emerald vertical gradient
+       (#A7F3D0 at the top fading to #047857 at the bottom),
+       transparent background.
        Vector redraw of the approved envelope mark, narrowed 10% about
        the centre (height back to the original); geometry measured from
        the raster master (envelope 26-486 x 67-445, corner radii rx 68,
        ry 75; V flap from the side edges at y=149 to the centre apex at
        y=315, band 41 wide). -->
   <defs>
+    <linearGradient id="daak-gradient" gradientUnits="userSpaceOnUse" x1="256" y1="67" x2="256" y2="445">
+      <stop offset="0" stop-color="#A7F3D0"/>
+      <stop offset="1" stop-color="#047857"/>
+    </linearGradient>
     <mask id="daak-flap">
       <rect width="512" height="512" fill="#FFFFFF"/>
       <polyline points="26,149 256,315 486,149" fill="none" stroke="#000000" stroke-width="41" stroke-linejoin="round"/>
     </mask>
   </defs>
-  <rect x="26" y="67" width="461" height="378" rx="68" ry="75" fill="#0C5EF6" mask="url(#daak-flap)"/>
+  <rect x="26" y="67" width="461" height="378" rx="68" ry="75" fill="url(#daak-gradient)" mask="url(#daak-flap)"/>
 </svg>

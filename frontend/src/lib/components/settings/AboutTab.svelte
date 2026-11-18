@@ -52,7 +52,7 @@
   {:else if appInfo}
     <!-- Logo + App Name & Version -->
     <div class="flex flex-col items-center space-y-2">
-      <!-- Daak logo: envelope in #0C5EF6 (inline vector of the approved mark) -->
+      <!-- Daak logo: envelope in the mint-to-emerald gradient (inline vector of the approved mark) -->
       <DaakLogo class="w-24 h-24" label="{appInfo.name} Logo" />
       <div class="text-center space-y-1">
         <h2 class="text-2xl font-bold text-foreground">{appInfo.name}</h2>
