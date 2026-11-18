@@ -175,9 +175,12 @@ Function Daak.SignalQuit
 FunctionEnd
 
 ## Close a running Daak before its files are replaced. Asks a recent Daak to
-## quit gracefully first, waits up to ${DAAK_QUIT_WAIT_SECONDS} seconds, and
-## otherwise asks the user to quit it by hand (turn off "Run in background"
-## in Settings, then close the window) with Retry/Cancel.
+## quit gracefully first and waits up to ${DAAK_QUIT_WAIT_SECONDS} seconds.
+## If it is still running after that, offers to force-quit it — only ever as
+## the fallback the user explicitly chooses, never as the first step. The
+## "Run in background" setting is never touched, so there is nothing to
+## forget re-enabling. If even force quit fails, falls back to asking the
+## user to quit Daak by hand with Retry/Cancel.
 Function Daak.CloseRunning
   Call Daak.IsRunning
   Pop $0
@@ -201,6 +204,32 @@ Function Daak.CloseRunning
         Goto Daak.CloseRunning.waitLoop
       ${EndIf}
   ${EndIf}
+
+  ; Still running after the graceful wait. Offer force quit: a force kill
+  ; can interrupt an in-flight sync, but the database is transactional
+  ; (WAL) so it recovers on next start — and the user chose it explicitly.
+  ; Yes force-quits and continues; No falls through to the manual
+  ; Retry/Cancel box below, unchanged.
+  MessageBox MB_YESNOCANCEL|MB_ICONEXCLAMATION "Daak is still running. Force quit Daak and continue with the installation?" IDYES Daak.CloseRunning.forceQuit IDNO Daak.CloseRunning.retryLoop
+  Abort
+  Daak.CloseRunning.forceQuit:
+    nsExec::ExecToStack 'taskkill /F /IM ${PRODUCT_EXECUTABLE}'
+    Pop $0
+    Pop $1
+    StrCpy $1 0
+    Daak.CloseRunning.killWaitLoop:
+      Sleep 1000
+      Call Daak.IsRunning
+      Pop $0
+      ${If} $0 == 0
+        Return
+      ${EndIf}
+      IntOp $1 $1 + 1
+      ${If} $1 < 5
+        Goto Daak.CloseRunning.killWaitLoop
+      ${EndIf}
+    ; Even force quit did not stop it: fall back to the manual path.
+    Goto Daak.CloseRunning.retryLoop
 
   Daak.CloseRunning.retryLoop:
     MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "Daak is still running, so its files cannot be replaced. To quit Daak, turn off $\"Run in background$\" in Settings and close the window, then choose Retry to continue." IDRETRY Daak.CloseRunning.retry
@@ -448,6 +477,32 @@ Function un.Daak.CloseRunning
         Goto un.Daak.CloseRunning.waitLoop
       ${EndIf}
   ${EndIf}
+
+  ; Still running after the graceful wait. Offer force quit: a force kill
+  ; can interrupt an in-flight sync, but the database is transactional
+  ; (WAL) so it recovers on next start — and the user chose it explicitly.
+  ; Yes force-quits and continues; No falls through to the manual
+  ; Retry/Cancel box below, unchanged.
+  MessageBox MB_YESNOCANCEL|MB_ICONEXCLAMATION "Daak is still running. Force quit Daak and continue with the uninstall?" IDYES un.Daak.CloseRunning.forceQuit IDNO un.Daak.CloseRunning.retryLoop
+  Abort
+  un.Daak.CloseRunning.forceQuit:
+    nsExec::ExecToStack 'taskkill /F /IM ${PRODUCT_EXECUTABLE}'
+    Pop $0
+    Pop $1
+    StrCpy $1 0
+    un.Daak.CloseRunning.killWaitLoop:
+      Sleep 1000
+      Call un.Daak.IsRunning
+      Pop $0
+      ${If} $0 == 0
+        Return
+      ${EndIf}
+      IntOp $1 $1 + 1
+      ${If} $1 < 5
+        Goto un.Daak.CloseRunning.killWaitLoop
+      ${EndIf}
+    ; Even force quit did not stop it: fall back to the manual path.
+    Goto un.Daak.CloseRunning.retryLoop
 
   un.Daak.CloseRunning.retryLoop:
     MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "Daak is still running, so it cannot be uninstalled yet. To quit Daak, turn off $\"Run in background$\" in Settings and close the window, then choose Retry to continue." IDRETRY un.Daak.CloseRunning.retry

@@ -375,6 +375,13 @@
   </provides>
 
   <releases>
+    <release version="0.7.13" date="2026-11-18">
+      <description>
+        <ul>
+          <li>Windows installer: if Daak will not stop, the installer now offers to force-quit it and continue; answering No keeps the manual Retry path, unchanged</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.7.12" date="2026-11-18">
       <description>
         <ul>
