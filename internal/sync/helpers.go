@@ -2,14 +2,13 @@ package sync
 
 import (
 	"encoding/json"
-	"fmt"
 	"strings"
-	"time"
 
 	"github.com/absonsnet/daak/internal/folder"
 	imapPkg "github.com/absonsnet/daak/internal/imap"
 	"github.com/absonsnet/daak/internal/message"
 	"github.com/emersion/go-imap/v2"
+	"github.com/google/uuid"
 )
 
 // applyFlagsToMessage sets boolean flag fields on a Message from IMAP flags
@@ -155,7 +154,14 @@ func extractFolderName(path, delimiter string) string {
 	return parts[len(parts)-1]
 }
 
-// generateID generates a unique ID for attachments
+// generateID generates a unique ID for attachments.
+// It must be a UUID, not a timestamp: two attachments sharing one UnixNano
+// value fail the attachments.id PRIMARY KEY insert, and CreateBatch logs
+// that at Debug and carries on — one file silently gone from the list.
+// (Seen with a bank email: 1 PDF, 1 .doc, 2 .docx, one .docx missing on
+// Windows only; macOS showed all 4 and the raw MIME has no winmail.dat,
+// so the exact Windows trigger is unproven — UUIDs remove the collision
+// class regardless.)
 func generateID() string {
-	return fmt.Sprintf("%d", time.Now().UnixNano())
+	return uuid.New().String()
 }

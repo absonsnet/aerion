@@ -58,3 +58,23 @@ func TestStripHTMLTags_Empty(t *testing.T) {
 		t.Errorf("stripHTMLTags('') = %q, want empty string", result)
 	}
 }
+
+func TestGenerateID_UniqueInTightLoop(t *testing.T) {
+	// Regression test: generateID is called in tight loops with no I/O
+	// between calls (e.g. decoding a winmail.dat's inner files).
+	// Timestamp-based IDs could collide on a coarse clock, and a duplicate
+	// fails the attachments.id PRIMARY KEY insert — silently dropping one
+	// file from the list.
+	const n = 10000
+	seen := make(map[string]struct{}, n)
+	for i := 0; i < n; i++ {
+		id := generateID()
+		if id == "" {
+			t.Fatalf("generateID() returned an empty ID at iteration %d", i)
+		}
+		if _, dup := seen[id]; dup {
+			t.Fatalf("generateID() returned duplicate ID %q at iteration %d", id, i)
+		}
+		seen[id] = struct{}{}
+	}
+}
