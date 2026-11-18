@@ -62,8 +62,37 @@ jobs:
         shell: pwsh
         run: |
           choco install nsis -y --no-progress
-          # Wails detects NSIS via exec.LookPath("makensis") — make sure subsequent steps see it.
-          Add-Content -Path $env:GITHUB_PATH -Value "C:\Program Files (x86)\NSIS"
+          # Wails detects NSIS via exec.LookPath("makensis") — make sure
+          # subsequent steps see it. The choco package has installed NSIS
+          # under "Program Files (x86)" on some runners and under
+          # "Program Files" on others, so resolve the real location instead
+          # of assuming one, and fail fast with a clear message if
+          # makensis is nowhere to be found (v0.7.11 failed exactly this
+          # way: the build ran, makensis was not on PATH, no installer was
+          # created, and the rename step failed).
+          $candidates = @(
+            "C:\Program Files (x86)\NSIS",
+            "C:\Program Files\NSIS"
+          )
+          if ($env:ChocolateyInstall) {
+            $candidates += (Join-Path $env:ChocolateyInstall "bin")
+          }
+          $nsisDir = $null
+          foreach ($candidate in $candidates) {
+            if (Test-Path (Join-Path $candidate "makensis.exe")) {
+              $nsisDir = $candidate
+              break
+            }
+          }
+          if ($nsisDir) {
+            Add-Content -Path $env:GITHUB_PATH -Value $nsisDir
+            $env:PATH = "$nsisDir;$env:PATH"
+          }
+          $makensis = Get-Command makensis -ErrorAction SilentlyContinue
+          if (-not $makensis) {
+            throw "makensis not found after choco install nsis (checked PATH, Program Files (x86)\NSIS, Program Files\NSIS, Chocolatey bin)"
+          }
+          makensis -VERSION
 
       - name: Install create-dmg (macOS)
         if: matrix.platform == 'darwin'

@@ -60,9 +60,9 @@
       </div>
 
       <div class="space-y-4 max-h-[60vh] overflow-y-auto text-sm">
-        <p>🚀 Welcome to {APP_NAME} v0.7.11!</p>
+        <p>🚀 Welcome to {APP_NAME} v0.7.12!</p>
 
-        <p>v0.7.11 makes the Windows installer per-user by default and closes a running Daak before updating. Here are the highlights of the release:</p>
+        <p>v0.7.12 fixes the Windows release build and brings the Windows installer changes from v0.7.11, which never shipped a Windows installer. Here are the highlights of the release:</p>
 
         <ul class="list-disc pl-6 space-y-1">
           <li>🪟 Windows installer is now per-user by default: installing just for you needs no administrator rights; installing for all users still asks for admin rights</li>

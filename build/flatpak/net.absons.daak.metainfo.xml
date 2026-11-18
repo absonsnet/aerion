@@ -375,6 +375,15 @@
   </provides>
 
   <releases>
+    <release version="0.7.12" date="2026-11-18">
+      <description>
+        <ul>
+          <li>Fixed the Windows release build: the release workflow now locates the NSIS compiler instead of assuming where it is installed</li>
+          <li>Windows installer is now per-user by default: installing just for you needs no administrator rights; installing for all users still asks for admin rights</li>
+          <li>Windows installer now closes a running Daak by itself before updating or uninstalling</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.7.11" date="2026-11-18">
       <description>
         <ul>
