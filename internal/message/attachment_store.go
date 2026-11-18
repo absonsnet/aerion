@@ -202,6 +202,26 @@ func (s *AttachmentStore) CreateBatch(attachments []*Attachment) error {
 	}
 	defer func() { _ = tx.Rollback() }()
 
+	// A body re-fetch must REPLACE the message's attachment set, not add to
+	// it. The sync fetch path inserts whatever the parser produced for the
+	// message, so without this every re-fetch (Force Resync, a second folder
+	// holding the same message, a retried body fetch) duplicates the files
+	// under fresh ids with no error and no log line. Clear the existing rows
+	// for each message in this batch first, in the same transaction as the
+	// insert, so a re-fetch can never leave stale or doubled rows behind.
+	// Only messages present in this batch are cleared: a message whose
+	// parse produced nothing (e.g. a timed-out parse) keeps its rows.
+	seen := make(map[string]struct{}, len(attachments))
+	for _, a := range attachments {
+		if _, ok := seen[a.MessageID]; ok {
+			continue
+		}
+		seen[a.MessageID] = struct{}{}
+		if _, err := tx.Exec("DELETE FROM attachments WHERE message_id = ?", a.MessageID); err != nil {
+			return fmt.Errorf("failed to clear existing attachments: %w", err)
+		}
+	}
+
 	stmt, err := tx.Prepare(`
 		INSERT INTO attachments (id, message_id, filename, content_type, size, content_id, is_inline, local_path, content)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
