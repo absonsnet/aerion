@@ -1,5 +1,11 @@
 # CHANGELOG
 
+**v0.7.10 - 18-11-2026**
+---
+
+- Fixed attachments silently disappearing on Windows: attachment ids are now UUIDs instead of timestamps, so two attachments saved in the same instant can no longer collide and drop one (this was the missing PDF of the bank email)
+- Fixed attachments showing twice after a resync: re-fetching a message now replaces its attachment set instead of adding to it
+
 **v0.7.9 - 17-11-2026**
 ---
 

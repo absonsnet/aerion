@@ -375,6 +375,14 @@
   </provides>
 
   <releases>
+    <release version="0.7.10" date="2026-11-18">
+      <description>
+        <ul>
+          <li>Attachments no longer silently disappear on Windows: attachment ids are now UUIDs instead of timestamps, so two attachments saved in the same instant can no longer collide and drop one</li>
+          <li>Attachments no longer show twice after a resync: re-fetching a message now replaces its attachment set instead of adding to it</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.7.9" date="2026-11-17">
       <description>
         <ul>
