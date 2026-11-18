@@ -1,5 +1,10 @@
 # CHANGELOG
 
+**v0.7.14 - 18-11-2026**
+---
+
+- New app icon: the Daak envelope now uses a mint-to-emerald gradient (mint #A7F3D0 at the top fading to emerald #047857 at the bottom), in the title bar, the About page, and the app icon itself
+
 **v0.7.13 - 18-11-2026**
 ---
 

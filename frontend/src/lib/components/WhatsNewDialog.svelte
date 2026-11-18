@@ -60,12 +60,12 @@
       </div>
 
       <div class="space-y-4 max-h-[60vh] overflow-y-auto text-sm">
-        <p>🚀 Welcome to {APP_NAME} v0.7.13!</p>
+        <p>🚀 Welcome to {APP_NAME} v0.7.14!</p>
 
-        <p>v0.7.13 adds a force-quit option to the Windows installer for when Daak will not stop. Here are the highlights of the release:</p>
+        <p>v0.7.14 gives the Daak envelope a new mint-to-emerald gradient. Here are the highlights of the release:</p>
 
         <ul class="list-disc pl-6 space-y-1">
-          <li>🪟 If Daak will not stop after the graceful quit request, the installer now offers to force-quit it and continue. Answering No keeps the manual Retry path, unchanged — and the "Run in background" setting is never touched</li>
+          <li>🎨 New app icon: the envelope now fades from mint at the top to emerald at the bottom, in the title bar, the About page, and the app icon itself</li>
         </ul>
 
         <p>🏷 See the full change log here:</p>
