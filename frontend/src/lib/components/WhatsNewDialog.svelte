@@ -60,13 +60,13 @@
       </div>
 
       <div class="space-y-4 max-h-[60vh] overflow-y-auto text-sm">
-        <p>🚀 Welcome to {APP_NAME} v0.7.10!</p>
+        <p>🚀 Welcome to {APP_NAME} v0.7.11!</p>
 
-        <p>v0.7.10 fixes attachments disappearing or showing twice after a sync. Here are the highlights of the release:</p>
+        <p>v0.7.11 makes the Windows installer per-user by default and closes a running Daak before updating. Here are the highlights of the release:</p>
 
         <ul class="list-disc pl-6 space-y-1">
-          <li>📎 Attachments no longer silently disappear on Windows: ids are now UUIDs instead of timestamps, so two attachments saved in the same instant can no longer collide and drop one</li>
-          <li>📎 Attachments no longer show twice after a resync: re-fetching a message now replaces its attachment set instead of adding to it</li>
+          <li>🪟 Windows installer is now per-user by default: installing just for you needs no administrator rights; installing for all users still asks for admin rights</li>
+          <li>🪟 The installer now closes a running Daak by itself before updating or uninstalling</li>
         </ul>
 
         <p>🏷 See the full change log here:</p>
