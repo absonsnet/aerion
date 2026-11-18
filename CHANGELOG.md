@@ -1,5 +1,13 @@
 # CHANGELOG
 
+**v0.7.12 - 18-11-2026**
+---
+
+- Fixed the Windows release build: v0.7.11 never shipped a Windows installer because the build machine could not find the NSIS compiler — the release workflow now locates it and stops loudly if it is missing
+- Also included from v0.7.11:
+  - Windows installer is now per-user by default: installing just for you needs no administrator rights and puts Daak in %LOCALAPPDATA%\Programs\Daak; installing for all users still asks for admin rights and uses Program Files. Upgrades default to the previous install's mode and folder
+  - Windows installer now closes a running Daak by itself before updating or uninstalling: it asks Daak to quit gracefully and waits for it, instead of failing on the locked file. If Daak is still running after that, it tells you how to quit it and offers Retry
+
 **v0.7.11 - 18-11-2026**
 ---
 
