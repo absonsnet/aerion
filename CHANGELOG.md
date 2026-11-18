@@ -1,5 +1,10 @@
 # CHANGELOG
 
+**v0.7.13 - 18-11-2026**
+---
+
+- Windows installer: if Daak will not stop after the graceful quit request, the installer now offers to force-quit it and continue. Answering No keeps the manual Retry path with its instructions, unchanged, and the "Run in background" setting is never touched, so there is nothing to forget re-enabling. Same in the uninstaller
+
 **v0.7.12 - 18-11-2026**
 ---
 
