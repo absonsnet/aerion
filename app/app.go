@@ -525,6 +525,10 @@ func (a *App) Startup(ctx context.Context) {
 	// Quit cleanly on SIGTERM/SIGINT/SIGHUP even in background mode (#460).
 	a.watchTerminationSignals()
 
+	// Let the Windows installer ask a running Daak to quit before an update
+	// or uninstall, even in background mode. No-op outside Windows.
+	platform.StartQuitEventWatcher(a.QuitApp)
+
 	// Set single-instance onShow callback immediately — must happen before any
 	// potentially-blocking D-Bus calls (theme monitor, sleep/wake, network)
 	// that could delay the rest of Startup.
