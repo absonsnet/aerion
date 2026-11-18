@@ -208,16 +208,10 @@ Function Daak.CloseRunning
   ; Still running after the graceful wait. Offer force quit: a force kill
   ; can interrupt an in-flight sync, but the database is transactional
   ; (WAL) so it recovers on next start — and the user chose it explicitly.
-  Daak.CloseRunning.forceLoop:
-    MessageBox MB_YESNOCANCEL|MB_ICONEXCLAMATION "Daak is still running. Force quit Daak and continue with the installation?" IDYES Daak.CloseRunning.forceQuit IDNO Daak.CloseRunning.recheck
-    Abort
-  Daak.CloseRunning.recheck:
-    Call Daak.IsRunning
-    Pop $0
-    ${If} $0 == 0
-      Return
-    ${EndIf}
-    Goto Daak.CloseRunning.forceLoop
+  ; Yes force-quits and continues; No falls through to the manual
+  ; Retry/Cancel box below, unchanged.
+  MessageBox MB_YESNOCANCEL|MB_ICONEXCLAMATION "Daak is still running. Force quit Daak and continue with the installation?" IDYES Daak.CloseRunning.forceQuit IDNO Daak.CloseRunning.retryLoop
+  Abort
   Daak.CloseRunning.forceQuit:
     nsExec::ExecToStack 'taskkill /F /IM ${PRODUCT_EXECUTABLE}'
     Pop $0
@@ -487,16 +481,10 @@ Function un.Daak.CloseRunning
   ; Still running after the graceful wait. Offer force quit: a force kill
   ; can interrupt an in-flight sync, but the database is transactional
   ; (WAL) so it recovers on next start — and the user chose it explicitly.
-  un.Daak.CloseRunning.forceLoop:
-    MessageBox MB_YESNOCANCEL|MB_ICONEXCLAMATION "Daak is still running. Force quit Daak and continue with the uninstall?" IDYES un.Daak.CloseRunning.forceQuit IDNO un.Daak.CloseRunning.recheck
-    Abort
-  un.Daak.CloseRunning.recheck:
-    Call un.Daak.IsRunning
-    Pop $0
-    ${If} $0 == 0
-      Return
-    ${EndIf}
-    Goto un.Daak.CloseRunning.forceLoop
+  ; Yes force-quits and continues; No falls through to the manual
+  ; Retry/Cancel box below, unchanged.
+  MessageBox MB_YESNOCANCEL|MB_ICONEXCLAMATION "Daak is still running. Force quit Daak and continue with the uninstall?" IDYES un.Daak.CloseRunning.forceQuit IDNO un.Daak.CloseRunning.retryLoop
+  Abort
   un.Daak.CloseRunning.forceQuit:
     nsExec::ExecToStack 'taskkill /F /IM ${PRODUCT_EXECUTABLE}'
     Pop $0
