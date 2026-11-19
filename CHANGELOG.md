@@ -1,5 +1,10 @@
 # CHANGELOG
 
+**v0.7.16 - 19-11-2026**
+---
+
+- Sidebar: the divider between the Unified section and your accounts now keeps its last position when you quit and reopen Daak — it used to reset to the default every time
+
 **v0.7.15 - 19-11-2026**
 ---
 

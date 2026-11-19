@@ -375,6 +375,13 @@
   </provides>
 
   <releases>
+    <release version="0.7.16" date="2026-11-19">
+      <description>
+        <ul>
+          <li>Sidebar: the divider between the Unified section and your accounts now keeps its last position when you quit and reopen Daak</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.7.15" date="2026-11-19">
       <description>
         <ul>
