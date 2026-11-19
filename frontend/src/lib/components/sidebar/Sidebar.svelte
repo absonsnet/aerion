@@ -332,6 +332,14 @@
   // Live Accounts pane height (px). 0 until measured — before that the
   // pane sizes to its content.
   let accountsHeightPx = $state(0)
+  // Whether the persisted divider position has been applied once. The
+  // Sidebar mounts before loadUIState() resolves, so the first measure
+  // runs with no persisted value; without this flag the content-fit
+  // default set then would block the restore when the load lands.
+  let dividerRestored = false
+  // Set when the user moves the divider (drag or keyboard) — a live
+  // adjustment always wins over the persisted value.
+  let dividerUserAdjusted = false
   // Hard bounds + detents, recomputed from the measured content heights.
   let accountsMin = $state(ACCOUNTS_MIN_PANE)
   let accountsMax = $state(ACCOUNTS_MIN_PANE)
@@ -401,8 +409,9 @@
         ? top
         : null
     const persisted = getUIState().accountsHeight || 0
-    if (accountsHeightPx === 0 && persisted > 0) {
+    if (!dividerRestored && persisted > 0 && !dividerUserAdjusted) {
       accountsHeightPx = clampNum(persisted, accountsMin, accountsMax)
+      dividerRestored = true
     } else if (accountsHeightPx === 0) {
       accountsHeightPx = Math.min(accountsContentH, accountsMax)
     } else {
@@ -426,6 +435,7 @@
 
   function startResizeDivider(e: MouseEvent) {
     e.preventDefault()
+    dividerUserAdjusted = true
     dividerDragStartY = e.clientY
     dividerDragStartHeight = accountsHeightPx
     dividerDragging = true
@@ -493,6 +503,7 @@
     else if (e.key === 'ArrowDown') delta = -(e.shiftKey ? 50 : 10)
     else return
     e.preventDefault()
+    dividerUserAdjusted = true
     let next = clampNum(accountsHeightPx + delta, accountsMin, accountsMax)
     for (const d of detents()) {
       if (
