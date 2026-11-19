@@ -60,12 +60,12 @@
       </div>
 
       <div class="space-y-4 max-h-[60vh] overflow-y-auto text-sm">
-        <p>🚀 Welcome to {APP_NAME} v0.7.14!</p>
+        <p>🚀 Welcome to {APP_NAME} v0.7.15!</p>
 
-        <p>v0.7.14 gives the Daak envelope a new mint-to-emerald gradient. Here are the highlights of the release:</p>
+        <p>v0.7.15 fixes the Windows installer installing a second copy of Daak. Here are the highlights of the release:</p>
 
         <ul class="list-disc pl-6 space-y-1">
-          <li>🎨 New app icon: the envelope now fades from mint at the top to emerald at the bottom, in the title bar, the About page, and the app icon itself</li>
+          <li>🧹 Windows installer: upgrading now removes the previous install in the other scope, so there can never be two Daak installs side by side</li>
         </ul>
 
         <p>🏷 See the full change log here:</p>
