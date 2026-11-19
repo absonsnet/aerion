@@ -1,5 +1,10 @@
 # CHANGELOG
 
+**v0.7.15 - 19-11-2026**
+---
+
+- Windows installer: upgrading now removes the previous install in the other scope, so an upgrade can never leave two Daak installs behind. Installing for all users removes a per-user install directly; installing just for you over an all-users install asks once and removes it with an elevated helper, or leaves both in place if you decline
+
 **v0.7.14 - 18-11-2026**
 ---
 

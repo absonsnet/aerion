@@ -375,6 +375,13 @@
   </provides>
 
   <releases>
+    <release version="0.7.15" date="2026-11-19">
+      <description>
+        <ul>
+          <li>Windows installer: upgrading now removes the previous install in the other scope, so there can never be two Daak installs side by side</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.7.14" date="2026-11-18">
       <description>
         <ul>
