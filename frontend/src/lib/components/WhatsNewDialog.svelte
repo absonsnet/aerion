@@ -60,12 +60,12 @@
       </div>
 
       <div class="space-y-4 max-h-[60vh] overflow-y-auto text-sm">
-        <p>🚀 Welcome to {APP_NAME} v0.7.15!</p>
+        <p>🚀 Welcome to {APP_NAME} v0.7.16!</p>
 
-        <p>v0.7.15 fixes the Windows installer installing a second copy of Daak. Here are the highlights of the release:</p>
+        <p>v0.7.16 fixes the sidebar divider forgetting its position. Here are the highlights of the release:</p>
 
         <ul class="list-disc pl-6 space-y-1">
-          <li>🧹 Windows installer: upgrading now removes the previous install in the other scope, so there can never be two Daak installs side by side</li>
+          <li>📏 Sidebar: the divider between the Unified section and your accounts now keeps its last position when you quit and reopen Daak</li>
         </ul>
 
         <p>🏷 See the full change log here:</p>
