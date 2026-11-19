@@ -142,6 +142,150 @@ ManifestDPIAware true
   DeleteRegKey ${ROOT} "${UNINST_KEY}"
 !macroend
 
+Var Daak.CleanupRoot ; "HKLM" or "HKCU": the scope being removed
+Var Daak.CleanupFolder ; install folder of the scope being removed
+
+## Resolve the install folder of the scope in $Daak.CleanupRoot.
+## InstallLocation first (written since 0.7.11), then the folder of
+## UninstallString (the only record pre-0.7.11 installs left), then the
+## scope's default folder. Result in $Daak.CleanupFolder, never empty.
+Function Daak.ResolveScopeFolder
+  SetRegView 64
+  StrCpy $Daak.CleanupFolder ""
+  ${If} $Daak.CleanupRoot == "HKLM"
+    ReadRegStr $5 HKLM "${UNINST_KEY}" "InstallLocation"
+  ${Else}
+    ReadRegStr $5 HKCU "${UNINST_KEY}" "InstallLocation"
+  ${EndIf}
+  ${If} $5 != ""
+    StrCpy $Daak.CleanupFolder $5
+    Return
+  ${EndIf}
+  ${If} $Daak.CleanupRoot == "HKLM"
+    ReadRegStr $5 HKLM "${UNINST_KEY}" "UninstallString"
+  ${Else}
+    ReadRegStr $5 HKCU "${UNINST_KEY}" "UninstallString"
+  ${EndIf}
+  ${If} $5 != ""
+    ; UninstallString is '"<folder>\uninstall.exe"'. Strip the quotes,
+    ; then take the parent folder.
+    StrCpy $6 $5 1 0
+    ${If} $6 == '"'
+      StrLen $7 $5
+      IntOp $7 $7 - 2
+      StrCpy $5 $5 $7 1
+    ${EndIf}
+    ${GetParent} $5 $6
+    ${If} $6 != ""
+      StrCpy $Daak.CleanupFolder $6
+      Return
+    ${EndIf}
+  ${EndIf}
+  ${If} $Daak.CleanupRoot == "HKLM"
+    StrCpy $Daak.CleanupFolder "$PROGRAMFILES64\${INFO_PRODUCTNAME}"
+  ${Else}
+    StrCpy $Daak.CleanupFolder "$LOCALAPPDATA\Programs\${INFO_PRODUCTNAME}"
+  ${EndIf}
+FunctionEnd
+
+## Remove the whole install in the scope named by $Daak.CleanupRoot
+## ("HKLM" or "HKCU"): its files, uninstall key, mail-client
+## registration and Start Menu shortcut. The user data folder is never
+## touched. The uninstall key is deleted last, so its absence means the
+## removal finished. Restores the shell context of the install being run,
+## so the shortcuts created later land in the right Start Menu.
+Function Daak.RemoveScope
+  Call Daak.ResolveScopeFolder
+  DetailPrint "Removing the previous install in $Daak.CleanupFolder."
+  RMDir /r "$Daak.CleanupFolder"
+
+  ${If} $Daak.CleanupRoot == "HKLM"
+    !insertmacro daak.deleteMailRegistration HKLM
+    SetShellVarContext all
+  ${Else}
+    !insertmacro daak.deleteMailRegistration HKCU
+    SetShellVarContext current
+  ${EndIf}
+  Delete "$SMPROGRAMS\${INFO_PRODUCTNAME}.lnk"
+
+  ${If} $MultiUser.InstallMode == "AllUsers"
+    SetShellVarContext all
+  ${Else}
+    SetShellVarContext current
+  ${EndIf}
+
+  ${If} $Daak.CleanupRoot == "HKLM"
+    DeleteRegKey HKLM "${UNINST_KEY}"
+  ${Else}
+    DeleteRegKey HKCU "${UNINST_KEY}"
+  ${EndIf}
+FunctionEnd
+
+## Remove a previous install in the other scope than the one being
+## installed, so an upgrade can never leave two Daak installs behind.
+## Installing for all users runs elevated, so the per-user install is
+## removed directly and silently. Installing just for you runs
+## unelevated and cannot delete Program Files or HKLM keys, so the user
+## is asked once: Yes relaunches this installer elevated as a removal
+## helper (flag /RemoveAllUsers, installs nothing) and waits for it;
+## No leaves both installs in place, informed.
+Function Daak.RemoveOtherScope
+  SetRegView 64
+  ${If} $MultiUser.InstallMode == "AllUsers"
+    ReadRegStr $5 HKCU "${UNINST_KEY}" "InstallLocation"
+    ${If} $5 == ""
+      ReadRegStr $5 HKCU "${UNINST_KEY}" "UninstallString"
+    ${EndIf}
+    ${If} $5 == ""
+      Return
+    ${EndIf}
+    StrCpy $Daak.CleanupRoot "HKCU"
+    Call Daak.RemoveScope
+    Return
+  ${EndIf}
+
+  ; Installing just for you.
+  ReadRegStr $5 HKLM "${UNINST_KEY}" "InstallLocation"
+  ${If} $5 == ""
+    ReadRegStr $5 HKLM "${UNINST_KEY}" "UninstallString"
+  ${EndIf}
+  ${If} $5 == ""
+    Return
+  ${EndIf}
+  StrCpy $Daak.CleanupRoot "HKLM"
+  Call Daak.ResolveScopeFolder
+  ${If} ${Silent}
+    DetailPrint "An install for all users was found at $Daak.CleanupFolder; leaving it in place (silent install)."
+    Return
+  ${EndIf}
+  MessageBox MB_YESNO|MB_ICONQUESTION "An install for all users was found at $Daak.CleanupFolder.$\r$\n$\r$\nInstalling just for you will leave it in place, and you would have two Daak installs. Remove the all-users install now? (Needs administrator rights once.)" IDYES Daak.RemoveOtherScope.yes IDNO Daak.RemoveOtherScope.no
+  Daak.RemoveOtherScope.no:
+    DetailPrint "Keeping the install for all users at $Daak.CleanupFolder."
+    Return
+  Daak.RemoveOtherScope.yes:
+    ExecShell "runas" '"$EXEPATH"' '/ELEVATED /RemoveAllUsers'
+    ; Wait up to 60 seconds for the helper to finish. The helper deletes
+    ; the uninstall key last, so the key disappearing means it is done.
+    StrCpy $1 0
+    Daak.RemoveOtherScope.waitLoop:
+      Sleep 1000
+      ReadRegStr $5 HKLM "${UNINST_KEY}" "UninstallString"
+      ${If} $5 == ""
+        DetailPrint "Removed the install for all users."
+        Return
+      ${EndIf}
+      IntOp $1 $1 + 1
+      ${If} $1 < 60
+        Goto Daak.RemoveOtherScope.waitLoop
+      ${EndIf}
+    MessageBox MB_YESNO|MB_ICONEXCLAMATION "The install for all users could not be removed (the administrator prompt may have been cancelled). Continue installing just for you anyway, leaving both installs?" IDYES Daak.RemoveOtherScope.keep IDNO Daak.RemoveOtherScope.abort
+    Daak.RemoveOtherScope.keep:
+      DetailPrint "Keeping the install for all users at $Daak.CleanupFolder."
+      Return
+    Daak.RemoveOtherScope.abort:
+      Abort
+FunctionEnd
+
 ## Is Daak currently running? Pushes 1 if ${PRODUCT_EXECUTABLE} is running,
 ## 0 otherwise. The nsExec pop order is not relied on: both stack values are
 ## searched for the exe name (the return code is a number and never matches).
@@ -388,6 +532,24 @@ Function .onInit
 
    !insertmacro MULTIUSER_INIT
 
+   ; Removal helper: an unelevated installer that is installing just for
+   ; you over an all-users install relaunches this installer elevated
+   ; with /RemoveAllUsers. The helper removes ONLY the all-users
+   ; install, then quits. It never installs anything.
+   ${GetParameters} $0
+   ${StrStr} $1 $0 "/RemoveAllUsers"
+   ${If} $1 != ""
+     ${If} $MultiUser.Privileges != "Admin"
+     ${AndIf} $MultiUser.Privileges != "Power"
+       ExecShell "runas" '"$EXEPATH"' '/ELEVATED /RemoveAllUsers'
+       Quit
+     ${EndIf}
+     Call Daak.CloseRunning
+     StrCpy $Daak.CleanupRoot "HKLM"
+     Call Daak.RemoveScope
+     Quit
+   ${EndIf}
+
    Call Daak.DetectPreviousInstallMode
 
    Call Daak.MaybeRelaunchElevated
@@ -398,8 +560,9 @@ Function .onInit
 FunctionEnd
 
 Section
-    ; The shell context and install folder already follow the install mode
-    ; (set in .onInit and by the install-mode page).
+    ; Remove a previous install in the other scope first, so an upgrade
+    ; can never leave two Daak installs behind.
+    Call Daak.RemoveOtherScope
 
     !insertmacro wails.webview2runtime
 
