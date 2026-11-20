@@ -48,6 +48,16 @@ func daakTrayMainThreadTrampoline(ctx unsafe.Pointer) {
 	fn()
 }
 
+// OnMainThread runs fn on the macOS main thread and waits for it to
+// complete (up to timeout), returning false on timeout. It is the
+// exported form of runOnMainThread for callers outside this package
+// (notably App.ShowWindow, which tray callbacks and single-instance
+// activation invoke from worker goroutines — a show issued from inside
+// AppKit event dispatch segfaulted the run loop in v0.7.25).
+func OnMainThread(fn func(), timeout time.Duration) bool {
+	return runOnMainThread(fn, timeout)
+}
+
 // runOnMainThread runs fn on the macOS main thread and waits for it to
 // complete (up to timeout), returning false on timeout.
 //
