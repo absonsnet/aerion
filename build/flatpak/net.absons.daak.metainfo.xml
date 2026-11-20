@@ -375,6 +375,13 @@
   </provides>
 
   <releases>
+    <release version="0.7.19" date="2026-11-20">
+      <description>
+        <ul>
+          <li>System tray: double-clicking the tray icon now opens the Daak window; a single click does nothing, and right-clicking shows the menu (Open Daak, Quit Daak)</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.7.18" date="2026-11-20">
       <description>
         <ul>

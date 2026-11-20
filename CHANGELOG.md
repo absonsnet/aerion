@@ -1,5 +1,10 @@
 # CHANGELOG
 
+**v0.7.19 - 20-11-2026**
+---
+
+- System tray: double-clicking the tray icon now opens the Daak window — a single click does nothing, and right-clicking shows the menu (Open Daak, Quit Daak)
+
 **v0.7.18 - 20-11-2026**
 ---
 

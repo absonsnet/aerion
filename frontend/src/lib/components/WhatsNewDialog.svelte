@@ -60,14 +60,12 @@
       </div>
 
       <div class="space-y-4 max-h-[60vh] overflow-y-auto text-sm">
-        <p>🚀 Welcome to {APP_NAME} v0.7.18!</p>
+        <p>🚀 Welcome to {APP_NAME} v0.7.19!</p>
 
-        <p>v0.7.18 restores the Flatpak packages and carries the v0.7.17 fixes. Here are the highlights of the release:</p>
+        <p>v0.7.19 finishes the system tray: double-clicking the tray icon opens the Daak window. Here are the highlights of the release:</p>
 
         <ul class="list-disc pl-6 space-y-1">
-          <li>📦 Flatpak: the Flatpak packages are back — v0.7.17 shipped without them because the vendored Go module list had not been regenerated after the new system-tray dependency was added</li>
-          <li>🪟 Windows installer: reinstalling while Daak is running now asks the running app to quit gracefully instead of failing instantly with a locked-file error</li>
-          <li>🔔 System tray: Daak now shows a tray icon whenever Run in Background is on, so a hidden window can be reopened from the tray</li>
+          <li>🖱️ System tray: double-click the tray icon to open Daak — a single click does nothing, and right-clicking shows the menu (Open Daak, Quit Daak)</li>
         </ul>
 
         <p>🏷 See the full change log here:</p>
