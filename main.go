@@ -26,6 +26,16 @@ import (
 //go:embed all:frontend/dist
 var assets embed.FS
 
+// Tray icon bytes: the app icon as .ico for the Windows tray and as PNG
+// for macOS/Linux (the tray library wants .ico on Windows, PNG elsewhere).
+// Passed to the App so the tray icon is the Daak envelope.
+//
+//go:embed build/windows/icon.ico
+var trayIconICO []byte
+
+//go:embed build/appicon.png
+var trayIconPNG []byte
+
 // Command-line flags
 var (
 	debugMode   = flag.Bool("debug", false, "Enable debug logging (same as --log-level debug)")
@@ -170,6 +180,8 @@ func runMainMode(mailtoData *app.MailtoData, rawMailtoArg string) {
 	// Create an instance of the app structure
 	application := app.NewApp(*dbusNotify)
 	application.SingleInstanceLock = lock
+	application.TrayIconICO = trayIconICO
+	application.TrayIconPNG = trayIconPNG
 
 	// Store mailto data if provided (will be used after startup)
 	if mailtoData != nil {
