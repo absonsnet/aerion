@@ -60,13 +60,13 @@
       </div>
 
       <div class="space-y-4 max-h-[60vh] overflow-y-auto text-sm">
-        <p>🚀 Welcome to {APP_NAME} v0.7.25!</p>
+        <p>🚀 Welcome to {APP_NAME} v0.7.26!</p>
 
-        <p>v0.7.25 fixes the Mac menu-bar icon: left-click now shows the tray menu instead of crashing the app. Here are the highlights of the release:</p>
+        <p>v0.7.26 fixes the Mac tray crash for real: v0.7.25's fix was incomplete and "Open Daak" still crashed the app. Here are the highlights of the release:</p>
 
         <ul class="list-disc pl-6 space-y-1">
-          <li>🖱️ Mac: left-clicking the menu-bar icon now opens the tray menu, like right-click already did — double-clicking it used to crash the app</li>
-          <li>🪟 Mac: showing the window from the tray or a second launch now runs on the main thread, and a show of an already-visible window just focuses it instead</li>
+          <li>🖱️ Mac: "Open Daak" from the tray menu no longer crashes — the real cause was the window:show event reaching Wails on the main thread, not the window show itself, so the show no longer dispatches to the main thread</li>
+          <li>🪟 Mac: left-clicking the menu-bar icon still shows the tray menu; Windows and Linux behaviour is unchanged</li>
         </ul>
 
         <p>🏷 See the full change log here:</p>

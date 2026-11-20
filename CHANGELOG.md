@@ -1,5 +1,11 @@
 # CHANGELOG
 
+**v0.7.26 - 20-11-2026**
+---
+
+- Mac: v0.7.25's tray fix was incomplete — "Open Daak" from the tray menu still crashed the app with the same segfault, because the native window show was never the crasher. The real cause is the "window:show" event: Wails' ExecJS over-releases its script string when called on the macOS main thread, so the autorelease pool drain messages a freed string. The show no longer dispatches to the main thread (Wails dispatches the native calls itself on every platform), the native show is unconditional again, and on macOS the event goes out on a worker goroutine. Left-click still shows the menu; Windows and Linux behaviour is unchanged
+- Docs: added docs/TRAY_AUDIT.md — the full tray interaction matrix (every click combination on macOS, Windows and Linux) with the root-cause evidence
+
 **v0.7.25 - 20-11-2026**
 ---
 

@@ -375,6 +375,14 @@
   </provides>
 
   <releases>
+    <release version="0.7.26" date="2026-11-20">
+      <description>
+        <ul>
+          <li>Mac: fixed the tray crash for real — v0.7.25's fix was incomplete and "Open Daak" still segfaulted; the cause was the window:show event reaching Wails ExecJS on the main thread, not the native show</li>
+          <li>Mac: left-click on the menu-bar icon still shows the tray menu; Windows and Linux behaviour is unchanged</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.7.25" date="2026-11-20">
       <description>
         <ul>
