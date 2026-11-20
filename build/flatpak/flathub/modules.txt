@@ -1,6 +1,11 @@
 # al.essio.dev/pkg/shellescape v1.5.1
 ## explicit; go 1.18
 al.essio.dev/pkg/shellescape
+# fyne.io/systray v1.12.2
+## explicit; go 1.19
+fyne.io/systray
+fyne.io/systray/internal/generated/menu
+fyne.io/systray/internal/generated/notifier
 # git.sr.ht/~jackmordaunt/go-toast/v2 v2.0.3
 ## explicit; go 1.20
 git.sr.ht/~jackmordaunt/go-toast/v2
@@ -104,6 +109,8 @@ github.com/go-ole/go-ole
 # github.com/godbus/dbus/v5 v5.2.2
 ## explicit; go 1.20
 github.com/godbus/dbus/v5
+github.com/godbus/dbus/v5/introspect
+github.com/godbus/dbus/v5/prop
 # github.com/google/uuid v1.6.0
 ## explicit
 github.com/google/uuid
