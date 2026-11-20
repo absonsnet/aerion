@@ -7,7 +7,9 @@
 // names and value shapes below already match that future layout.
 //
 // - sidebar_expanded_accounts: JSON array of account IDs whose folder list
-//   is expanded. First run (key absent): only the first account is expanded.
+//   is expanded. On launch the Sidebar clears this to an empty array, so
+//   every account starts collapsed; expanding an account during a session
+//   is recorded here but does not survive the next launch.
 // - sidebar_hide_unified_single_account: JSON boolean, default off. Hides
 //   the Unified zone when there is exactly one account.
 // - unified_folder_order: JSON array of unified folder type keys
@@ -37,8 +39,10 @@ let unifiedFolderOrder = $state<string[]>([...UNIFIED_FOLDER_TYPES])
 // True once loadSidebarSettings has read localStorage at least once.
 let loaded = false
 // True when the expanded-accounts key exists in storage. Distinguishes
-// "user collapsed everything" (stored empty array) from "first run"
-// (key absent → default to first account expanded).
+// "user collapsed everything" (stored empty array) from "key never
+// written yet" (key absent). The Sidebar writes an empty array on its
+// first run at launch, so a missing key only ever means "not launched
+// with the collapse behaviour yet".
 let hasStoredExpanded = false
 
 function readStored(key: string): string | null {
@@ -105,8 +109,8 @@ export function loadSidebarSettings(): void {
   loaded = true
 }
 
-// True when the expanded-accounts key has never been stored — i.e. first
-// run after the upgrade that introduced the new sidebar.
+// True when the expanded-accounts key has never been stored — i.e. the
+// app has not launched with the collapse-on-launch behaviour yet.
 export function hasStoredExpandedAccounts(): boolean {
   if (!loaded) loadSidebarSettings()
   return hasStoredExpanded

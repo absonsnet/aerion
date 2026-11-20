@@ -42,10 +42,19 @@
   // state in the sidebar_expanded_accounts setting)
   let expandedAccounts = $state<Record<string, boolean>>({})
 
+  // True once the launch-time collapse below has run. The effect re-runs
+  // when the account list changes mid-session; only its first run with
+  // accounts present forces the collapse — later runs keep today's
+  // behaviour (stored set rules, pruned to existing accounts), so adding
+  // an account mid-session does not collapse what the user just opened.
+  let expandedInitDone = false
+
   // Initialize expanded state from the persisted setting.
-  // First run after the upgrade (key never stored): first account expanded,
-  // rest collapsed. Afterwards the stored set rules — expanding several
-  // accounts is allowed, there is no accordion.
+  // On launch every account starts collapsed — the stored set from the
+  // previous session does NOT carry over, and a first run after the
+  // upgrade no longer expands the first account. Expanding an account
+  // with its chevron still works during a session; it just does not
+  // survive the next launch.
   $effect(() => {
     // Read version to create dependency - effect re-runs when UI state finishes loading
     const _version = getUIStateVersion()
@@ -53,6 +62,18 @@
     const ids = accountStore.accounts.map((acc) => acc.account.id)
     if (ids.length === 0) {
       expandedAccounts = {}
+      return
+    }
+
+    if (!expandedInitDone) {
+      // First run with accounts present: collapse everything.
+      setExpandedAccountIds([])
+      const collapsed: Record<string, boolean> = {}
+      for (const id of ids) {
+        collapsed[id] = false
+      }
+      expandedAccounts = collapsed
+      expandedInitDone = true
       return
     }
 
@@ -682,7 +703,7 @@
       })
 
       // Only add folders if the account is expanded
-      if (expandedAccounts[accWithFolders.account.id]) {
+      if (expandedAccounts[accWithFolders.account.id] ?? false) {
         const flattenFolders = (trees: folder.FolderTree[]) => {
           for (const tree of trees) {
             if (tree.folder) {
@@ -1033,7 +1054,7 @@
               selectedFolderId={accountStore.selectedFolder?.folderId ?? ''}
               {selectionSource}
               isHeaderFocused={focusedAccountId === accWithFolders.account.id}
-              isExpanded={expandedAccounts[accWithFolders.account.id] ?? true}
+              isExpanded={expandedAccounts[accWithFolders.account.id] ?? false}
               syncError={accountStore.getSyncError(accWithFolders.account.id)}
               inboxUnreadCount={accountInboxUnread(accWithFolders.account.id)}
               containsSelection={accountContainsSelection(accWithFolders.account.id)}
