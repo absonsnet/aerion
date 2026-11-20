@@ -126,6 +126,10 @@ export function GetThemeMode() {
   return window['go']['app']['ComposerApp']['GetThemeMode']();
 }
 
+export function GetUndoSendDelay() {
+  return window['go']['app']['ComposerApp']['GetUndoSendDelay']();
+}
+
 export function HasPGPKey(arg1) {
   return window['go']['app']['ComposerApp']['HasPGPKey'](arg1);
 }
@@ -310,6 +314,10 @@ export function PrepareReply() {
   return window['go']['app']['ComposerApp']['PrepareReply']();
 }
 
+export function QueueSend(arg1, arg2, arg3) {
+  return window['go']['app']['ComposerApp']['QueueSend'](arg1, arg2, arg3);
+}
+
 export function ReadFileAsAttachment(arg1) {
   return window['go']['app']['ComposerApp']['ReadFileAsAttachment'](arg1);
 }
@@ -344,4 +352,8 @@ export function Startup(arg1) {
 
 export function StopQueueRunner() {
   return window['go']['app']['ComposerApp']['StopQueueRunner']();
+}
+
+export function UndoSend(arg1) {
+  return window['go']['app']['ComposerApp']['UndoSend'](arg1);
 }

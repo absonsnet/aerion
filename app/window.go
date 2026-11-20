@@ -29,12 +29,35 @@ func (c *ComposerApp) RefreshWindowConstraints() {
 // InitiateShutdown) — NOT from Shutdown, where the window is mid-teardown.
 // When maximized, only the flag is updated so the stored NORMAL size isn't
 // clobbered by the maximized dimensions.
+//
+// The live maximized query is only trusted while the window is visible:
+// minimizing clears the maximized style bit on Windows, and a hidden
+// window's state cannot be trusted across the background-mode quit paths
+// (close hides the window, a later real quit saves while hidden). In those
+// states the last maximized value observed while visible
+// (lastWindowMaximized, seeded from the stored geometry at startup) is
+// written instead, and the stored normal size is left untouched — so a
+// maximized window that was hidden or minimized no longer reopens restored.
 func (a *App) saveWindowGeometry() {
 	if a.appStateStore == nil {
 		return
 	}
 	log := logging.WithComponent("app")
-	if wailsRuntime.WindowIsMaximised(a.ctx) {
+	if a.windowHidden || wailsRuntime.WindowIsMinimised(a.ctx) {
+		if !a.lastWindowMaximizedKnown {
+			return
+		}
+		geo, _ := a.appStateStore.GetWindowGeometry()
+		geo.Maximized = a.lastWindowMaximized
+		if err := a.appStateStore.SetWindowGeometry(geo); err != nil {
+			log.Warn().Err(err).Msg("Failed to save window geometry")
+		}
+		return
+	}
+	maximized := wailsRuntime.WindowIsMaximised(a.ctx)
+	a.lastWindowMaximized = maximized
+	a.lastWindowMaximizedKnown = true
+	if maximized {
 		geo, _ := a.appStateStore.GetWindowGeometry()
 		geo.Maximized = true
 		if err := a.appStateStore.SetWindowGeometry(geo); err != nil {

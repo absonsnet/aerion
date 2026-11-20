@@ -56,6 +56,7 @@
   import Switch from '$lib/components/ui/switch/Switch.svelte'
   import { ThreeOptionDialog } from '$lib/components/ui/confirm-dialog'
   import { addToast } from '$lib/stores/toast'
+  import { startUndoSendCountdown } from '$lib/stores/undoSend'
   import { getComposerFormat, getDarkComposerBody } from '$lib/stores/settings.svelte'
   import { getIsDarkActive } from '$lib/stores/theme.svelte'
   import { isDialogGuardActive } from '$lib/stores/dialogGuard'
@@ -127,6 +128,9 @@
   // Reply-To is a single *Address in ComposeMessage — the first chip wins
   let replyToRecipients = $state<smtp.Address[]>([])
   let sending = $state(false)
+  // True while the composer plays its graceful close (fast fade +
+  // slight slide down, ~200ms) after a successful queue.
+  let closing = $state(false)
   let poppingOut = $state(false)  // Pop-out in progress
   let editorElement = $state<HTMLElement | null>(null)
   let editor = $state<Editor | null>(null)
@@ -812,18 +816,6 @@
     composerImagesBlocked = false
   }
 
-  // Delete the current draft
-  async function deleteDraft() {
-    if (!currentDraftId) return
-
-    try {
-      await api.deleteDraft(currentDraftId)
-      currentDraftId = null
-    } catch (err) {
-      console.error('Failed to delete draft:', err)
-    }
-  }
-
   // Watch for content changes and trigger auto-save
   $effect(() => {
     // Dependencies to watch
@@ -1408,7 +1400,11 @@
     await doSend()
   }
 
-  // Actually send the message (called directly or after confirmation)
+  // Actually send the message (called directly or after confirmation).
+  // Sends are queued, not transmitted: QueueSend persists the message
+  // and the worker dispatches it after the undo window. The composer
+  // closes gracefully right away and the countdown toast (with Undo)
+  // shows in the main window.
   async function doSend() {
     // Cancel any pending draft save
     if (saveTimeoutId) {
@@ -1423,22 +1419,32 @@
 
     try {
       const message = buildMessage()
-      await api.sendMessage(activeAccountId, message)
+      const result = await api.queueSend(activeAccountId, message, currentDraftId ?? '')
 
-      // Delete the draft on successful send (fire-and-forget - don't block UI)
-      if (currentDraftId) {
-        deleteDraft().catch(err => console.error('Failed to delete draft after send:', err))
+      // Inline composer: start the countdown toast in this window.
+      // Detached composer: the backend notifies the main window over
+      // IPC, which starts its own toast (this window closes now).
+      if (!isDetached) {
+        startUndoSendCountdown({
+          queueId: result.queueId,
+          accountId: activeAccountId,
+          draftId: result.draftId,
+          subject: message.subject,
+          recipient: message.to[0]?.address ?? '',
+          delaySeconds: result.delaySeconds,
+        })
       }
 
-      addToast({
-        type: 'success',
-        message: $_('composer.messageSent'),
-      })
+      // Graceful close: fast fade + slight slide down (~200ms), then
+      // close. No draft cleanup here — the draft stays queued as the
+      // Undo payload until the worker actually sends the message.
+      closing = true
+      await new Promise((resolve) => setTimeout(resolve, 200))
 
       onSent?.()
       onClose?.()
     } catch (err) {
-      console.error('Failed to send message:', err)
+      console.error('Failed to queue message:', err)
       addToast({
         type: 'error',
         message: $_('composer.failedToSend'),
@@ -2016,10 +2022,12 @@
 <svelte:window on:keydown={handleKeyDown} />
 
 <div
-  class="flex flex-col h-full bg-background relative"
+  class="flex flex-col h-full bg-background relative transition-all duration-200"
+  class:composer-closing={closing}
   class:ring-2={isDraggingOver}
   class:ring-primary={isDraggingOver}
   class:ring-inset={isDraggingOver}
+  class:pointer-events-none={closing}
   ondragover={handleDragOver}
   ondragleave={handleDragLeave}
   ondrop={handleDrop}
@@ -2468,6 +2476,15 @@
 />
 
 <style>
+  /* Graceful close after queueing a send: fast fade + slight slide
+     down (~200ms, driven by the transition on the root div). The
+     detached window's frame cannot animate, so this fades its
+     content instead, then the window closes. */
+  .composer-closing {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
   /* Paragraph gap: Enter starts a new paragraph (with a gap below it),
      Shift+Enter inserts a line break inside the same paragraph (no gap) */
   :global(.composer-editor p) {

@@ -55,17 +55,21 @@ const (
 	KeyAttentionTypePayment       = "attention_type_payment_failed"
 	KeyAttentionTypeDelivery      = "attention_type_delivery_problem"
 	KeyOtpClipboardClearSeconds   = "otp_clipboard_clear_seconds" // seconds until Daak clears a copied code (0 = never)
-	KeySpellcheckLanguages        = "spellcheck_languages"        // JSON array of enabled dictionary codes, e.g. ["en","de"]
-	KeySpellcheckCustomWords      = "spellcheck_custom_words"     // JSON array of user-added dictionary words
+	// Undo Send: how long a sent message waits in the Outbox before
+	// the worker dispatches it. The only allowed values are the ones
+	// the Settings UI offers (5/10/20/30).
+	KeyUndoSendDelay         = "undo_send_delay"
+	KeySpellcheckLanguages   = "spellcheck_languages"    // JSON array of enabled dictionary codes, e.g. ["en","de"]
+	KeySpellcheckCustomWords = "spellcheck_custom_words" // JSON array of user-added dictionary words
 
 	// Translation (Phase D). The mode ladder is: OS engine (Tier 1)
 	// where one exists, Bergamot WASM (Tier 2), online (Tier 3,
 	// consent-gated). The default stays offline.
-	KeyTranslateEnabled         = "translate_enabled"          // master toggle (default on)
-	KeyTranslateMode            = "translate_mode"             // "prefer_offline" | "offline_only" | "online" (default "prefer_offline")
-	KeyTranslateTargetLanguage  = "translate_target_language"  // "system" (default) or an ISO 639-1 code
-	KeyTranslateOnlineProvider  = "translate_online_provider"  // "google" (default) | "deepl"
-	KeyTranslateOnlineConsent   = "translate_online_consent"   // JSON object: provider -> true when the user consented
+	KeyTranslateEnabled        = "translate_enabled"         // master toggle (default on)
+	KeyTranslateMode           = "translate_mode"            // "prefer_offline" | "offline_only" | "online" (default "prefer_offline")
+	KeyTranslateTargetLanguage = "translate_target_language" // "system" (default) or an ISO 639-1 code
+	KeyTranslateOnlineProvider = "translate_online_provider" // "google" (default) | "deepl"
+	KeyTranslateOnlineConsent  = "translate_online_consent"  // JSON object: provider -> true when the user consented
 )
 
 // Extension enable/disable keys. Format: extension_<name>_enabled.
@@ -1015,6 +1019,47 @@ func (s *Store) SetOtpClipboardClearSeconds(seconds int) error {
 		return fmt.Errorf("invalid clipboard clear delay: %d (must be 0-3600)", seconds)
 	}
 	return s.Set(KeyOtpClipboardClearSeconds, strconv.Itoa(seconds))
+}
+
+// DefaultUndoSendDelay is the Outbox wait before a queued send is
+// dispatched: 5 seconds, long enough to hit Undo, short enough that
+// sending still feels immediate.
+const DefaultUndoSendDelay = 5
+
+// AllowedUndoSendDelays is the full set the Settings UI offers.
+var AllowedUndoSendDelays = []int{5, 10, 20, 30}
+
+// GetUndoSendDelay returns the Outbox wait in seconds. Default 5; a
+// missing or out-of-set stored value also reads as the default.
+func (s *Store) GetUndoSendDelay() (int, error) {
+	value, err := s.Get(KeyUndoSendDelay)
+	if err != nil {
+		return DefaultUndoSendDelay, err
+	}
+	if value == "" {
+		return DefaultUndoSendDelay, nil
+	}
+	secs, err := strconv.Atoi(value)
+	if err != nil {
+		return DefaultUndoSendDelay, nil
+	}
+	for _, allowed := range AllowedUndoSendDelays {
+		if secs == allowed {
+			return secs, nil
+		}
+	}
+	return DefaultUndoSendDelay, nil
+}
+
+// SetUndoSendDelay sets the Outbox wait in seconds. Only 5, 10, 20
+// and 30 are accepted — the values the Settings UI offers.
+func (s *Store) SetUndoSendDelay(seconds int) error {
+	for _, allowed := range AllowedUndoSendDelays {
+		if seconds == allowed {
+			return s.Set(KeyUndoSendDelay, strconv.Itoa(seconds))
+		}
+	}
+	return fmt.Errorf("invalid undo-send delay: %d (must be one of 5, 10, 20, 30)", seconds)
 }
 
 // Translation settings (Phase D).

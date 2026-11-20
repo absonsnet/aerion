@@ -444,6 +444,8 @@ export function GetSpellcheckEnabled():Promise<boolean>;
 
 export function GetSpellcheckLanguages():Promise<Array<string>>;
 
+export function GetSendQueueStats():Promise<sendqueue.Stats>;
+
 export function GetStartHidden():Promise<boolean>;
 
 export function GetStartHiddenActive():Promise<boolean>;
@@ -465,6 +467,8 @@ export function GetTrustedCertificates(arg1:Array<string>):Promise<Array<certifi
 export function GetUIState():Promise<appstate.UIState>;
 
 export function GetUndoDescription():Promise<string>;
+
+export function GetUndoSendDelay():Promise<number>;
 
 export function GetUnifiedFolderConversations(arg1:string,arg2:number,arg3:number,arg4:string,arg5:string,arg6:string,arg7:string):Promise<Array<message.Conversation>>;
 
@@ -543,6 +547,8 @@ export function ListPGPKeys(arg1:string):Promise<Array<pgp.Key>>;
 export function ListPGPSenderKeys():Promise<Array<pgp.SenderKey>>;
 
 export function ListSMIMECertificates(arg1:string):Promise<Array<smime.Certificate>>;
+
+export function ListSendQueue():Promise<Array<sendqueue.Item>>;
 
 export function ListSenderCerts():Promise<Array<smime.SenderCert>>;
 
@@ -670,6 +676,8 @@ export function ProcessPGPMessage(arg1:string):Promise<app.PGPViewResult>;
 
 export function ProcessSMIMEMessage(arg1:string):Promise<app.SMIMEViewResult>;
 
+export function QueueSend(arg1:string,arg2:smtp.ComposeMessage,arg3:string):Promise<app.QueueSendResult>;
+
 export function QuitApp():Promise<void>;
 
 export function ReadFileAsAttachment(arg1:string):Promise<app.ComposerAttachment>;
@@ -697,6 +705,8 @@ export function RemoveTrustedCertificate(arg1:string):Promise<void>;
 export function ReorderAccounts(arg1:Array<string>):Promise<void>;
 
 export function ResolveMessageUID(arg1:string):Promise<number>;
+
+export function RetrySendQueueItem(arg1:string):Promise<void>;
 
 export function RunEnrichmentBackfill():Promise<number>;
 
@@ -848,6 +858,8 @@ export function SetTranslationOnlineProvider(arg1:string):Promise<void>;
 
 export function SetTranslationTargetLanguage(arg1:string):Promise<void>;
 
+export function SetUndoSendDelay(arg1:number):Promise<void>;
+
 export function SetWindowControlsSide(arg1:string):Promise<void>;
 
 export function ShowWindow():Promise<void>;
@@ -895,6 +907,8 @@ export function Trash(arg1:Array<string>):Promise<boolean>;
 export function Undo():Promise<string>;
 
 export function Unstar(arg1:Array<string>):Promise<void>;
+
+export function UndoSend(arg1:string):Promise<app.UndoSendResult>;
 
 export function UnsubscribeFolder(arg1:string,arg2:string):Promise<void>;
 

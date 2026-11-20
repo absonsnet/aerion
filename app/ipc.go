@@ -69,6 +69,14 @@ func (a *App) handleIPCMessage(clientID string, msg ipc.Message) {
 		}
 		a.handleComposerMessageSent(payload)
 
+	case ipc.TypeMessageQueued:
+		var payload ipc.MessageQueuedPayload
+		if err := msg.ParsePayload(&payload); err != nil {
+			log.Error().Err(err).Msg("Failed to parse message_queued payload")
+			return
+		}
+		a.handleComposerMessageQueued(payload)
+
 	case ipc.TypeDraftSaved:
 		var payload ipc.DraftSavedPayload
 		if err := msg.ParsePayload(&payload); err != nil {
@@ -119,6 +127,31 @@ func (a *App) handleIPCMessage(clientID string, msg ipc.Message) {
 	default:
 		log.Warn().Str("type", msg.Type).Msg("Unknown IPC message type")
 	}
+}
+
+// handleComposerMessageQueued is called when a detached composer
+// queues a message for background send (Undo Send). The composer
+// closes right away, so the main window owns the countdown toast:
+// emit the event the frontend's undo-send store listens for. The
+// main process's own worker dispatches the message when the window
+// elapses — nothing else to do here.
+func (a *App) handleComposerMessageQueued(payload ipc.MessageQueuedPayload) {
+	log := logging.WithComponent("app.ipc")
+
+	log.Info().
+		Str("queueID", payload.QueueID).
+		Str("accountID", payload.AccountID).
+		Int("delaySeconds", payload.DelaySeconds).
+		Msg("Composer queued message notification")
+
+	wailsRuntime.EventsEmit(a.ctx, "sendqueue:queued", map[string]interface{}{
+		"queueId":      payload.QueueID,
+		"accountId":    payload.AccountID,
+		"draftId":      payload.DraftID,
+		"subject":      payload.Subject,
+		"recipient":    payload.Recipient,
+		"delaySeconds": payload.DelaySeconds,
+	})
 }
 
 // handleComposerMessageSent is called when a composer successfully sends a message.

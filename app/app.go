@@ -288,6 +288,10 @@ type App struct {
 	// Shared draft operations (used by both App and ComposerApp)
 	draftOps draftOps
 
+	// Undo Send: background send + persistent Outbox (main process
+	// only runs the worker; see app/sendqueue.go).
+	sendQueue *sendQueueService
+
 	// Shared compose operations (used by both App and ComposerApp)
 	composeOps composeOps
 
@@ -365,6 +369,14 @@ type App struct {
 
 	// Window hidden state (background mode)
 	windowHidden bool
+
+	// Last maximized state observed while the window was visible. The
+	// live maximized query is unreliable once the window is hidden or
+	// minimized (minimizing clears WS_MAXIMIZE on Windows), so
+	// saveWindowGeometry trusts this cache instead of the live query in
+	// those states. Seeded from the stored geometry at startup.
+	lastWindowMaximized      bool
+	lastWindowMaximizedKnown bool
 
 	// System tray icon (shown whenever Run in Background is on, so a
 	// hidden window can be reopened). Icon bytes set by main before
@@ -812,6 +824,15 @@ func (a *App) Startup(ctx context.Context) {
 		draftOps:       &a.draftOps,
 	}
 
+	// Undo Send: build the queue service now that composeOps exists,
+	// and start its worker. MAIN PROCESS ONLY — the detached composer
+	// shares this queue and must never start a second worker (see
+	// app/sendqueue.go). The worker's first tick is immediate, so
+	// messages queued while the app was closed (quit mid-countdown)
+	// start sending on launch.
+	a.sendQueue = a.newSendQueueService()
+	a.sendQueue.StartWorker()
+
 	// Initialize Google Contacts client for OAuth account contact search
 	a.googleContactsClient = contact.NewGoogleContactsClient()
 
@@ -970,8 +991,24 @@ func (a *App) BeforeClose(ctx context.Context) bool {
 // NotifyStartupComplete signals the desktop environment that startup is done.
 // Called from the frontend after WindowShow() so KDE/Plasma sees the placeholder
 // → real window handoff cleanly (avoiding the taskbar-icon flash from #154).
+// It also re-applies the saved maximized state after the window has been
+// shown: main.go requests Maximised at creation, but the startup show path
+// (StartHidden + the frontend's WindowShow calls) can lose it, so the flag
+// is enforced once here, after the window is visible. Skipped when starting
+// hidden — the window must stay hidden, and the creation-time state already
+// applies when it is first shown from the tray or single-instance activation.
 func (a *App) NotifyStartupComplete() {
 	platform.NotifyStartupComplete()
+	if a.appStateStore == nil || a.GetStartHiddenActive() {
+		return
+	}
+	if geo, ok := a.appStateStore.GetWindowGeometry(); ok {
+		a.lastWindowMaximized = geo.Maximized
+		a.lastWindowMaximizedKnown = true
+		if geo.Maximized && !wailsRuntime.WindowIsMaximised(a.ctx) {
+			wailsRuntime.WindowMaximise(a.ctx)
+		}
+	}
 }
 
 // startTrayIfBackground shows the system tray icon when Run in

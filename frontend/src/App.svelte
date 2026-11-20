@@ -11,6 +11,8 @@
   import ViewSwitcher from './lib/components/viewer/ViewSwitcher.svelte'
   import Composer from './lib/components/composer/Composer.svelte'
   import ToastContainer from './lib/components/ui/toast/ToastContainer.svelte'
+  import UndoSendToast from './lib/components/ui/toast/UndoSendToast.svelte'
+  import SentSnackbar from './lib/components/ui/toast/SentSnackbar.svelte'
   import SpellSuggestionMenu from './lib/spellcheck/SpellSuggestionMenu.svelte'
   import TermsDialog from './lib/components/TermsDialog.svelte'
   import OAuthMissingDialog from './lib/components/OAuthMissingDialog.svelte'
@@ -26,6 +28,7 @@
   import * as AlertDialog from '$lib/components/ui/alert-dialog'
   import { accountStore } from '$lib/stores/accounts.svelte'
   import { addToast } from '$lib/stores/toast'
+  import { startUndoSendCountdown, removeUndoSendCountdown, type UndoSendCountdown } from '$lib/stores/undoSend'
   import { loadSettings, getThemeMode, getShowTitleBar, getNativeTitleBar, getComposerMode, getMailtoMode, getShowMessagePreviewPane, setShowMessagePreviewPane, getMessageOpenMode, type MessageOpenMode } from '$lib/stores/settings.svelte'
   import { loadWindowControlsLayout } from '$lib/stores/windowControls.svelte'
   import { loadImageAllowlist } from '$lib/stores/imageAllowlist.svelte'
@@ -47,7 +50,7 @@
   import { dispatchExtensionShortcut } from '$lib/stores/extensionShortcuts.svelte'
   import { initLayout, getLayoutMode, getResponsiveView, showViewer, hideViewer, showSidebar, hideSidebar, isResponsive } from '$lib/stores/layout.svelte'
   // @ts-ignore - wailsjs path
-  import { PrepareReply, GetPendingMailto, GetDraft, MarkAsRead, MarkAsUnread, Star, Unstar, Archive, MarkAsSpam, MarkAsNotSpam, Undo, GetTermsAccepted, SetTermsAccepted, RefreshWindowConstraints, AcceptCertificate, GetStartHiddenActive, CloseWindow, QuitApp, OpenComposerWindow, OpenViewerWindow, GetSystemTheme, NotifyStartupComplete, GetOAuthBuildStatus, GetOAuthWarningDisabled, SetOAuthWarningDisabled, GetLastSeenVersion, SetLastSeenVersion, GetAppInfo, SetShowMessagePreviewPane, GetConversation, GetSpecialFolder } from '../wailsjs/go/app/App.js'
+  import { PrepareReply, GetPendingMailto, GetDraft, MarkAsRead, MarkAsUnread, Star, Unstar, Archive, MarkAsSpam, MarkAsNotSpam, Undo, GetTermsAccepted, SetTermsAccepted, RefreshWindowConstraints, AcceptCertificate, GetStartHiddenActive, CloseWindow, QuitApp, OpenComposerWindow, OpenViewerWindow, GetSystemTheme, NotifyStartupComplete, GetOAuthBuildStatus, GetOAuthWarningDisabled, SetOAuthWarningDisabled, GetLastSeenVersion, SetLastSeenVersion, GetAppInfo, SetShowMessagePreviewPane, GetConversation, GetSpecialFolder, UndoSend } from '../wailsjs/go/app/App.js'
   // @ts-ignore - wailsjs path
   import { smtp, folder, certificate } from '../wailsjs/go/models'
   // @ts-ignore - wailsjs runtime
@@ -615,6 +618,26 @@
       })
     })
 
+    // Undo Send: a detached composer queued a message — start the
+    // countdown toast here (its window closes right away).
+    EventsOn('sendqueue:queued', (data: { queueId: string, accountId: string, draftId: string, subject: string, recipient: string, delaySeconds: number }) => {
+      startUndoSendCountdown({
+        queueId: data.queueId,
+        accountId: data.accountId,
+        draftId: data.draftId,
+        subject: data.subject ?? '',
+        recipient: data.recipient ?? '',
+        delaySeconds: data.delaySeconds ?? 5,
+      })
+    })
+
+    // Undo Send: the worker dispatched a queued message — slim sent
+    // snackbar with View message (opens unified Sent).
+    EventsOn('sendqueue:sent', (data: { queueId: string, accountId: string, subject: string }) => {
+      removeUndoSendCountdown(data.queueId)
+      showSentSnackbar(data.subject ?? '')
+    })
+
     // A viewer popup's switcher asks the main window to open its thread
     // in another mode; the popup closes itself after sending.
     EventsOn('viewer:switch', (data: { mode: string; accountId: string; folderId: string; threadId: string }) => {
@@ -899,6 +922,38 @@
     return accountStore.accounts[0]?.account.id
   }
 
+  // Undo Send: the sent snackbar (slim, bottom) shown when the
+  // worker actually dispatches a queued message.
+  let sentSnackbar = $state<{ subject: string } | null>(null)
+  let sentSnackbarTimer: ReturnType<typeof setTimeout> | null = null
+
+  function showSentSnackbar(subject: string) {
+    sentSnackbar = { subject }
+    if (sentSnackbarTimer) clearTimeout(sentSnackbarTimer)
+    sentSnackbarTimer = setTimeout(() => { sentSnackbar = null }, 6000)
+  }
+
+  // Undo from the countdown toast or the Outbox row: cancel the
+  // queued send and reopen the composer with the draft, intact.
+  async function handleUndoSend(countdown: UndoSendCountdown) {
+    try {
+      const res = await UndoSend(countdown.queueId)
+      removeUndoSendCountdown(countdown.queueId)
+      await handleEditDraft(res.draftId, res.accountId)
+    } catch (err) {
+      // Already sent: the worker beat the click. The mail is gone;
+      // say so plainly instead of reopening a stale draft.
+      removeUndoSendCountdown(countdown.queueId)
+      console.error('Undo send failed:', err)
+      addToast({ type: 'error', message: $_('undoSend.alreadySent') })
+    }
+  }
+
+  // Undo from an Outbox row (same as the toast, minus the countdown).
+  async function handleOutboxUndoSend(queueId: string, draftId: string, accountId: string) {
+    await handleUndoSend({ queueId, accountId, draftId, subject: '', recipient: '', totalSeconds: 0, remainingSeconds: 0, sendAt: 0 })
+  }
+
   // Handle compose button click (new message)
   function handleCompose() {
     // Use the selected account, or the first account if none selected
@@ -918,9 +973,10 @@
   }
 
   // Handle edit draft (opens composer with existing draft)
-  async function handleEditDraft(draftId: string) {
-    // Use conversation's account ID, fall back to selected account or first account
-    const accountId = resolveAccountId(selectedConversationAccountId) || resolveAccountId(selectedAccountId)
+  async function handleEditDraft(draftId: string, accountIdOverride?: string) {
+    // Use the override (Undo Send knows the draft's account), else the
+    // conversation's account ID, fall back to selected account or first account
+    const accountId = accountIdOverride || resolveAccountId(selectedConversationAccountId) || resolveAccountId(selectedAccountId)
     if (!accountId) return
 
     try {
@@ -2042,6 +2098,7 @@
         selectOnly={tabMode}
         onReply={handleReply}
         onRowActionComplete={() => viewerRef?.refreshFlags()}
+        onUndoSend={handleOutboxUndoSend}
         isFocused={getFocusedPane() === 'messageList'}
         isFlashing={isPaneFlashing('messageList')}
         showFolderToggle={getLayoutMode() === 'narrow'}
@@ -2145,6 +2202,17 @@
 
 <!-- Toast notifications -->
 <ToastContainer />
+
+<!-- Undo Send countdown toast (distinct from the usual toast stack) -->
+<UndoSendToast onUndo={handleUndoSend} />
+
+<!-- Slim sent snackbar with View message -->
+<SentSnackbar
+  visible={sentSnackbar !== null}
+  subject={sentSnackbar?.subject ?? ''}
+  onView={() => { sentSnackbar = null; handleUnifiedFolderSelect('sent', $_('sidebar.sent')) }}
+  onClose={() => { sentSnackbar = null }}
+/>
 
 <!-- Spellcheck right-click suggestion menu (composer) -->
 <SpellSuggestionMenu />

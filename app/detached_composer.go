@@ -112,6 +112,11 @@ type ComposerApp struct {
 	// Shared draft operations
 	draftOps draftOps
 
+	// Undo Send: background send + persistent Outbox. The detached
+	// composer shares the queue with the main window but never runs
+	// the worker — see app/sendqueue.go.
+	sendQueue *sendQueueService
+
 	// Shared compose operations
 	composeOps composeOps
 
@@ -264,6 +269,12 @@ func (c *ComposerApp) Startup(ctx context.Context) {
 		pgpEncryptor:   c.pgpEncryptor,
 		draftOps:       &c.draftOps,
 	}
+
+	// Undo Send: same queue as the main window, but no worker — the
+	// main process dispatches. The emit/sync hooks are nil here;
+	// QueueSend notifies the main window over IPC instead so it can
+	// show the countdown toast (this window closes right away).
+	c.sendQueue = newComposerSendQueueService(c)
 
 	// Connect to main window's IPC server
 	if err := c.connectIPC(ctx); err != nil {
@@ -789,6 +800,66 @@ func (c *ComposerApp) PrepareReply() (*smtp.ComposeMessage, error) {
 // SearchContacts searches for contacts matching the query.
 func (c *ComposerApp) SearchContacts(query string, limit int) ([]*contact.Contact, error) {
 	return c.contactStore.Search(query, limit)
+}
+
+// QueueSend queues a composed email for background send after the
+// undo window, then notifies the main window over IPC so it can show
+// the countdown toast (this window closes right away). The draft row
+// stays in the DB as the Undo payload; the main process's worker
+// deletes it when the message actually dispatches.
+func (c *ComposerApp) QueueSend(accountID string, msg smtp.ComposeMessage, draftID string) (QueueSendResult, error) {
+	// Cancel in-flight draft sync before queueing (mirrors SendMessage)
+	if c.currentDraft != nil {
+		c.cancelDraftSync()
+	}
+
+	res, err := c.sendQueue.QueueSend(accountID, msg, draftID)
+	if err != nil {
+		return QueueSendResult{}, err
+	}
+
+	// The draft row stays queued; drop the in-memory pointer so a
+	// later close path cannot treat it as an unsent draft.
+	c.currentDraft = nil
+
+	c.notifyMessageQueued(accountID, msg, res)
+	return res, nil
+}
+
+// UndoSend cancels a queued send from this window. (The countdown
+// toast lives in the main window, which normally owns Undo — this
+// binding exists so the API surface matches App.)
+func (c *ComposerApp) UndoSend(queueID string) (UndoSendResult, error) {
+	return c.sendQueue.UndoSend(queueID)
+}
+
+// GetUndoSendDelay returns the undo window in seconds (5/10/20/30).
+func (c *ComposerApp) GetUndoSendDelay() (int, error) {
+	return c.settingsStore.GetUndoSendDelay()
+}
+
+// notifyMessageQueued tells the main window a message was queued, so
+// it can show the countdown toast with Undo.
+func (c *ComposerApp) notifyMessageQueued(accountID string, msg smtp.ComposeMessage, res QueueSendResult) {
+	if c.ipcClient == nil {
+		return
+	}
+	recipient := ""
+	if len(msg.To) > 0 {
+		recipient = msg.To[0].Address
+	}
+	ipcMsg, err := ipc.NewMessage(ipc.TypeMessageQueued, ipc.MessageQueuedPayload{
+		QueueID:      res.QueueID,
+		AccountID:    accountID,
+		DraftID:      res.DraftID,
+		Subject:      msg.Subject,
+		Recipient:    recipient,
+		DelaySeconds: res.DelaySeconds,
+	})
+	if err != nil {
+		return
+	}
+	_ = c.ipcClient.Send(ipcMsg)
 }
 
 // SendMessage sends the composed email.
