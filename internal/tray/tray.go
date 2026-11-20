@@ -2,8 +2,11 @@
 //
 // The icon is shown whenever "Run in background" is on — including
 // start-hidden launches — so a window hidden with CloseWindow or
-// BeforeClose can always be reopened from the tray: a left-click (or the
-// Open Daak menu item) shows the window, Quit Daak quits for real.
+// BeforeClose can always be reopened from the tray. Interaction:
+//   - Double left-click shows the window; a single left-click does
+//     nothing.
+//   - Right-click opens the menu: Open Daak shows the window, Quit Daak
+//     quits for real.
 //
 // It is built on fyne.io/systray via RunWithExternalLoop, the library's
 // embedding API, so the tray coexists with Wails' own main loop (on
@@ -23,12 +26,46 @@ package tray
 import (
 	"runtime"
 	"sync"
+	"time"
 
 	"fyne.io/systray"
 	"github.com/godbus/dbus/v5"
 
 	"github.com/absonsnet/daak/internal/logging"
 )
+
+// doubleClickInterval is the maximum gap between two left-clicks that
+// counts as a double-click (the Windows/macOS default double-click
+// time is 500 ms).
+const doubleClickInterval = 500 * time.Millisecond
+
+// doubleClickDetector turns the library's per-click tap callback into a
+// double-click callback: a lone tap does nothing, two taps within
+// interval fire onDoubleClick. The library (fyne.io/systray v1.12.2) has
+// no double-click callback of its own — SetOnTapped fires on every
+// left-click — so the pairing is done here.
+//
+// No timer is needed: a stale first tap can never fire, because the
+// interval check fails once it is old; it is simply overwritten by the
+// next tap. A third rapid tap starts a new pair instead of re-firing.
+type doubleClickDetector struct {
+	mu            sync.Mutex
+	interval      time.Duration
+	lastTap       time.Time
+	onDoubleClick func()
+}
+
+func (d *doubleClickDetector) tap() {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	now := time.Now()
+	if !d.lastTap.IsZero() && now.Sub(d.lastTap) <= d.interval {
+		d.lastTap = time.Time{}
+		d.onDoubleClick()
+		return
+	}
+	d.lastTap = now
+}
 
 // Tray owns the system tray icon for one app session.
 type Tray struct {
@@ -45,8 +82,9 @@ func New() *Tray {
 // Start shows the tray icon. It is idempotent: later calls are no-ops.
 // iconICO is the Windows .ico bytes, iconPNG the PNG bytes used on
 // macOS/Linux; either may be empty, in which case the library's default
-// icon is used. onShow shows the window (left-click or Open Daak);
-// onQuit quits the app for real (Quit Daak).
+// icon is used. onShow shows the window (double left-click or Open
+// Daak); onQuit quits the app for real (Quit Daak). A single left-click
+// does nothing.
 func (t *Tray) Start(iconICO, iconPNG []byte, onShow, onQuit func()) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -80,7 +118,15 @@ func (t *Tray) Start(iconICO, iconPNG []byte, onShow, onQuit func()) {
 			systray.SetIcon(icon)
 		}
 		systray.SetTooltip("Daak")
-		systray.SetOnTapped(onShow)
+		// Double left-click shows the window; a single left-click does
+		// nothing. The library has no double-click callback, so taps
+		// are paired by doubleClickDetector.
+		detector := &doubleClickDetector{interval: doubleClickInterval, onDoubleClick: onShow}
+		systray.SetOnTapped(detector.tap)
+		// No SetOnSecondaryTapped: with no right-click handler the
+		// library shows the menu itself on right-click (Windows and
+		// macOS; on Linux the tray host renders the exported menu).
+		// Setting one would replace the menu with the handler.
 
 		openItem := systray.AddMenuItem("Open Daak", "Show the Daak window")
 		quitItem := systray.AddMenuItem("Quit Daak", "Quit Daak")
