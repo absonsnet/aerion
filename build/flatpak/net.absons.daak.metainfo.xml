@@ -375,6 +375,13 @@
   </provides>
 
   <releases>
+    <release version="0.7.20" date="2026-11-20">
+      <description>
+        <ul>
+          <li>Sidebar: all accounts now start collapsed on launch — only the Unified section is expanded; expanding an account during a session still works but does not carry over to the next launch</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.7.19" date="2026-11-20">
       <description>
         <ul>

@@ -1,5 +1,10 @@
 # CHANGELOG
 
+**v0.7.20 - 20-11-2026**
+---
+
+- Sidebar: all accounts now start collapsed on launch — only the Unified section is expanded. Expanding an account with its chevron still works during a session; it just does not carry over to the next launch
+
 **v0.7.19 - 20-11-2026**
 ---
 

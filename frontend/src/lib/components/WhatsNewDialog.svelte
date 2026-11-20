@@ -60,12 +60,12 @@
       </div>
 
       <div class="space-y-4 max-h-[60vh] overflow-y-auto text-sm">
-        <p>🚀 Welcome to {APP_NAME} v0.7.19!</p>
+        <p>🚀 Welcome to {APP_NAME} v0.7.20!</p>
 
-        <p>v0.7.19 finishes the system tray: double-clicking the tray icon opens the Daak window. Here are the highlights of the release:</p>
+        <p>v0.7.20 tidies the sidebar on launch: every account starts collapsed, with only the Unified section expanded. Here are the highlights of the release:</p>
 
         <ul class="list-disc pl-6 space-y-1">
-          <li>🖱️ System tray: double-click the tray icon to open Daak — a single click does nothing, and right-clicking shows the menu (Open Daak, Quit Daak)</li>
+          <li>📁 Sidebar: all accounts start collapsed on launch — only Unified is expanded. You can still expand an account with its chevron during a session; it just does not carry over to the next launch</li>
         </ul>
 
         <p>🏷 See the full change log here:</p>
