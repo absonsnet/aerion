@@ -46,8 +46,8 @@ func TestTrayStartStopIdempotent(t *testing.T) {
 	go func() {
 		defer close(done)
 		tr := New()
-		tr.Start(nil, nil, func() {}, func() {})
-		tr.Start(nil, nil, func() {}, func() {})
+		tr.Start(nil, nil, func() {}, func() {}, func() {}, func() {}, func() {})
+		tr.Start(nil, nil, func() {}, func() {}, func() {}, func() {}, func() {})
 		tr.Stop()
 		tr.Stop()
 	}()

@@ -60,12 +60,12 @@
       </div>
 
       <div class="space-y-4 max-h-[60vh] overflow-y-auto text-sm">
-        <p>🚀 Welcome to {APP_NAME} v0.7.20!</p>
+        <p>🚀 Welcome to {APP_NAME} v0.7.21!</p>
 
-        <p>v0.7.20 tidies the sidebar on launch: every account starts collapsed, with only the Unified section expanded. Here are the highlights of the release:</p>
+        <p>v0.7.21 fills out the system tray menu: Compose new message, Check mail now and Settings join Open Daak and Quit Daak. Here are the highlights of the release:</p>
 
         <ul class="list-disc pl-6 space-y-1">
-          <li>📁 Sidebar: all accounts start collapsed on launch — only Unified is expanded. You can still expand an account with its chevron during a session; it just does not carry over to the next launch</li>
+          <li>🔔 System tray: right-click now offers Compose new message, Check mail now and Settings. Compose and Settings show the window first, then open; Check mail now syncs all accounts in the background without opening the window</li>
         </ul>
 
         <p>🏷 See the full change log here:</p>

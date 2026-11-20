@@ -240,11 +240,17 @@
     const unsubscribeAttention = EventsOn('attention:changed', () => {
       loadAttentionCount()
     })
+    // Tray menu: open the Settings dialog (the Go side shows the window
+    // first).
+    const unsubscribeTraySettings = EventsOn('tray:settings', () => {
+      showSettingsDialog = true
+    })
 
     return () => {
       unsubscribe()
       unsubscribeQueue()
       unsubscribeAttention()
+      unsubscribeTraySettings()
     }
   })
 
