@@ -1,5 +1,11 @@
 # CHANGELOG
 
+**v0.7.17 - 20-11-2026**
+---
+
+- Windows installer: reinstalling while Daak is running now asks the running app to quit gracefully instead of failing instantly with a locked-file error — the installer first checks for the running app's quit event, signals it and waits up to 15 seconds, and only falls back to the file check for older copies without the event
+- System tray icon: Daak now shows a tray icon whenever Run in Background is on, so a window closed to the background can be reopened from the tray — left-click or Open Daak shows the window, Quit Daak quits for real
+
 **v0.7.16 - 19-11-2026**
 ---
 

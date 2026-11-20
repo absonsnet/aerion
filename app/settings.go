@@ -234,6 +234,9 @@ func (a *App) SetRunBackground(enabled bool) error {
 	if !enabled {
 		return a.settingsStore.SetStartHidden(false)
 	}
+	// Show the tray icon so the hidden window can be reopened from it.
+	// (Turning it off does not hide the tray; see stopTray.)
+	a.startTray()
 	return nil
 }
 

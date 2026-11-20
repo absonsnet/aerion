@@ -43,6 +43,7 @@ import (
 	"github.com/absonsnet/daak/internal/settings"
 	"github.com/absonsnet/daak/internal/smime"
 	"github.com/absonsnet/daak/internal/sync"
+	"github.com/absonsnet/daak/internal/tray"
 	"github.com/absonsnet/daak/internal/undo"
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
@@ -365,6 +366,13 @@ type App struct {
 	// Window hidden state (background mode)
 	windowHidden bool
 
+	// System tray icon (shown whenever Run in Background is on, so a
+	// hidden window can be reopened). Icon bytes set by main before
+	// wails.Run; the Tray itself is created by NewApp.
+	TrayIconICO []byte // Windows .ico bytes
+	TrayIconPNG []byte // PNG bytes for macOS/Linux
+	tray        *tray.Tray
+
 	// Paths the user chose in a save dialog this session; the post-save
 	// toast's Open file / Open folder actions may open them (#474).
 	recentSaveMu    goSync.Mutex
@@ -375,6 +383,7 @@ type App struct {
 func NewApp(useDirectDBus bool) *App {
 	return &App{
 		useDirectDBus: useDirectDBus,
+		tray:          tray.New(),
 	}
 }
 
@@ -559,6 +568,12 @@ func (a *App) Startup(ctx context.Context) {
 	a.settingsStore = settings.NewStore(db)
 	a.appStateStore = appstate.NewStore(db.DB)
 	a.imageAllowlistStore = settings.NewImageAllowlistStore(db)
+
+	// System tray icon: shown whenever Run in Background is on, so a
+	// window hidden with CloseWindow/BeforeClose can be reopened from
+	// the tray — including start-hidden launches, where there is no
+	// window at all until the user asks for one.
+	a.startTrayIfBackground()
 
 	// Restore the persisted window position (size/maximized are applied via
 	// wails.Run options in main.go; position can only be set post-creation).
@@ -959,6 +974,38 @@ func (a *App) NotifyStartupComplete() {
 	platform.NotifyStartupComplete()
 }
 
+// startTrayIfBackground shows the system tray icon when Run in
+// Background is on. Idempotent: starting twice is a no-op.
+func (a *App) startTrayIfBackground() {
+	if a.settingsStore == nil {
+		return
+	}
+	runBg, _ := a.settingsStore.GetRunBackground()
+	if !runBg {
+		return
+	}
+	a.startTray()
+}
+
+// startTray shows the system tray icon (once per session).
+func (a *App) startTray() {
+	if a.tray == nil {
+		return
+	}
+	a.tray.Start(a.TrayIconICO, a.TrayIconPNG, a.ShowWindow, a.QuitApp)
+}
+
+// stopTray ends the tray loop. App shutdown only — turning background
+// mode off does not hide the tray (see package tray): the library cannot
+// show it again afterwards, and a hidden window with no tray icon is the
+// exact failure this tray exists to fix.
+func (a *App) stopTray() {
+	if a.tray == nil {
+		return
+	}
+	a.tray.Stop()
+}
+
 // ShowWindow brings the window to the foreground from hidden/minimized state.
 // Used by single-instance activation, notification clicks, etc.
 func (a *App) ShowWindow() {
@@ -1049,6 +1096,9 @@ func (a *App) InitiateShutdown() {
 // Shutdown is called when the app is closing
 func (a *App) Shutdown(ctx context.Context) {
 	log := logging.WithComponent("app")
+
+	// Remove the tray icon first, so it never outlives the app.
+	a.stopTray()
 
 	// Broadcast shutdown to all composer windows
 	if a.ipcServer != nil {

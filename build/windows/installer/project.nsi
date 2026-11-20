@@ -304,6 +304,43 @@ Function Daak.IsRunning
   ${EndIf}
 FunctionEnd
 
+## Does a Daak 0.7.11+ hold the named quit event? Pushes 1 if the event
+## exists — a running recent Daak holds it from startup until the process
+## itself exits — 0 otherwise. This is the reliable "is Daak running"
+## signal: the tasklist check below proved fragile (a missed match skips
+## the handshake entirely and the file write then fails with "Error
+## opening file for writing"). The event is session-local (Local\), so an
+## elevated installer in the same logon session can open it.
+Function Daak.QuitEventExists
+  System::Call 'kernel32::OpenEventW(i 0x0002, i 0, w "${DAAK_QUIT_EVENT}") i .r0'
+  ${If} $0 == 0
+    Push 0
+    Return
+  ${EndIf}
+  System::Call 'kernel32::CloseHandle(i r0)'
+  Push 1
+FunctionEnd
+
+## Pushes 1 while Daak is still running, 0 once it is gone. A running
+## Daak is gone only when BOTH checks agree: the quit event is absent
+## (recent builds hold it until the process exits) AND tasklist no longer
+## finds the process (older builds without the event). Either check alone
+## can lie — tasklist parsing missed a running Daak in the field, and a
+## 0.7.16-or-earlier build drops its event handle the moment it is
+## signalled, before it has finished shutting down — so neither alone is
+## trusted to say "gone".
+Function Daak.IsRunningNow
+  Call Daak.QuitEventExists
+  Pop $0
+  ${If} $0 == 1
+    Push 1
+    Return
+  ${EndIf}
+  Call Daak.IsRunning
+  Pop $0
+  Push $0
+FunctionEnd
+
 ## Ask a running Daak to quit via the named quit event (Daak 0.7.11+).
 ## Pushes 1 if the event was signalled, 0 if there is no event — either the
 ## app is not running, or it is an older Daak without the handshake.
@@ -318,35 +355,66 @@ Function Daak.SignalQuit
   Push 1
 FunctionEnd
 
-## Close a running Daak before its files are replaced. Asks a recent Daak to
-## quit gracefully first and waits up to ${DAAK_QUIT_WAIT_SECONDS} seconds.
-## If it is still running after that, offers to force-quit it — only ever as
-## the fallback the user explicitly chooses, never as the first step. The
-## "Run in background" setting is never touched, so there is nothing to
-## forget re-enabling. If even force quit fails, falls back to asking the
-## user to quit Daak by hand with Retry/Cancel.
+## Close a running Daak before its files are replaced. Detection is
+## event-first: if the quit event exists, a recent Daak is running — signal
+## it and wait up to ${DAAK_QUIT_WAIT_SECONDS} seconds, polling both
+## checks. Only when there is no event at all does it fall back to
+## tasklist, which covers only pre-0.7.11 copies that have no event (those
+## still get the manual Retry box). If it is still running after that,
+## offers to force-quit it — only ever as the fallback the user explicitly
+## chooses, never as the first step. The "Run in background" setting is
+## never touched, so there is nothing to forget re-enabling. If even force
+## quit fails, falls back to asking the user to quit Daak by hand with
+## Retry/Cancel.
 Function Daak.CloseRunning
-  Call Daak.IsRunning
-  Pop $0
-  ${If} $0 == 0
-    Return
-  ${EndIf}
-
-  Call Daak.SignalQuit
+  Call Daak.QuitEventExists
   Pop $0
   ${If} $0 == 1
-    StrCpy $1 0
-    Daak.CloseRunning.waitLoop:
-      Sleep 1000
+    DetailPrint "Daak is running (quit event found), asking it to quit gracefully..."
+    Call Daak.SignalQuit
+    Pop $0
+    ${If} $0 == 1
+      ; Give the app a moment to shut down before the first check: a
+      ; 0.7.16-or-earlier build drops its event handle the moment it is
+      ; signalled, so the first polls lean on tasklist alone — and a
+      ; missed tasklist match right after signalling would otherwise send
+      ; the installer straight into the locked file. 2 s grace + 13 s of
+      ; polling keeps the total wait at ${DAAK_QUIT_WAIT_SECONDS} seconds.
+      Sleep 2000
+      StrCpy $1 0
+      Daak.CloseRunning.waitLoop:
+        Call Daak.IsRunningNow
+        Pop $0
+        ${If} $0 == 0
+          DetailPrint "Daak quit."
+          Return
+        ${EndIf}
+        IntOp $1 $1 + 1
+        ${If} $1 < 13
+          Sleep 1000
+          Goto Daak.CloseRunning.waitLoop
+        ${EndIf}
+      DetailPrint "Daak did not quit within ${DAAK_QUIT_WAIT_SECONDS} seconds."
+    ${Else}
+      ; The event vanished between the two calls: the app is already on
+      ; its way out. Re-check with tasklist before deciding anything.
+      DetailPrint "Quit event disappeared; re-checking with tasklist."
       Call Daak.IsRunning
       Pop $0
       ${If} $0 == 0
+        DetailPrint "No running Daak found."
         Return
       ${EndIf}
-      IntOp $1 $1 + 1
-      ${If} $1 < ${DAAK_QUIT_WAIT_SECONDS}
-        Goto Daak.CloseRunning.waitLoop
-      ${EndIf}
+      DetailPrint "Daak is running (older version, no quit event)."
+    ${EndIf}
+  ${Else}
+    Call Daak.IsRunning
+    Pop $0
+    ${If} $0 == 0
+      DetailPrint "No running Daak found."
+      Return
+    ${EndIf}
+    DetailPrint "Daak is running (older version, no quit event)."
   ${EndIf}
 
   ; Still running after the graceful wait. Offer force quit: a force kill
@@ -363,9 +431,10 @@ Function Daak.CloseRunning
     StrCpy $1 0
     Daak.CloseRunning.killWaitLoop:
       Sleep 1000
-      Call Daak.IsRunning
+      Call Daak.IsRunningNow
       Pop $0
       ${If} $0 == 0
+        DetailPrint "Daak force-quit."
         Return
       ${EndIf}
       IntOp $1 $1 + 1
@@ -373,13 +442,14 @@ Function Daak.CloseRunning
         Goto Daak.CloseRunning.killWaitLoop
       ${EndIf}
     ; Even force quit did not stop it: fall back to the manual path.
+    DetailPrint "Force quit did not stop Daak."
     Goto Daak.CloseRunning.retryLoop
 
   Daak.CloseRunning.retryLoop:
     MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "Daak is still running, so its files cannot be replaced. To quit Daak, turn off $\"Run in background$\" in Settings and close the window, then choose Retry to continue." IDRETRY Daak.CloseRunning.retry
     Abort
   Daak.CloseRunning.retry:
-    Call Daak.IsRunning
+    Call Daak.IsRunningNow
     Pop $0
     ${If} $0 == 0
       Return
@@ -606,6 +676,43 @@ Function un.Daak.IsRunning
   ${EndIf}
 FunctionEnd
 
+## Does a Daak 0.7.11+ hold the named quit event? Pushes 1 if the event
+## exists — a running recent Daak holds it from startup until the process
+## itself exits — 0 otherwise. This is the reliable "is Daak running"
+## signal: the tasklist check below proved fragile (a missed match skips
+## the handshake entirely and the file write then fails with "Error
+## opening file for writing"). The event is session-local (Local\), so an
+## elevated uninstaller in the same logon session can open it.
+Function un.Daak.QuitEventExists
+  System::Call 'kernel32::OpenEventW(i 0x0002, i 0, w "${DAAK_QUIT_EVENT}") i .r0'
+  ${If} $0 == 0
+    Push 0
+    Return
+  ${EndIf}
+  System::Call 'kernel32::CloseHandle(i r0)'
+  Push 1
+FunctionEnd
+
+## Pushes 1 while Daak is still running, 0 once it is gone. A running
+## Daak is gone only when BOTH checks agree: the quit event is absent
+## (recent builds hold it until the process exits) AND tasklist no longer
+## finds the process (older builds without the event). Either check alone
+## can lie — tasklist parsing missed a running Daak in the field, and a
+## 0.7.16-or-earlier build drops its event handle the moment it is
+## signalled, before it has finished shutting down — so neither alone is
+## trusted to say "gone".
+Function un.Daak.IsRunningNow
+  Call un.Daak.QuitEventExists
+  Pop $0
+  ${If} $0 == 1
+    Push 1
+    Return
+  ${EndIf}
+  Call un.Daak.IsRunning
+  Pop $0
+  Push $0
+FunctionEnd
+
 Function un.Daak.SignalQuit
   System::Call 'kernel32::OpenEventW(i 0x0002, i 0, w "${DAAK_QUIT_EVENT}") i .r0'
   ${If} $0 == 0
@@ -618,27 +725,55 @@ Function un.Daak.SignalQuit
 FunctionEnd
 
 Function un.Daak.CloseRunning
-  Call un.Daak.IsRunning
-  Pop $0
-  ${If} $0 == 0
-    Return
-  ${EndIf}
-
-  Call un.Daak.SignalQuit
+  Call un.Daak.QuitEventExists
   Pop $0
   ${If} $0 == 1
-    StrCpy $1 0
-    un.Daak.CloseRunning.waitLoop:
-      Sleep 1000
+    DetailPrint "Daak is running (quit event found), asking it to quit gracefully..."
+    Call un.Daak.SignalQuit
+    Pop $0
+    ${If} $0 == 1
+      ; Give the app a moment to shut down before the first check: a
+      ; 0.7.16-or-earlier build drops its event handle the moment it is
+      ; signalled, so the first polls lean on tasklist alone — and a
+      ; missed tasklist match right after signalling would otherwise send
+      ; the uninstaller straight into the locked file. 2 s grace + 13 s
+      ; of polling keeps the total wait at ${DAAK_QUIT_WAIT_SECONDS}
+      ; seconds.
+      Sleep 2000
+      StrCpy $1 0
+      un.Daak.CloseRunning.waitLoop:
+        Call un.Daak.IsRunningNow
+        Pop $0
+        ${If} $0 == 0
+          DetailPrint "Daak quit."
+          Return
+        ${EndIf}
+        IntOp $1 $1 + 1
+        ${If} $1 < 13
+          Sleep 1000
+          Goto un.Daak.CloseRunning.waitLoop
+        ${EndIf}
+      DetailPrint "Daak did not quit within ${DAAK_QUIT_WAIT_SECONDS} seconds."
+    ${Else}
+      ; The event vanished between the two calls: the app is already on
+      ; its way out. Re-check with tasklist before deciding anything.
+      DetailPrint "Quit event disappeared; re-checking with tasklist."
       Call un.Daak.IsRunning
       Pop $0
       ${If} $0 == 0
+        DetailPrint "No running Daak found."
         Return
       ${EndIf}
-      IntOp $1 $1 + 1
-      ${If} $1 < ${DAAK_QUIT_WAIT_SECONDS}
-        Goto un.Daak.CloseRunning.waitLoop
-      ${EndIf}
+      DetailPrint "Daak is running (older version, no quit event)."
+    ${EndIf}
+  ${Else}
+    Call un.Daak.IsRunning
+    Pop $0
+    ${If} $0 == 0
+      DetailPrint "No running Daak found."
+      Return
+    ${EndIf}
+    DetailPrint "Daak is running (older version, no quit event)."
   ${EndIf}
 
   ; Still running after the graceful wait. Offer force quit: a force kill
@@ -655,9 +790,10 @@ Function un.Daak.CloseRunning
     StrCpy $1 0
     un.Daak.CloseRunning.killWaitLoop:
       Sleep 1000
-      Call un.Daak.IsRunning
+      Call un.Daak.IsRunningNow
       Pop $0
       ${If} $0 == 0
+        DetailPrint "Daak force-quit."
         Return
       ${EndIf}
       IntOp $1 $1 + 1
@@ -665,13 +801,14 @@ Function un.Daak.CloseRunning
         Goto un.Daak.CloseRunning.killWaitLoop
       ${EndIf}
     ; Even force quit did not stop it: fall back to the manual path.
+    DetailPrint "Force quit did not stop Daak."
     Goto un.Daak.CloseRunning.retryLoop
 
   un.Daak.CloseRunning.retryLoop:
     MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "Daak is still running, so it cannot be uninstalled yet. To quit Daak, turn off $\"Run in background$\" in Settings and close the window, then choose Retry to continue." IDRETRY un.Daak.CloseRunning.retry
     Abort
   un.Daak.CloseRunning.retry:
-    Call un.Daak.IsRunning
+    Call un.Daak.IsRunningNow
     Pop $0
     ${If} $0 == 0
       Return
