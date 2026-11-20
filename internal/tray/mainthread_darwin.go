@@ -7,7 +7,7 @@ package tray
 #include <dispatch/dispatch.h>
 #include <stdlib.h>
 #include <stdbool.h>
-#import <Foundation/Foundation.h>
+#include <pthread.h>
 
 extern void daakTrayMainThreadTrampoline(void *ctx);
 
@@ -20,8 +20,13 @@ static void daakTrayDispatchMain(void *ctx) {
 
 // daakTrayIsMainThread reports whether the calling thread is the macOS
 // main thread. AppKit objects must only be created on that thread.
+// Pure C: pthread_main_np() is the standard macOS C function for this.
+// (An earlier version used an Objective-C message send with a Foundation
+// import — Objective-C in a cgo preamble, which Go compiles as plain C,
+// so the darwin build failed at "Generating bindings" with
+// "expected identifier or '('" in NSObjCRuntime.h.)
 static bool daakTrayIsMainThread(void) {
-	return [NSThread isMainThread];
+	return pthread_main_np();
 }
 */
 import "C"
