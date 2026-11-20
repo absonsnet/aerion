@@ -11,7 +11,11 @@ type SingleInstanceLock interface {
 
 	// SetOnShow sets the callback invoked when a second instance sends a command.
 	// The data parameter is the command string ("show" or "mailto:...").
-	// Must be called after TryLock succeeds and the app context is available.
+	// Register it as early as possible — the lock starts accepting the
+	// moment TryLock succeeds, so a command arriving before the callback
+	// is set is dropped. The callback itself must be safe to invoke
+	// before the app context exists (remember the command and honour it
+	// once startup completes); it must not assume stores are initialised.
 	SetOnShow(fn func(data string))
 
 	// Unlock releases the lock and cleans up resources.

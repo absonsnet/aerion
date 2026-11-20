@@ -148,6 +148,10 @@ func (l *windowsSingleInstanceLock) handleConnection(conn net.Conn) {
 	l.mu.Unlock()
 
 	if fn == nil {
+		// The callback is registered in runMainMode before wails.Run, so
+		// this should not happen — if it does, the second launch's
+		// command is lost and the user sees nothing. Log it loudly.
+		log.Warn().Str("command", cmd).Msg("No show callback registered yet, dropping command from second instance")
 		return
 	}
 
