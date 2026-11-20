@@ -372,6 +372,10 @@ type App struct {
 	TrayIconICO []byte // Windows .ico bytes
 	TrayIconPNG []byte // PNG bytes for macOS/Linux
 	tray        *tray.Tray
+	// trayStarted reports whether the tray icon is actually up this
+	// session. GetStartHiddenActive consults it: starting hidden with
+	// no tray icon would leave a hidden window with no way back.
+	trayStarted bool
 
 	// Paths the user chose in a save dialog this session; the post-save
 	// toast's Open file / Open folder actions may open them (#474).
@@ -975,24 +979,33 @@ func (a *App) NotifyStartupComplete() {
 }
 
 // startTrayIfBackground shows the system tray icon when Run in
-// Background is on. Idempotent: starting twice is a no-op.
-func (a *App) startTrayIfBackground() {
+// Background is on. Idempotent: starting twice is a no-op. It returns
+// false when the tray is not up — the caller (GetStartHiddenActive)
+// must then not start hidden, or the user is left with a hidden window
+// and no way back.
+func (a *App) startTrayIfBackground() bool {
 	if a.settingsStore == nil {
-		return
+		return false
 	}
 	runBg, _ := a.settingsStore.GetRunBackground()
 	if !runBg {
-		return
+		return false
 	}
-	a.startTray()
+	return a.startTray()
 }
 
 // startTray shows the system tray icon (once per session).
-func (a *App) startTray() {
+func (a *App) startTray() bool {
 	if a.tray == nil {
-		return
+		return false
 	}
-	a.tray.Start(a.TrayIconICO, a.TrayIconPNG, a.ShowWindow, a.QuitApp, a.trayCompose, a.trayCheckMail, a.trayOpenSettings)
+	ok := a.tray.Start(a.TrayIconICO, a.TrayIconPNG, a.ShowWindow, a.QuitApp, a.trayCompose, a.trayCheckMail, a.trayOpenSettings)
+	a.trayStarted = ok
+	if !ok {
+		log := logging.WithComponent("app")
+		log.Warn().Msg("System tray did not start; the window will stay visible so the app can always be reopened")
+	}
+	return ok
 }
 
 // trayCompose shows the window, then asks the frontend to open the
@@ -1100,14 +1113,21 @@ func (a *App) QuitApp() {
 }
 
 // GetStartHiddenActive returns true if the window should remain hidden on startup.
-// True when both start_hidden and run_background settings are enabled.
+// True when both start_hidden and run_background settings are enabled —
+// and the tray icon is actually up. If the tray could not be started,
+// starting hidden would leave a hidden window with no way back, so the
+// window is shown instead. (If Startup has not run yet, trayStarted is
+// false and this fails open the same way.)
 func (a *App) GetStartHiddenActive() bool {
 	startHidden, _ := a.settingsStore.GetStartHidden()
 	if !startHidden {
 		return false
 	}
 	runBg, _ := a.settingsStore.GetRunBackground()
-	return runBg
+	if !runBg {
+		return false
+	}
+	return a.trayStarted
 }
 
 // InitiateShutdown triggers the application quit (called from frontend)

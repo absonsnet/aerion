@@ -90,14 +90,31 @@ func New() *Tray {
 // new message (Compose new message); onCheckMail syncs all accounts in
 // the background (Check mail now); onSettings opens the Settings dialog
 // (Settings). A single left-click does nothing.
-func (t *Tray) Start(iconICO, iconPNG []byte, onShow, onQuit, onCompose, onCheckMail, onSettings func()) {
+//
+// It returns false when the tray could not be started — the caller must
+// treat that as "no tray" and never leave the window hidden without one
+// (a hidden window with no tray icon leaves the user locked out). A panic
+// during start is recovered and reported the same way: a tray failure
+// must never crash startup. Note this only catches Go panics, not a
+// native crash — the real crash guard is invokeTrayStart, which runs the
+// library's native start on the macOS main thread.
+func (t *Tray) Start(iconICO, iconPNG []byte, onShow, onQuit, onCompose, onCheckMail, onSettings func()) (ok bool) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	if t.started {
-		return
+		return true
 	}
 
 	log := logging.WithComponent("tray")
+
+	defer func() {
+		if r := recover(); r != nil {
+			log.Error().Interface("panic", r).Msg("System tray failed to start; continuing without it")
+			t.started = false
+			t.end = nil
+			ok = false
+		}
+	}()
 
 	// On Linux the tray is a D-Bus StatusNotifierItem: without a session
 	// bus there is no tray host, and the library panics in its shutdown
@@ -107,7 +124,7 @@ func (t *Tray) Start(iconICO, iconPNG []byte, onShow, onQuit, onCompose, onCheck
 		conn, err := dbus.SessionBus()
 		if err != nil {
 			log.Warn().Err(err).Msg("No D-Bus session bus, skipping system tray icon")
-			return
+			return false
 		}
 		conn.Close()
 	}
@@ -168,8 +185,17 @@ func (t *Tray) Start(iconICO, iconPNG []byte, onShow, onQuit, onCompose, onCheck
 	}, func() {
 		log.Info().Msg("System tray icon hidden")
 	})
+	// On macOS the library's native start creates AppKit objects and
+	// must run on the main thread; invokeTrayStart dispatches it there
+	// (elsewhere it runs directly). A late dispatch still creates the
+	// tray afterwards, but the caller is told it is not up yet.
+	if !invokeTrayStart(start) {
+		log.Warn().Msg("System tray did not start on the main thread in time; continuing without it")
+		t.started = false
+		return false
+	}
 	t.end = end
-	start()
+	return true
 }
 
 // Stop ends the tray loop. App shutdown only — see the package comment
