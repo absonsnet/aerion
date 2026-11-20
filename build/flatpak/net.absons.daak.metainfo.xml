@@ -375,6 +375,14 @@
   </provides>
 
   <releases>
+    <release version="0.7.17" date="2026-11-20">
+      <description>
+        <ul>
+          <li>Windows installer: reinstalling while Daak is running now asks the running app to quit gracefully instead of failing instantly with a locked-file error</li>
+          <li>System tray icon: Daak now shows a tray icon whenever Run in Background is on, so a hidden window can be reopened from the tray</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.7.16" date="2026-11-19">
       <description>
         <ul>

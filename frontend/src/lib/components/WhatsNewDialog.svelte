@@ -60,12 +60,13 @@
       </div>
 
       <div class="space-y-4 max-h-[60vh] overflow-y-auto text-sm">
-        <p>🚀 Welcome to {APP_NAME} v0.7.16!</p>
+        <p>🚀 Welcome to {APP_NAME} v0.7.17!</p>
 
-        <p>v0.7.16 fixes the sidebar divider forgetting its position. Here are the highlights of the release:</p>
+        <p>v0.7.17 fixes the Windows reinstall handshake and adds a system tray icon. Here are the highlights of the release:</p>
 
         <ul class="list-disc pl-6 space-y-1">
-          <li>📏 Sidebar: the divider between the Unified section and your accounts now keeps its last position when you quit and reopen Daak</li>
+          <li>🪟 Windows installer: reinstalling while Daak is running now asks the running app to quit gracefully instead of failing instantly with a locked-file error</li>
+          <li>🔔 System tray: Daak now shows a tray icon whenever Run in Background is on, so a hidden window can be reopened from the tray</li>
         </ul>
 
         <p>🏷 See the full change log here:</p>
