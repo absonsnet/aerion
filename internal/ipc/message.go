@@ -11,6 +11,11 @@ const (
 	// TypeMessageSent indicates an email was successfully sent
 	TypeMessageSent = "message_sent"
 
+	// TypeMessageQueued indicates an email was queued for background
+	// send (Undo Send): the main window shows the countdown toast
+	// with Undo, since the detached composer closes right away.
+	TypeMessageQueued = "message_queued"
+
 	// TypeDraftSaved indicates a draft was saved or updated
 	TypeDraftSaved = "draft_saved"
 
@@ -66,6 +71,16 @@ const (
 type MessageSentPayload struct {
 	AccountID string `json:"account_id"`
 	FolderID  int64  `json:"folder_id"`
+}
+
+// MessageQueuedPayload is the payload for TypeMessageQueued messages.
+type MessageQueuedPayload struct {
+	QueueID      string `json:"queue_id"`
+	AccountID    string `json:"account_id"`
+	DraftID      string `json:"draft_id"`
+	Subject      string `json:"subject"`
+	Recipient    string `json:"recipient"`
+	DelaySeconds int    `json:"delay_seconds"`
 }
 
 // DraftSavedPayload is the payload for TypeDraftSaved messages.

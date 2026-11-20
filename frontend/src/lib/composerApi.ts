@@ -47,6 +47,16 @@ export interface ComposerApi {
   /** Send a composed email */
   sendMessage: (accountId: string, message: smtp.ComposeMessage) => Promise<void>
 
+  /** Queue a composed email for background send after the undo
+   * window. Returns the queue id, the draft to reopen on Undo, and
+   * the countdown in seconds. The composer closes right after this
+   * resolves; the worker dispatches the message. */
+  queueSend: (accountId: string, message: smtp.ComposeMessage, draftId: string) => Promise<app.QueueSendResult>
+
+  /** Cancel a queued send that has not dispatched yet. Returns the
+   * draft to reopen in the composer. Fails once the message is sent. */
+  undoSend: (queueId: string) => Promise<app.UndoSendResult>
+
   /** Search contacts for autocomplete */
   searchContacts: (query: string, limit: number) => Promise<contact.Contact[]>
 
@@ -244,6 +254,16 @@ export function createMainWindowApi(): ComposerApi {
     sendMessage: async (accountId: string, message: smtp.ComposeMessage) => {
       const { SendMessage } = await import('../../wailsjs/go/app/App.js')
       return SendMessage(accountId, message)
+    },
+
+    queueSend: async (accountId: string, message: smtp.ComposeMessage, draftId: string) => {
+      const { QueueSend } = await import('../../wailsjs/go/app/App.js')
+      return QueueSend(accountId, message, draftId)
+    },
+
+    undoSend: async (queueId: string) => {
+      const { UndoSend } = await import('../../wailsjs/go/app/App.js')
+      return UndoSend(queueId)
     },
 
     searchContacts: async (query: string, limit: number) => {
@@ -530,6 +550,16 @@ export function createComposerWindowApi(_accountId: string): ComposerApi {
     sendMessage: async (accountId: string, message: smtp.ComposeMessage) => {
       const { SendMessage } = await import('../../wailsjs/go/app/ComposerApp.js')
       return SendMessage(accountId, message)
+    },
+
+    queueSend: async (accountId: string, message: smtp.ComposeMessage, draftId: string) => {
+      const { QueueSend } = await import('../../wailsjs/go/app/ComposerApp.js')
+      return QueueSend(accountId, message, draftId)
+    },
+
+    undoSend: async (queueId: string) => {
+      const { UndoSend } = await import('../../wailsjs/go/app/ComposerApp.js')
+      return UndoSend(queueId)
     },
 
     searchContacts: async (query: string, limit: number) => {

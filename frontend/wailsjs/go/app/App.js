@@ -846,6 +846,10 @@ export function GetSpellcheckLanguages() {
   return window['go']['app']['App']['GetSpellcheckLanguages']();
 }
 
+export function GetSendQueueStats() {
+  return window['go']['app']['App']['GetSendQueueStats']();
+}
+
 export function GetStartHidden() {
   return window['go']['app']['App']['GetStartHidden']();
 }
@@ -888,6 +892,10 @@ export function GetUIState() {
 
 export function GetUndoDescription() {
   return window['go']['app']['App']['GetUndoDescription']();
+}
+
+export function GetUndoSendDelay() {
+  return window['go']['app']['App']['GetUndoSendDelay']();
 }
 
 export function GetUnifiedFolderConversations(arg1, arg2, arg3, arg4, arg5, arg6, arg7) {
@@ -1044,6 +1052,10 @@ export function ListPGPSenderKeys() {
 
 export function ListSMIMECertificates(arg1) {
   return window['go']['app']['App']['ListSMIMECertificates'](arg1);
+}
+
+export function ListSendQueue() {
+  return window['go']['app']['App']['ListSendQueue']();
 }
 
 export function ListSenderCerts() {
@@ -1298,6 +1310,10 @@ export function ProcessSMIMEMessage(arg1) {
   return window['go']['app']['App']['ProcessSMIMEMessage'](arg1);
 }
 
+export function QueueSend(arg1, arg2, arg3) {
+  return window['go']['app']['App']['QueueSend'](arg1, arg2, arg3);
+}
+
 export function QuitApp() {
   return window['go']['app']['App']['QuitApp']();
 }
@@ -1352,6 +1368,10 @@ export function ReorderAccounts(arg1) {
 
 export function ResolveMessageUID(arg1) {
   return window['go']['app']['App']['ResolveMessageUID'](arg1);
+}
+
+export function RetrySendQueueItem(arg1) {
+  return window['go']['app']['App']['RetrySendQueueItem'](arg1);
 }
 
 export function RunEnrichmentBackfill() {
@@ -1654,6 +1674,10 @@ export function SetTranslationTargetLanguage(arg1) {
   return window['go']['app']['App']['SetTranslationTargetLanguage'](arg1);
 }
 
+export function SetUndoSendDelay(arg1) {
+  return window['go']['app']['App']['SetUndoSendDelay'](arg1);
+}
+
 export function SetWindowControlsSide(arg1) {
   return window['go']['app']['App']['SetWindowControlsSide'](arg1);
 }
@@ -1748,6 +1772,10 @@ export function Undo() {
 
 export function Unstar(arg1) {
   return window['go']['app']['App']['Unstar'](arg1);
+}
+
+export function UndoSend(arg1) {
+  return window['go']['app']['App']['UndoSend'](arg1);
 }
 
 export function UnsubscribeFolder(arg1, arg2) {

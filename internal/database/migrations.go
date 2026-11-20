@@ -1493,4 +1493,42 @@ var migrations = []Migration{
 			);
 		`,
 	},
+	{
+		Version: 50,
+		SQL: `
+			-- Undo Send: the persistent outbox for normal sends. One
+			-- row per message the user sent; the full ComposeMessage
+			-- JSON is stored at queue time and the worker re-runs the
+			-- normal send path (composeOps.sendMessage) at dispatch,
+			-- so signing/encryption, Sent saving and draft cleanup
+			-- behave exactly like a direct send. The draft row is
+			-- kept until dispatch so Undo can reopen the composer
+			-- with it; sendMessage deletes it on success.
+			-- status: pending (in the undo window, or waiting on a
+			-- retry backoff) | sending (claimed by a dispatcher) |
+			-- sent | failed (permanent error, or attempts exhausted)
+			-- | cancelled (undone by the user).
+			CREATE TABLE IF NOT EXISTS send_queue (
+				id              TEXT PRIMARY KEY,
+				account_id      TEXT NOT NULL,
+				draft_id        TEXT NOT NULL DEFAULT '',
+				message_json    TEXT NOT NULL,
+				subject         TEXT NOT NULL DEFAULT '',
+				recipient       TEXT NOT NULL DEFAULT '',
+				from_address    TEXT NOT NULL DEFAULT '',
+				to_json         TEXT NOT NULL DEFAULT '[]',
+				status          TEXT NOT NULL DEFAULT 'pending',
+				attempts        INTEGER NOT NULL DEFAULT 0,
+				max_attempts    INTEGER NOT NULL DEFAULT 5,
+				send_at         DATETIME NOT NULL,
+				due_at          DATETIME NOT NULL,
+				last_error      TEXT NOT NULL DEFAULT '',
+				claimed_at      DATETIME,
+				created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				sent_at         DATETIME
+			);
+			CREATE INDEX IF NOT EXISTS idx_send_queue_due ON send_queue (status, due_at);
+			CREATE INDEX IF NOT EXISTS idx_send_queue_account ON send_queue (account_id);
+		`,
+	},
 }

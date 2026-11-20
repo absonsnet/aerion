@@ -17,7 +17,7 @@
   // @ts-ignore - wailsjs path
   import { account, folder } from '../../../../wailsjs/go/models'
   // @ts-ignore - wailsjs path
-  import { GetUnifiedFolderUnreadCounts, GetAttentionCount, MailMerge_GetQueueStats } from '../../../../wailsjs/go/app/App'
+  import { GetUnifiedFolderUnreadCounts, GetAttentionCount, MailMerge_GetQueueStats, GetSendQueueStats } from '../../../../wailsjs/go/app/App'
   import { formatDistanceToNow } from 'date-fns'
   import { getCurrentDateFnsLocale } from '$lib/stores/settings.svelte'
   import { EventsOn, EventsEmit } from '../../../../wailsjs/runtime/runtime'
@@ -232,8 +232,12 @@
     const unsubscribe = EventsOn('folders:countsChanged', (_data: Record<string, number>) => {
       loadUnifiedFolderCounts()
     })
-    // The outbox badge follows the Mail Merge queue.
+    // The outbox badge follows the Mail Merge queue AND the Undo
+    // Send queue (normal sends waiting out the undo window).
     const unsubscribeQueue = EventsOn('mailmerge:queue-updated', () => {
+      loadOutboxCount()
+    })
+    const unsubscribeSendQueue = EventsOn('sendqueue:updated', () => {
       loadOutboxCount()
     })
     // Chip actions, dismissals and settings changes all emit this.
@@ -249,6 +253,7 @@
     return () => {
       unsubscribe()
       unsubscribeQueue()
+      unsubscribeSendQueue()
       unsubscribeAttention()
       unsubscribeTraySettings()
     }
@@ -266,8 +271,11 @@
 
   async function loadOutboxCount() {
     try {
-      const stats = await MailMerge_GetQueueStats()
-      outboxCount = stats?.queued ?? 0
+      const [mmStats, sqStats] = await Promise.all([
+        MailMerge_GetQueueStats(),
+        GetSendQueueStats(),
+      ])
+      outboxCount = (mmStats?.queued ?? 0) + (sqStats?.pending ?? 0)
     } catch (err) {
       console.error('Failed to load outbox count:', err)
     }

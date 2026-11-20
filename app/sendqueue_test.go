@@ -1,0 +1,305 @@
+package app
+
+import (
+	"context"
+	"fmt"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/absonsnet/daak/internal/account"
+	"github.com/absonsnet/daak/internal/contact"
+	"github.com/absonsnet/daak/internal/database"
+	"github.com/absonsnet/daak/internal/draft"
+	"github.com/absonsnet/daak/internal/logging"
+	"github.com/absonsnet/daak/internal/pgp"
+	"github.com/absonsnet/daak/internal/sendqueue"
+	"github.com/absonsnet/daak/internal/settings"
+	"github.com/absonsnet/daak/internal/smime"
+	"github.com/absonsnet/daak/internal/smtp"
+)
+
+// sendQueueTestHarness drives the real sendQueueService against a
+// temp DB: QueueSend validates and enqueues, dispatchDue re-runs
+// composeOps.sendMessage with rawSendOverride capturing the SMTP
+// bytes instead of reaching a server. No GUI, no network.
+type sendQueueTestHarness struct {
+	svc     *sendQueueService
+	sent    [][]byte
+	sendErr error
+	now     time.Time
+}
+
+func newSendQueueTestHarness(t *testing.T) *sendQueueTestHarness {
+	t.Helper()
+	db, err := database.Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Migrate(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { db.Close() })
+
+	if _, err := db.Exec(`INSERT INTO accounts (id, name, email, imap_host, smtp_host, username) VALUES ('acc-1', 'Me', 'me@example.com', 'imap.example.com', 'smtp.example.com', 'me@example.com')`); err != nil {
+		t.Fatal(err)
+	}
+
+	h := &sendQueueTestHarness{now: time.Now().UTC().Truncate(time.Second)}
+	log := logging.WithComponent("test")
+	accountStore := account.NewStore(db)
+	ops := &composeOps{
+		accountStore: accountStore,
+		contactStore: contact.NewStore(db.DB),
+		smimeStore:   smime.NewStore(db.DB, log),
+		pgpStore:     pgp.NewStore(db.DB, log),
+		rawSendOverride: func(_ context.Context, _ string, _ []string, raw []byte) error {
+			if h.sendErr != nil {
+				return h.sendErr
+			}
+			h.sent = append(h.sent, raw)
+			return nil
+		},
+		sentSaveOverride: func(_ context.Context, _ string, _ []byte) error { return nil },
+	}
+	h.svc = &sendQueueService{
+		store:      sendqueue.NewStore(db),
+		settings:   settings.NewStore(db),
+		ops:        ops,
+		draftStore: draft.NewStore(db),
+		ctx:        context.Background(),
+		now:        func() time.Time { return h.now },
+		saveDraft: func(_ string, _ smtp.ComposeMessage, _ string) (string, error) {
+			return "draft-1", nil
+		},
+	}
+	return h
+}
+
+func testComposeMessage() smtp.ComposeMessage {
+	return smtp.ComposeMessage{
+		From:     smtp.Address{Name: "Me", Address: "me@example.com"},
+		To:       []smtp.Address{{Name: "Ada", Address: "ada@example.com"}},
+		Subject:  "hello",
+		TextBody: "hi there",
+	}
+}
+
+func (h *sendQueueTestHarness) queue(t *testing.T) QueueSendResult {
+	t.Helper()
+	res, err := h.svc.QueueSend("acc-1", testComposeMessage(), "")
+	if err != nil {
+		t.Fatalf("QueueSend: %v", err)
+	}
+	return res
+}
+
+func (h *sendQueueTestHarness) mustItem(t *testing.T, id string) *sendqueue.Item {
+	t.Helper()
+	item, err := h.svc.store.Get(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if item == nil {
+		t.Fatalf("queue item %q not found", id)
+	}
+	return item
+}
+
+func TestQueueSendThenDispatch(t *testing.T) {
+	h := newSendQueueTestHarness(t)
+	res := h.queue(t)
+	if res.DelaySeconds != settings.DefaultUndoSendDelay {
+		t.Fatalf("DelaySeconds = %d, want %d", res.DelaySeconds, settings.DefaultUndoSendDelay)
+	}
+	if res.DraftID != "draft-1" {
+		t.Fatalf("DraftID = %q, want draft-1", res.DraftID)
+	}
+	item := h.mustItem(t, res.QueueID)
+	if item.Status != sendqueue.StatusPending {
+		t.Fatalf("status = %q, want pending", item.Status)
+	}
+	if item.Subject != "hello" || item.Recipient != "ada@example.com" {
+		t.Fatalf("item = %+v, want subject hello / recipient ada@example.com", item)
+	}
+
+	// Inside the undo window: nothing sends.
+	if n, err := h.svc.dispatchDue(h.now); err != nil || n != 0 {
+		t.Fatalf("dispatchDue(in window) = %d, %v, want 0, nil", n, err)
+	}
+	if len(h.sent) != 0 {
+		t.Fatalf("sent %d messages inside the undo window, want 0", len(h.sent))
+	}
+
+	// Past the window: the worker sends it, once.
+	h.now = h.now.Add(6 * time.Second)
+	if n, err := h.svc.dispatchDue(h.now); err != nil || n != 1 {
+		t.Fatalf("dispatchDue(after window) = %d, %v, want 1, nil", n, err)
+	}
+	if len(h.sent) != 1 || !strings.Contains(string(h.sent[0]), "hello") {
+		t.Fatalf("sent = %d messages, want 1 containing the subject", len(h.sent))
+	}
+	if got := h.mustItem(t, res.QueueID); got.Status != sendqueue.StatusSent {
+		t.Fatalf("status after dispatch = %q, want sent", got.Status)
+	}
+
+	// A second tick sends nothing more (no double-send).
+	if n, err := h.svc.dispatchDue(h.now); err != nil || n != 0 {
+		t.Fatalf("second dispatchDue = %d, %v, want 0, nil", n, err)
+	}
+	if len(h.sent) != 1 {
+		t.Fatalf("sent %d messages after second tick, want 1", len(h.sent))
+	}
+}
+
+func TestUndoSendCancelsAndDispatchSkips(t *testing.T) {
+	h := newSendQueueTestHarness(t)
+	res := h.queue(t)
+
+	undone, err := h.svc.UndoSend(res.QueueID)
+	if err != nil {
+		t.Fatalf("UndoSend: %v", err)
+	}
+	if undone.DraftID != "draft-1" || undone.AccountID != "acc-1" {
+		t.Fatalf("UndoSend = %+v, want draft-1 / acc-1", undone)
+	}
+	if got := h.mustItem(t, res.QueueID); got.Status != sendqueue.StatusCancelled {
+		t.Fatalf("status after undo = %q, want cancelled", got.Status)
+	}
+
+	// Past the window: the cancelled item never sends.
+	h.now = h.now.Add(time.Minute)
+	if n, err := h.svc.dispatchDue(h.now); err != nil || n != 0 {
+		t.Fatalf("dispatchDue(after undo) = %d, %v, want 0, nil", n, err)
+	}
+	if len(h.sent) != 0 {
+		t.Fatalf("sent %d messages after undo, want 0", len(h.sent))
+	}
+
+	// Undoing twice fails: the message is already back in Drafts.
+	if _, err := h.svc.UndoSend(res.QueueID); err == nil {
+		t.Fatalf("second UndoSend succeeded, want an error")
+	}
+}
+
+func TestUndoSendAfterDispatchFails(t *testing.T) {
+	h := newSendQueueTestHarness(t)
+	res := h.queue(t)
+	h.now = h.now.Add(6 * time.Second)
+	if _, err := h.svc.dispatchDue(h.now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.svc.UndoSend(res.QueueID); err == nil || !strings.Contains(err.Error(), "already sent") {
+		t.Fatalf("UndoSend after dispatch = %v, want an 'already sent' error", err)
+	}
+}
+
+func TestTransientFailureRetriesWithBackoff(t *testing.T) {
+	h := newSendQueueTestHarness(t)
+	res := h.queue(t)
+	h.sendErr = fmt.Errorf("failed to connect to SMTP server: connection refused")
+
+	h.now = h.now.Add(6 * time.Second)
+	if n, err := h.svc.dispatchDue(h.now); err != nil || n != 0 {
+		t.Fatalf("dispatchDue(failing) = %d, %v, want 0, nil", n, err)
+	}
+	item := h.mustItem(t, res.QueueID)
+	if item.Status != sendqueue.StatusPending || item.Attempts != 1 {
+		t.Fatalf("after transient failure: %+v, want pending / 1 attempt", item)
+	}
+	if !item.DueAt.Equal(h.now.Add(time.Minute)) {
+		t.Fatalf("dueAt = %v, want now + 1m backoff", item.DueAt)
+	}
+
+	// Before the backoff elapses: still nothing.
+	h.now = h.now.Add(30 * time.Second)
+	if n, err := h.svc.dispatchDue(h.now); err != nil || n != 0 {
+		t.Fatalf("dispatchDue(in backoff) = %d, %v, want 0, nil", n, err)
+	}
+
+	// After the backoff, with the server back: sends.
+	h.now = h.now.Add(31 * time.Second)
+	h.sendErr = nil
+	if n, err := h.svc.dispatchDue(h.now); err != nil || n != 1 {
+		t.Fatalf("dispatchDue(after backoff) = %d, %v, want 1, nil", n, err)
+	}
+	if len(h.sent) != 1 {
+		t.Fatalf("sent %d messages, want 1", len(h.sent))
+	}
+}
+
+func TestPermanentFailureFailsAtOnce(t *testing.T) {
+	h := newSendQueueTestHarness(t)
+	res := h.queue(t)
+	h.sendErr = fmt.Errorf("failed to login to SMTP server: 535 Authentication failed")
+
+	h.now = h.now.Add(6 * time.Second)
+	if n, err := h.svc.dispatchDue(h.now); err != nil || n != 0 {
+		t.Fatalf("dispatchDue = %d, %v, want 0, nil", n, err)
+	}
+	item := h.mustItem(t, res.QueueID)
+	if item.Status != sendqueue.StatusFailed || item.Attempts != 1 {
+		t.Fatalf("after permanent failure: %+v, want failed / 1 attempt", item)
+	}
+	if len(h.sent) != 0 {
+		t.Fatalf("sent %d messages, want 0", len(h.sent))
+	}
+
+	// Retry returns it to the queue, due immediately, fresh budget.
+	if err := h.svc.RetrySendQueueItem(res.QueueID); err != nil {
+		t.Fatalf("RetrySendQueueItem: %v", err)
+	}
+	item = h.mustItem(t, res.QueueID)
+	if item.Status != sendqueue.StatusPending || item.Attempts != 0 {
+		t.Fatalf("after retry: %+v, want pending / 0 attempts", item)
+	}
+	h.sendErr = nil
+	if n, err := h.svc.dispatchDue(h.now); err != nil || n != 1 {
+		t.Fatalf("dispatchDue(after retry) = %d, %v, want 1, nil", n, err)
+	}
+}
+
+func TestTransientFailuresExhaustAttempts(t *testing.T) {
+	h := newSendQueueTestHarness(t)
+	res := h.queue(t)
+	h.sendErr = fmt.Errorf("failed to send message: read tcp: i/o timeout")
+
+	// Fail until the budget is exhausted: 1m, 2m, 4m, 8m, 16m.
+	for attempt := 1; attempt <= sendqueue.DefaultMaxAttempts; attempt++ {
+		h.now = h.now.Add(6*time.Second + sendqueue.Backoff(attempt-1))
+		if _, err := h.svc.dispatchDue(h.now); err != nil {
+			t.Fatal(err)
+		}
+	}
+	item := h.mustItem(t, res.QueueID)
+	if item.Status != sendqueue.StatusFailed || item.Attempts != sendqueue.DefaultMaxAttempts {
+		t.Fatalf("after exhausting attempts: %+v, want failed / %d attempts", item, sendqueue.DefaultMaxAttempts)
+	}
+	if len(h.sent) != 0 {
+		t.Fatalf("sent %d messages, want 0", len(h.sent))
+	}
+}
+
+func TestQueueSendValidation(t *testing.T) {
+	h := newSendQueueTestHarness(t)
+
+	empty := testComposeMessage()
+	empty.To = nil
+	if _, err := h.svc.QueueSend("acc-1", empty, ""); err == nil || !strings.Contains(err.Error(), "no recipients") {
+		t.Fatalf("QueueSend(no recipients) = %v, want a 'no recipients' error", err)
+	}
+	if _, err := h.svc.QueueSend("missing-account", testComposeMessage(), ""); err == nil || !strings.Contains(err.Error(), "account not found") {
+		t.Fatalf("QueueSend(unknown account) = %v, want an 'account not found' error", err)
+	}
+	if _, err := h.svc.UndoSend("missing-queue-id"); err == nil {
+		t.Fatalf("UndoSend(unknown id) succeeded, want an error")
+	}
+	stats, err := h.svc.GetSendQueueStats()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stats.Total != 0 {
+		t.Fatalf("stats after failed queues = %+v, want empty", stats)
+	}
+}

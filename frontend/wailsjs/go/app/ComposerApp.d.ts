@@ -75,6 +75,8 @@ export function GetSystemTheme():Promise<string>;
 
 export function GetThemeMode():Promise<string>;
 
+export function GetUndoSendDelay():Promise<number>;
+
 export function HasPGPKey(arg1:string):Promise<boolean>;
 
 export function HasSMIMECertificate(arg1:string):Promise<boolean>;
@@ -167,6 +169,8 @@ export function PickRecipientPGPKeyFile():Promise<string>;
 
 export function PrepareReply():Promise<smtp.ComposeMessage>;
 
+export function QueueSend(arg1:string,arg2:smtp.ComposeMessage,arg3:string):Promise<app.QueueSendResult>;
+
 export function ReadFileAsAttachment(arg1:string):Promise<app.ComposerAttachment>;
 
 export function RefreshWindowConstraints():Promise<void>;
@@ -184,3 +188,5 @@ export function StartQueueRunner():Promise<void>;
 export function Startup(arg1:context.Context):Promise<void>;
 
 export function StopQueueRunner():Promise<void>;
+
+export function UndoSend(arg1:string):Promise<app.UndoSendResult>;

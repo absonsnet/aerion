@@ -19,13 +19,13 @@
   import { cn } from '$lib/utils'
   import { Button } from '$lib/components/ui/button'
   // @ts-ignore - wailsjs bindings
-  import { GetConversations, GetConversationCount, SyncFolder, ForceSyncFolder, CancelFolderSync, SetMessageListSortOrder, GetUnifiedFolderConversations, GetUnifiedFolderCount, SearchConversations, SearchUnifiedFolder, GetSearchCount, GetSearchCountUnifiedFolder, GetFTSIndexStatus, IsFTSIndexing, Trash, DeletePermanently, EmptyTrash, EmptySpam, Undo, IMAPSearchFolder, FetchServerMessage, MarkAsRead, MarkAsUnread, Archive, Star, Unstar, MarkAsSpam, MarkAsNotSpam, MoveToFolder, GetAccounts, GetCategoryCounts, GetInboxTabDefault, MailMerge_ListQueue, MailMerge_SendUnsent, MailMerge_CancelQueuedItem } from '../../../../wailsjs/go/app/App'
+  import { GetConversations, GetConversationCount, SyncFolder, ForceSyncFolder, CancelFolderSync, SetMessageListSortOrder, GetUnifiedFolderConversations, GetUnifiedFolderCount, SearchConversations, SearchUnifiedFolder, GetSearchCount, GetSearchCountUnifiedFolder, GetFTSIndexStatus, IsFTSIndexing, Trash, DeletePermanently, EmptyTrash, EmptySpam, Undo, IMAPSearchFolder, FetchServerMessage, MarkAsRead, MarkAsUnread, Archive, Star, Unstar, MarkAsSpam, MarkAsNotSpam, MoveToFolder, GetAccounts, GetCategoryCounts, GetInboxTabDefault, MailMerge_ListQueue, MailMerge_SendUnsent, MailMerge_CancelQueuedItem, ListSendQueue, RetrySendQueueItem } from '../../../../wailsjs/go/app/App'
   import { toasts } from '$lib/stores/toast'
   import { _ } from '$lib/i18n'
   import { ConfirmDialog } from '$lib/components/ui/confirm-dialog'
   import FolderPickerDialog from '$lib/components/common/FolderPickerDialog.svelte'
   // @ts-ignore - wailsjs path
-  import { message, account, app } from '../../../../wailsjs/go/models'
+  import { message, account, app, sendqueue } from '../../../../wailsjs/go/models'
   // @ts-ignore - wailsjs runtime
   import { EventsOn, EventsOff } from '../../../../wailsjs/runtime/runtime'
   import { getMessageListDensity, getMessageListSortOrder, setMessageListSortOrder, getShowMessageListProfilePics } from '$lib/stores/settings.svelte'
@@ -50,6 +50,10 @@
     selectOnly?: boolean
     onReply?: (mode: 'reply' | 'reply-all' | 'forward', messageId: string) => void
     onRowActionComplete?: () => void
+    // Undo Send: the Outbox Undo button on a normal-send row. The
+    // parent cancels the queued send and reopens the composer with
+    // the draft (App.svelte owns that flow).
+    onUndoSend?: (queueId: string, draftId: string, accountId: string) => void
     isFocused?: boolean
     isFlashing?: boolean
     showFolderToggle?: boolean
@@ -66,6 +70,7 @@
     selectOnly = false,
     onReply,
     onRowActionComplete,
+    onUndoSend,
     isFocused: _isFocused = false,
     isFlashing = false,
     showFolderToggle = false,
@@ -160,19 +165,44 @@
     isUnifiedView ? unifiedFolders.length > 0 : !!(accountId && folderId)
   )
 
-  // Outbox (local Mail Merge send queue): the only "emails being sent"
-  // state in the app. Normal sends transmit immediately; only Mail Merge
-  // "Send later" runs queue here. ListQueue returns nil when the
-  // extension is disabled, so a disabled extension reads as an empty
-  // outbox — the empty state says what the Outbox is for, not why it is
-  // empty.
-  let queueItems = $state<MailMergeQueuedItem[]>([])
+  // Outbox (local send queues): Mail Merge "Send later" runs AND
+  // normal sends waiting out the Undo Send window. Both share one
+  // list: normal sends are `kind: 'send'` with status 'pending'
+  // (in the undo window or on retry backoff) and carry the draft to
+  // reopen on Undo; Mail Merge rows are `kind: 'mailmerge'` with
+  // status 'queued'. ListQueue returns nil when the extension is
+  // disabled, so a disabled extension reads as an empty outbox.
+  // One shared row shape; the template branches on `kind` for the
+  // Undo/Retry/Cancel actions.
+  interface OutboxRow {
+    id: string
+    kind: 'mailmerge' | 'send'
+    accountId: string
+    draftId?: string
+    recipient: string
+    subject: string
+    fromAddress: string
+    to: string[]
+    status: string
+    attempts: number
+    maxAttempts: number
+    nextAttemptAt?: string
+    sendAt?: string
+    lastError?: string
+    createdAt?: string
+    sentAt?: string
+  }
+
+  let queueItems = $state<OutboxRow[]>([])
   let queueLoading = $state(false)
   let queueError = $state<string | null>(null)
   let expandedQueueId = $state<string | null>(null)
   let queueActionBusy = $state('')
 
-  const waitingQueueItems = $derived(queueItems.filter((i) => i.status === 'queued' || i.status === 'sending'))
+  const waitingQueueItems = $derived(queueItems.filter((i) => i.status === 'queued' || i.status === 'sending' || i.status === 'pending'))
+  // "Send unsent now" only dispatches Mail Merge rows — normal sends
+  // go out on their own countdown, so the button enables on those.
+  const waitingMailMergeItems = $derived(waitingQueueItems.filter((i) => i.kind === 'mailmerge'))
   const failedQueueItems = $derived(queueItems.filter((i) => i.status === 'failed'))
   const doneQueueItems = $derived(queueItems.filter((i) => i.status === 'sent' || i.status === 'cancelled'))
 
@@ -188,8 +218,47 @@
     queueLoading = true
     queueError = null
     try {
-      const items = await MailMerge_ListQueue()
-      queueItems = normalizeQueueItems((items as MailMergeQueuedItem[] | null) ?? [])
+      const [mmItems, sendItems] = await Promise.all([
+        MailMerge_ListQueue(),
+        ListSendQueue(),
+      ])
+      const mmRows: OutboxRow[] = normalizeQueueItems((mmItems as MailMergeQueuedItem[] | null) ?? []).map((i) => ({
+        id: i.id,
+        kind: 'mailmerge',
+        accountId: i.accountId,
+        recipient: i.recipient,
+        subject: i.subject,
+        fromAddress: i.fromAddress,
+        to: i.to ?? [],
+        status: i.status,
+        attempts: i.attempts,
+        maxAttempts: i.maxAttempts,
+        nextAttemptAt: i.nextAttemptAt,
+        lastError: i.lastError,
+        createdAt: i.createdAt,
+        sentAt: i.sentAt,
+      }))
+      // Normal sends first (newest action on top), then the Mail
+      // Merge queue in its existing order.
+      const sendRows: OutboxRow[] = ((sendItems as sendqueue.Item[] | null) ?? []).map((i) => ({
+        id: i.id,
+        kind: 'send',
+        accountId: i.accountId,
+        draftId: i.draftId,
+        recipient: i.recipient,
+        subject: i.subject,
+        fromAddress: i.fromAddress,
+        to: i.to ?? [],
+        status: i.status,
+        attempts: i.attempts,
+        maxAttempts: i.maxAttempts,
+        nextAttemptAt: typeof i.dueAt === 'string' ? i.dueAt : '',
+        sendAt: typeof i.sendAt === 'string' ? i.sendAt : '',
+        lastError: i.lastError,
+        createdAt: typeof i.createdAt === 'string' ? i.createdAt : '',
+        sentAt: typeof i.sentAt === 'string' ? i.sentAt : undefined,
+      }))
+      queueItems = [...sendRows, ...mmRows]
     } catch (err) {
       console.error('Failed to load outbox queue:', err)
       queueError = $_('viewer.failedToLoadMessages')
@@ -201,6 +270,7 @@
   function queueStatusLabel(status: string): string {
     switch (status) {
       case 'queued': return $_('messageList.outboxStatusQueued')
+      case 'pending': return $_('messageList.outboxStatusQueued')
       case 'sending': return $_('messageList.outboxStatusSending')
       case 'sent': return $_('messageList.outboxStatusSent')
       case 'failed': return $_('messageList.outboxStatusFailed')
@@ -236,6 +306,36 @@
       await loadQueue()
     } catch (err) {
       console.error('Cancel queued item failed:', err)
+      toasts.error((err as Error)?.message ?? String(err))
+    } finally {
+      queueActionBusy = ''
+    }
+  }
+
+  // Undo Send: cancel a normal send still in its undo window and
+  // reopen the composer with the draft (the parent owns that flow).
+  async function undoSendQueueItem(item: OutboxRow) {
+    if (!item.draftId) return
+    queueActionBusy = `undo-${item.id}`
+    try {
+      await onUndoSend?.(item.id, item.draftId, item.accountId)
+      await loadQueue()
+    } catch (err) {
+      console.error('Undo queued send failed:', err)
+      toasts.error((err as Error)?.message ?? String(err))
+    } finally {
+      queueActionBusy = ''
+    }
+  }
+
+  // Retry a failed normal send now (fresh attempt budget, due at once).
+  async function retrySendQueueItem(id: string) {
+    queueActionBusy = `retry-${id}`
+    try {
+      await RetrySendQueueItem(id)
+      await loadQueue()
+    } catch (err) {
+      console.error('Retry queued send failed:', err)
       toasts.error((err as Error)?.message ?? String(err))
     } finally {
       queueActionBusy = ''
@@ -539,6 +639,12 @@
       if (isOutboxView) void loadQueue()
     })
 
+    // Outbox: reload when the Undo Send worker reports a change
+    // (queued, sent, failed, undone).
+    EventsOn('sendqueue:updated', () => {
+      if (isOutboxView) void loadQueue()
+    })
+
     // Category tab default (Phase E): the user's Settings → Categories
     // pick, "all" unless they chose otherwise. If it differs from the
     // "all" the first load already used, reload under the right tab.
@@ -579,6 +685,7 @@
     EventsOff('messages:readChanged')
     EventsOff('categories:changed')
     EventsOff('mailmerge:queue-updated')
+    EventsOff('sendqueue:updated')
     EventsOff('fts:progress')
     EventsOff('fts:complete')
     EventsOff('fts:indexing')
@@ -2203,7 +2310,7 @@
         <Button
           size="sm"
           variant="outline"
-          disabled={queueActionBusy !== '' || waitingQueueItems.length === 0}
+          disabled={queueActionBusy !== '' || waitingMailMergeItems.length === 0}
           onclick={sendUnsentNow}
         >
           <Icon icon="mdi:send" class="w-4 h-4 mr-1.5" />
@@ -2503,6 +2610,9 @@
                   <p class="truncate">From: {item.fromAddress}</p>
                   <p class="break-words">To: {item.to.join(', ')}</p>
                   <p>{$_('messageList.outboxAttempts', { values: { attempts: item.attempts, max: item.maxAttempts } })}</p>
+                  {#if item.kind === 'send' && item.status === 'pending' && item.sendAt}
+                    <p>{$_('messageList.outboxSendAt', { values: { time: formatQueueTime(item.sendAt) } })}</p>
+                  {/if}
                   {#if item.status === 'queued' && item.nextAttemptAt}
                     <p>{$_('messageList.outboxNextAttempt', { values: { time: formatQueueTime(item.nextAttemptAt) } })}</p>
                   {/if}
@@ -2511,6 +2621,30 @@
                   {/if}
                   {#if item.lastError}
                     <p class="text-destructive break-words">{$_('messageList.outboxLastError', { values: { error: item.lastError } })}</p>
+                  {/if}
+                  {#if item.kind === 'send' && item.status === 'pending'}
+                    <div class="pt-1 flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={queueActionBusy !== ''}
+                        onclick={() => undoSendQueueItem(item)}
+                      >
+                        {$_('messageList.outboxUndo')}
+                      </Button>
+                    </div>
+                  {/if}
+                  {#if item.kind === 'send' && item.status === 'failed'}
+                    <div class="pt-1 flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={queueActionBusy !== ''}
+                        onclick={() => retrySendQueueItem(item.id)}
+                      >
+                        {$_('messageList.outboxRetry')}
+                      </Button>
+                    </div>
                   {/if}
                   {#if item.status === 'queued'}
                     <div class="pt-1">

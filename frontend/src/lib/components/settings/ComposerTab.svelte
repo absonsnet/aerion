@@ -16,12 +16,14 @@
     mailtoMode: string
     composerFormat: string
     readReceiptResponsePolicy: string
+    undoSendDelay: number
     spellcheckEnabled: boolean
     spellcheckLanguages: string[]
     onComposerModeChange: (value: string) => void
     onMailtoModeChange: (value: string) => void
     onFormatChange: (value: string) => void
     onPolicyChange: (value: string) => void
+    onUndoSendDelayChange: (value: number) => void
     onSpellcheckEnabledChange: (value: boolean) => void
     onSpellcheckLanguagesChange: (value: string[]) => void
   }
@@ -31,12 +33,14 @@
     mailtoMode = $bindable(),
     composerFormat = $bindable(),
     readReceiptResponsePolicy = $bindable(),
+    undoSendDelay = $bindable(),
     spellcheckEnabled = $bindable(),
     spellcheckLanguages = $bindable(),
     onComposerModeChange,
     onMailtoModeChange,
     onFormatChange,
     onPolicyChange,
+    onUndoSendDelayChange,
     onSpellcheckEnabledChange,
     onSpellcheckLanguagesChange,
   }: Props = $props()
@@ -66,6 +70,26 @@
     { value: 'ask', label: $_('settingsGeneral.askEachTime') },
     { value: 'always', label: $_('settingsGeneral.alwaysSendReceipts') },
   ])
+
+  // Select values are strings; the handler converts back to seconds.
+  const undoSendDelayOptions = [
+    { value: '5', label: $_('settings.undoSendDelay5') },
+    { value: '10', label: $_('settings.undoSendDelay10') },
+    { value: '20', label: $_('settings.undoSendDelay20') },
+    { value: '30', label: $_('settings.undoSendDelay30') },
+  ]
+
+  function getUndoSendDelayLabel(value: number): string {
+    return undoSendDelayOptions.find(o => o.value === String(value))?.label ?? String(value)
+  }
+
+  function handleUndoSendDelayChange(value: string | undefined) {
+    if (!value) return
+    const seconds = Number(value)
+    if (![5, 10, 20, 30].includes(seconds)) return
+    undoSendDelay = seconds
+    onUndoSendDelayChange?.(seconds)
+  }
 
   function getModeLabel(mode: string): string {
     return modeOptions.find(o => o.value === mode)?.label ?? mode
@@ -173,6 +197,25 @@
     </Select.Root>
     <p class="text-xs text-muted-foreground">
       {$_('settings.composerFormatDescription')}
+    </p>
+  </div>
+
+  <div class="space-y-2">
+    <Label>{$_('settings.undoSendDelay')}</Label>
+    <Select.Root value={String(undoSendDelay)} onValueChange={handleUndoSendDelayChange}>
+      <Select.Trigger>
+        <Select.Value placeholder={$_('settings.undoSendDelay')}>
+          {getUndoSendDelayLabel(undoSendDelay)}
+        </Select.Value>
+      </Select.Trigger>
+      <Select.Content>
+        {#each undoSendDelayOptions as opt (opt.value)}
+          <Select.Item value={opt.value} label={opt.label} />
+        {/each}
+      </Select.Content>
+    </Select.Root>
+    <p class="text-xs text-muted-foreground">
+      {$_('settings.undoSendDelayDescription')}
     </p>
   </div>
 

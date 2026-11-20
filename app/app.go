@@ -288,6 +288,10 @@ type App struct {
 	// Shared draft operations (used by both App and ComposerApp)
 	draftOps draftOps
 
+	// Undo Send: background send + persistent Outbox (main process
+	// only runs the worker; see app/sendqueue.go).
+	sendQueue *sendQueueService
+
 	// Shared compose operations (used by both App and ComposerApp)
 	composeOps composeOps
 
@@ -819,6 +823,15 @@ func (a *App) Startup(ctx context.Context) {
 		pgpEncryptor:   a.pgpEncryptor,
 		draftOps:       &a.draftOps,
 	}
+
+	// Undo Send: build the queue service now that composeOps exists,
+	// and start its worker. MAIN PROCESS ONLY — the detached composer
+	// shares this queue and must never start a second worker (see
+	// app/sendqueue.go). The worker's first tick is immediate, so
+	// messages queued while the app was closed (quit mid-countdown)
+	// start sending on launch.
+	a.sendQueue = a.newSendQueueService()
+	a.sendQueue.StartWorker()
 
 	// Initialize Google Contacts client for OAuth account contact search
 	a.googleContactsClient = contact.NewGoogleContactsClient()
