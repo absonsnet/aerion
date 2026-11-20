@@ -60,14 +60,13 @@
       </div>
 
       <div class="space-y-4 max-h-[60vh] overflow-y-auto text-sm">
-        <p>🚀 Welcome to {APP_NAME} v0.7.24!</p>
+        <p>🚀 Welcome to {APP_NAME} v0.7.25!</p>
 
-        <p>v0.7.24 fixes the Mac background-mode crash and puts the version in every download filename. Here are the highlights of the release:</p>
+        <p>v0.7.25 fixes the Mac menu-bar icon: left-click now shows the tray menu instead of crashing the app. Here are the highlights of the release:</p>
 
         <ul class="list-disc pl-6 space-y-1">
-          <li>🖥️ Mac: Daak no longer crashes on launch with Run in Background on — the tray icon is now created on the main thread, and if the tray ever fails to start the window is shown instead of starting hidden</li>
-          <li>🔁 Second launch: launching Daak again while it is still starting up now reliably brings the window forward instead of silently doing nothing</li>
-          <li>🏷️ Downloads: the macOS DMGs, Windows installers and Linux tarballs now carry the version in their names, like the Flatpak builds already did</li>
+          <li>🖱️ Mac: left-clicking the menu-bar icon now opens the tray menu, like right-click already did — double-clicking it used to crash the app</li>
+          <li>🪟 Mac: showing the window from the tray or a second launch now runs on the main thread, and a show of an already-visible window just focuses it instead</li>
         </ul>
 
         <p>🏷 See the full change log here:</p>

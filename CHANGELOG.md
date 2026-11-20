@@ -1,5 +1,11 @@
 # CHANGELOG
 
+**v0.7.25 - 20-11-2026**
+---
+
+- Mac: left-clicking the menu-bar icon now shows the tray menu, as it should — double-clicking it crashed the app with a segfault in the run loop right after showing the window, so the double-click-to-open behaviour is gone on macOS (right-click already showed the menu). Windows and Linux keep double-click to open the window
+- Mac: showing the window from the tray menu or a second launch now runs on the main thread, and a show of an already-visible window skips the native call and just focuses the window instead
+
 **v0.7.24 - 20-11-2026**
 ---
 

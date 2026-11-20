@@ -375,6 +375,14 @@
   </provides>
 
   <releases>
+    <release version="0.7.25" date="2026-11-20">
+      <description>
+        <ul>
+          <li>Mac: left-clicking the menu-bar icon now shows the tray menu; double-clicking it no longer crashes the app</li>
+          <li>Mac: showing the window from the tray or a second launch now runs on the main thread and skips the native show when the window is already visible</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.7.24" date="2026-11-20">
       <description>
         <ul>
