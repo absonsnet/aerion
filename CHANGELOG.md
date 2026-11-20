@@ -1,5 +1,10 @@
 # CHANGELOG
 
+**v0.7.21 - 20-11-2026**
+---
+
+- System tray: the right-click menu now has Compose new message, Check mail now and Settings alongside Open Daak and Quit Daak (separator before Settings). Compose and Settings show the window first, then open the composer / Settings dialog; Check mail now syncs all accounts in the background without opening the window. No unread count shown; the tray still appears only when Run in Background is on
+
 **v0.7.20 - 20-11-2026**
 ---
 

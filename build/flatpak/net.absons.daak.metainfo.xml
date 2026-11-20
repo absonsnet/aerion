@@ -375,6 +375,13 @@
   </provides>
 
   <releases>
+    <release version="0.7.21" date="2026-11-20">
+      <description>
+        <ul>
+          <li>System tray: the right-click menu now has Compose new message, Check mail now and Settings alongside Open Daak and Quit Daak; Compose and Settings show the window first, Check mail now syncs in the background</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.7.20" date="2026-11-20">
       <description>
         <ul>
