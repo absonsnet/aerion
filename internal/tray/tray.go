@@ -145,14 +145,14 @@ func (t *Tray) Start(iconICO, iconPNG []byte, onShow, onQuit, onCompose, onCheck
 		// library shows the menu itself on left-click (systray's darwin
 		// code calls show_menu when no tap handler is set) — which is
 		// also the macOS menu-bar convention. A double-click handler
-		// here crashed the app (v0.7.25, SIGSEGV in the run loop right
-		// after "Showing window"): the tap callback fired ShowWindow
-		// from inside AppKit event dispatch and the show of an
-		// already-visible window segfaulted. Windows/Linux keep the
-		// v0.7.19 behaviour: double left-click shows the window, a
-		// single left-click does nothing. The library has no
-		// double-click callback, so taps are paired by
-		// doubleClickDetector.
+		// here used to crash the app (v0.7.24): the tap callback fired
+		// ShowWindow from the main thread, and ShowWindow's
+		// "window:show" emit reached Wails ExecJS on the main thread,
+		// which over-releases its script string (see App.ShowWindow
+		// and docs/TRAY_AUDIT.md). Windows/Linux keep the v0.7.19
+		// behaviour: double left-click shows the window, a single
+		// left-click does nothing. The library has no double-click
+		// callback, so taps are paired by doubleClickDetector.
 		if runtime.GOOS != "darwin" {
 			detector := &doubleClickDetector{interval: doubleClickInterval, onDoubleClick: onShow}
 			systray.SetOnTapped(detector.tap)
