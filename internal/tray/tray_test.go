@@ -1,7 +1,6 @@
 package tray
 
 import (
-	"runtime"
 	"testing"
 	"time"
 )
@@ -35,20 +34,6 @@ func TestDoubleClickDetector(t *testing.T) {
 	d2.tap()
 	if calls != 1 {
 		t.Fatalf("slow taps: got %d calls, want 1", calls)
-	}
-}
-
-// OnMainThread runs the function directly outside macOS.
-func TestOnMainThreadNonDarwin(t *testing.T) {
-	if runtime.GOOS == "darwin" {
-		t.Skip("darwin dispatches to the main thread; not testable here")
-	}
-	called := false
-	if !OnMainThread(func() { called = true }, time.Second) {
-		t.Fatal("OnMainThread returned false")
-	}
-	if !called {
-		t.Fatal("OnMainThread did not run fn")
 	}
 }
 

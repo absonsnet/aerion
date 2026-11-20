@@ -1158,56 +1158,51 @@ func (a *App) HandleSingleInstanceCommand(data string) {
 }
 
 // ShowWindow brings the window to the foreground from hidden/minimized state.
-// Used by single-instance activation, notification clicks, etc.
+// Used by single-instance activation, notification clicks, tray menu items, etc.
 //
-// Tray callbacks, single-instance activation and notification clicks
-// invoke this from worker goroutines. On macOS the whole show runs on the
-// main thread: a show issued from inside AppKit event dispatch (the
-// tray's double-click path) segfaulted in the run loop (v0.7.25). On
-// other platforms OnMainThread runs fn directly. A timeout only means
-// this call does not wait for the show — a late dispatch still shows the
-// window afterwards.
+// Safe to call from any goroutine on every platform: Wails dispatches the
+// native calls itself (darwin: ON_MAIN_THREAD dispatch_async; windows:
+// Invoke to the UI thread; linux: ExecuteOnMainThread to the GTK main
+// thread), so this must NOT add its own main-thread dispatch.
+//
+// v0.7.25 got this wrong and it crashed: it dispatched the whole show to
+// the macOS main thread and skipped the native show when the window was
+// already visible — yet "Open Daak" still segfaulted at the same libobjc
+// PC. The native show was never the crasher. The crasher is the
+// "window:show" event: EventsEmit -> Wails ExecJS, whose C wrapper
+// (wails v2.16.0, Application.m) builds the script string with safeInit —
+// [NSString stringWithUTF8String:], autoreleased — and then releases it
+// explicitly inside the ON_MAIN_THREAD block. Called from the main thread
+// that is a double release: the run loop's autorelease pool drains and
+// messages the freed string, segfaulting in objc_msgSend (same PC in
+// both crashes, wild fault addresses). Called from a Go worker goroutine
+// there is no autorelease pool, so the explicit release simply balances
+// the creation and nothing ever messages the freed string — which is why
+// thousands of worker-thread emits in normal use never crash. So on
+// darwin the emit goes out on a fresh worker goroutine, never on the
+// main thread. The native show is issued unconditionally: a redundant
+// show of a visible window is a routine AppKit call, and the earlier
+// "already visible" guard only weakened bring-to-front (and left a
+// Cmd+H edge). windowHidden is maintained by Startup (the window is
+// created hidden), NotifyStartupComplete (cleared once the frontend
+// shows it), CloseWindow and ShowWindow itself; it is also read by
+// saveWindowGeometry and watchTerminationSignals.
 func (a *App) ShowWindow() {
 	log := logging.WithComponent("app")
 	log.Info().Msg("Showing window")
 
-	if !tray.OnMainThread(a.showWindowOnMainThread, 5*time.Second) {
-		log.Warn().Msg("Showing window: main thread dispatch timed out; the window may show late")
-	}
-}
-
-// showWindowOnMainThread is the body of ShowWindow; on macOS it runs on
-// the main thread (see ShowWindow).
-func (a *App) showWindowOnMainThread() {
-	log := logging.WithComponent("app")
-	if runtime.GOOS == "darwin" {
-		// Only issue the native calls the window actually needs. A
-		// redundant show of an already-visible window is what segfaulted
-		// (v0.7.25, immediately after "Showing window" in the log), so
-		// skip it: the window:show event below still focuses the window
-		// from the frontend. windowHidden is maintained by Startup (the
-		// window is created hidden), NotifyStartupComplete (cleared once
-		// the frontend shows it), CloseWindow and ShowWindow itself.
-		// Known edge: hiding the app with Cmd+H leaves the flag false,
-		// so Open Daak then only focuses the window; the Dock icon still
-		// brings it back.
-		switch {
-		case wailsRuntime.WindowIsMinimised(a.ctx):
-			wailsRuntime.WindowUnminimise(a.ctx)
-			wailsRuntime.WindowShow(a.ctx)
-		case a.windowHidden:
-			wailsRuntime.WindowShow(a.ctx)
-		default:
-			log.Info().Msg("Showing window: already visible, skipping native show")
-		}
-	} else {
-		wailsRuntime.WindowUnminimise(a.ctx)
-		wailsRuntime.WindowShow(a.ctx)
-	}
+	wailsRuntime.WindowUnminimise(a.ctx)
+	wailsRuntime.WindowShow(a.ctx)
 	a.windowHidden = false
 
-	// Emit event so frontend can also attempt to focus
-	wailsRuntime.EventsEmit(a.ctx, "window:show")
+	// Emit event so the frontend can also attempt to focus. On macOS
+	// this must run on a worker goroutine, never the main thread (see
+	// above); on other platforms the emit is direct.
+	if runtime.GOOS == "darwin" {
+		go wailsRuntime.EventsEmit(a.ctx, "window:show")
+	} else {
+		wailsRuntime.EventsEmit(a.ctx, "window:show")
+	}
 }
 
 // CloseWindow handles the window close button click.
