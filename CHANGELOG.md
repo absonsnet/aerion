@@ -1,5 +1,11 @@
 # CHANGELOG
 
+**v0.7.18 - 20-11-2026**
+---
+
+- Flatpak: the Flatpak packages are back — v0.7.17 shipped without them because the vendored Go module list hadn't been regenerated after the new system-tray dependency was added, so the Flatpak build failed
+- Also in this release (from v0.7.17, for Flatpak users who never got it): reinstalling on Windows while Daak is running now asks the running app to quit gracefully instead of failing instantly with a locked-file error, and Daak shows a tray icon whenever Run in Background is on
+
 **v0.7.17 - 20-11-2026**
 ---
 
