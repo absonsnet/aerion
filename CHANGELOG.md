@@ -1,5 +1,12 @@
 # CHANGELOG
 
+**v0.7.23 - 20-11-2026**
+---
+
+- Mac: fixed a crash on launch when Run in Background was on — the system tray was started from a background thread, and macOS requires the menu-bar icon to be created on the main thread, so the app aborted during startup before the window appeared. The tray now starts on the main thread, and if it ever fails to start the window is shown instead of starting hidden, so a saved setting can never leave the app unopenable again
+- Single-instance: launching Daak again while it was still starting up could silently drop the "show" command, leaving no window; the activation callback is now registered before startup and a show arriving early is remembered and honoured once startup completes
+- Release files: the macOS DMGs, Windows installers and Linux tarballs now carry the version in their filenames (e.g. Daak-v0.7.23-MacOS-intel.dmg), matching the Flatpak and Linux shim names
+
 **v0.7.22 - 20-11-2026**
 ---
 

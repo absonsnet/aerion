@@ -60,14 +60,14 @@
       </div>
 
       <div class="space-y-4 max-h-[60vh] overflow-y-auto text-sm">
-        <p>🚀 Welcome to {APP_NAME} v0.7.22!</p>
+        <p>🚀 Welcome to {APP_NAME} v0.7.23!</p>
 
-        <p>v0.7.22 remembers your window state and sends mail in the background with Undo Send. Here are the highlights of the release:</p>
+        <p>v0.7.23 fixes the Mac background-mode crash and puts the version in every download filename. Here are the highlights of the release:</p>
 
         <ul class="list-disc pl-6 space-y-1">
-          <li>🪟 Window: Daak reopens maximized if it was maximized when you closed it (and restored if it was restored) — no more maximizing it every launch</li>
-          <li>✉️ Undo Send: clicking Send closes the composer and holds the message in the Outbox for 5 seconds (changeable in Settings → Composer) with a countdown and an Undo button — Undo puts it back in Drafts and reopens the composer. Every send waits out that window, since a sent message cannot be recalled</li>
-          <li>📤 Outbox: messages being sent are visible in the local Outbox until sent; failed sends stay there with a Retry option</li>
+          <li>🖥️ Mac: Daak no longer crashes on launch with Run in Background on — the tray icon is now created on the main thread, and if the tray ever fails to start the window is shown instead of starting hidden</li>
+          <li>🔁 Second launch: launching Daak again while it is still starting up now reliably brings the window forward instead of silently doing nothing</li>
+          <li>🏷️ Downloads: the macOS DMGs, Windows installers and Linux tarballs now carry the version in their names, like the Flatpak builds already did</li>
         </ul>
 
         <p>🏷 See the full change log here:</p>

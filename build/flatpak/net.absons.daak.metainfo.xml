@@ -375,6 +375,15 @@
   </provides>
 
   <releases>
+    <release version="0.7.23" date="2026-11-20">
+      <description>
+        <ul>
+          <li>Mac: fixed a crash on launch when Run in Background was on — the tray icon is now created on the main thread, and a failed tray start never leaves the app hidden</li>
+          <li>Single-instance: a second launch during startup no longer loses its "show" command</li>
+          <li>Release files: DMGs, Windows installers and Linux tarballs now carry the version in their filenames</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.7.22" date="2026-11-20">
       <description>
         <ul>
