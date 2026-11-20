@@ -552,6 +552,12 @@ var shuttingDown bool
 
 // Startup is called when the app starts
 func (a *App) Startup(ctx context.Context) {
+	// The window is created hidden (main.go always passes StartHidden,
+	// and the frontend shows it once ready), so record that: ShowWindow's
+	// macOS guard relies on this flag to know a show is needed, and it
+	// must not start out false while the window is still hidden.
+	a.windowHidden = true
+
 	// Guarded by showMu: the single-instance callback (registered in
 	// runMainMode, before wails.Run) reads ctx to decide whether a "show"
 	// can be honoured yet or must be remembered for later.
@@ -1023,6 +1029,11 @@ func (a *App) NotifyStartupComplete() {
 	if a.appStateStore == nil || a.GetStartHiddenActive() {
 		return
 	}
+	// The frontend has shown the window by now (App.svelte calls
+	// WindowShow before this), so a later ShowWindow knows the window is
+	// already visible. When start-hidden is active we return above and
+	// the flag stays true.
+	a.windowHidden = false
 	if geo, ok := a.appStateStore.GetWindowGeometry(); ok {
 		a.lastWindowMaximized = geo.Maximized
 		a.lastWindowMaximizedKnown = true
@@ -1148,12 +1159,51 @@ func (a *App) HandleSingleInstanceCommand(data string) {
 
 // ShowWindow brings the window to the foreground from hidden/minimized state.
 // Used by single-instance activation, notification clicks, etc.
+//
+// Tray callbacks, single-instance activation and notification clicks
+// invoke this from worker goroutines. On macOS the whole show runs on the
+// main thread: a show issued from inside AppKit event dispatch (the
+// tray's double-click path) segfaulted in the run loop (v0.7.25). On
+// other platforms OnMainThread runs fn directly. A timeout only means
+// this call does not wait for the show — a late dispatch still shows the
+// window afterwards.
 func (a *App) ShowWindow() {
 	log := logging.WithComponent("app")
 	log.Info().Msg("Showing window")
 
-	wailsRuntime.WindowUnminimise(a.ctx)
-	wailsRuntime.WindowShow(a.ctx)
+	if !tray.OnMainThread(a.showWindowOnMainThread, 5*time.Second) {
+		log.Warn().Msg("Showing window: main thread dispatch timed out; the window may show late")
+	}
+}
+
+// showWindowOnMainThread is the body of ShowWindow; on macOS it runs on
+// the main thread (see ShowWindow).
+func (a *App) showWindowOnMainThread() {
+	log := logging.WithComponent("app")
+	if runtime.GOOS == "darwin" {
+		// Only issue the native calls the window actually needs. A
+		// redundant show of an already-visible window is what segfaulted
+		// (v0.7.25, immediately after "Showing window" in the log), so
+		// skip it: the window:show event below still focuses the window
+		// from the frontend. windowHidden is maintained by Startup (the
+		// window is created hidden), NotifyStartupComplete (cleared once
+		// the frontend shows it), CloseWindow and ShowWindow itself.
+		// Known edge: hiding the app with Cmd+H leaves the flag false,
+		// so Open Daak then only focuses the window; the Dock icon still
+		// brings it back.
+		switch {
+		case wailsRuntime.WindowIsMinimised(a.ctx):
+			wailsRuntime.WindowUnminimise(a.ctx)
+			wailsRuntime.WindowShow(a.ctx)
+		case a.windowHidden:
+			wailsRuntime.WindowShow(a.ctx)
+		default:
+			log.Info().Msg("Showing window: already visible, skipping native show")
+		}
+	} else {
+		wailsRuntime.WindowUnminimise(a.ctx)
+		wailsRuntime.WindowShow(a.ctx)
+	}
 	a.windowHidden = false
 
 	// Emit event so frontend can also attempt to focus

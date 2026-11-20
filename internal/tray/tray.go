@@ -3,8 +3,8 @@
 // The icon is shown whenever "Run in background" is on — including
 // start-hidden launches — so a window hidden with CloseWindow or
 // BeforeClose can always be reopened from the tray. Interaction:
-//   - Double left-click shows the window; a single left-click does
-//     nothing.
+//   - Left-click opens the menu on macOS; on Windows/Linux a double
+//     left-click shows the window and a single left-click does nothing.
 //   - Right-click opens the menu, in order: Open Daak (show the
 //     window), Compose new message (show the window, then open the
 //     composer), Check mail now (sync all accounts in the background,
@@ -85,11 +85,12 @@ func New() *Tray {
 // Start shows the tray icon. It is idempotent: later calls are no-ops.
 // iconICO is the Windows .ico bytes, iconPNG the PNG bytes used on
 // macOS/Linux; either may be empty, in which case the library's default
-// icon is used. onShow shows the window (double left-click or Open
-// Daak); onQuit quits the app for real (Quit Daak); onCompose opens a
-// new message (Compose new message); onCheckMail syncs all accounts in
-// the background (Check mail now); onSettings opens the Settings dialog
-// (Settings). A single left-click does nothing.
+// icon is used. onShow shows the window (double left-click on
+// Windows/Linux, or Open Daak); onQuit quits the app for real (Quit
+// Daak); onCompose opens a new message (Compose new message); onCheckMail
+// syncs all accounts in the background (Check mail now); onSettings opens
+// the Settings dialog (Settings). A single left-click does nothing on
+// Windows/Linux; on macOS a left-click shows the menu.
 //
 // It returns false when the tray could not be started — the caller must
 // treat that as "no tray" and never leave the window hidden without one
@@ -140,11 +141,22 @@ func (t *Tray) Start(iconICO, iconPNG []byte, onShow, onQuit, onCompose, onCheck
 			systray.SetIcon(icon)
 		}
 		systray.SetTooltip("Daak")
-		// Double left-click shows the window; a single left-click does
-		// nothing. The library has no double-click callback, so taps
-		// are paired by doubleClickDetector.
-		detector := &doubleClickDetector{interval: doubleClickInterval, onDoubleClick: onShow}
-		systray.SetOnTapped(detector.tap)
+		// Left-click: on macOS no tap handler is registered, so the
+		// library shows the menu itself on left-click (systray's darwin
+		// code calls show_menu when no tap handler is set) — which is
+		// also the macOS menu-bar convention. A double-click handler
+		// here crashed the app (v0.7.25, SIGSEGV in the run loop right
+		// after "Showing window"): the tap callback fired ShowWindow
+		// from inside AppKit event dispatch and the show of an
+		// already-visible window segfaulted. Windows/Linux keep the
+		// v0.7.19 behaviour: double left-click shows the window, a
+		// single left-click does nothing. The library has no
+		// double-click callback, so taps are paired by
+		// doubleClickDetector.
+		if runtime.GOOS != "darwin" {
+			detector := &doubleClickDetector{interval: doubleClickInterval, onDoubleClick: onShow}
+			systray.SetOnTapped(detector.tap)
+		}
 		// No SetOnSecondaryTapped: with no right-click handler the
 		// library shows the menu itself on right-click (Windows and
 		// macOS; on Linux the tray host renders the exported menu).
