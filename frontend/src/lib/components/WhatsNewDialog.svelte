@@ -60,9 +60,9 @@
       </div>
 
       <div class="space-y-4 max-h-[60vh] overflow-y-auto text-sm">
-        <p>🚀 Welcome to {APP_NAME} v0.7.23!</p>
+        <p>🚀 Welcome to {APP_NAME} v0.7.24!</p>
 
-        <p>v0.7.23 fixes the Mac background-mode crash and puts the version in every download filename. Here are the highlights of the release:</p>
+        <p>v0.7.24 fixes the Mac background-mode crash and puts the version in every download filename. Here are the highlights of the release:</p>
 
         <ul class="list-disc pl-6 space-y-1">
           <li>🖥️ Mac: Daak no longer crashes on launch with Run in Background on — the tray icon is now created on the main thread, and if the tray ever fails to start the window is shown instead of starting hidden</li>
