@@ -378,12 +378,23 @@ type App struct {
 	lastWindowMaximized      bool
 	lastWindowMaximizedKnown bool
 
+	// pendingShow remembers a single-instance "show" command that arrived
+	// before Startup set the runtime context (see
+	// HandleSingleInstanceCommand). showMu guards it: the lock's
+	// accept-loop goroutine and Startup race on it.
+	showMu      goSync.Mutex
+	pendingShow bool
+
 	// System tray icon (shown whenever Run in Background is on, so a
 	// hidden window can be reopened). Icon bytes set by main before
 	// wails.Run; the Tray itself is created by NewApp.
 	TrayIconICO []byte // Windows .ico bytes
 	TrayIconPNG []byte // PNG bytes for macOS/Linux
 	tray        *tray.Tray
+	// trayStarted reports whether the tray icon is actually up this
+	// session. GetStartHiddenActive consults it: starting hidden with
+	// no tray icon would leave a hidden window with no way back.
+	trayStarted bool
 
 	// Paths the user chose in a save dialog this session; the post-save
 	// toast's Open file / Open folder actions may open them (#474).
@@ -541,7 +552,12 @@ var shuttingDown bool
 
 // Startup is called when the app starts
 func (a *App) Startup(ctx context.Context) {
+	// Guarded by showMu: the single-instance callback (registered in
+	// runMainMode, before wails.Run) reads ctx to decide whether a "show"
+	// can be honoured yet or must be remembered for later.
+	a.showMu.Lock()
 	a.ctx = ctx
+	a.showMu.Unlock()
 
 	// Quit cleanly on SIGTERM/SIGINT/SIGHUP even in background mode (#460).
 	a.watchTerminationSignals()
@@ -550,18 +566,10 @@ func (a *App) Startup(ctx context.Context) {
 	// or uninstall, even in background mode. No-op outside Windows.
 	platform.StartQuitEventWatcher(a.QuitApp)
 
-	// Set single-instance onShow callback immediately — must happen before any
-	// potentially-blocking D-Bus calls (theme monitor, sleep/wake, network)
-	// that could delay the rest of Startup.
-	if a.SingleInstanceLock != nil {
-		a.SingleInstanceLock.SetOnShow(func(data string) {
-			if strings.HasPrefix(data, "mailto:") {
-				a.handleExternalMailto(data)
-				return
-			}
-			a.ShowWindow()
-		})
-	}
+	// Single-instance activation is registered in runMainMode, before
+	// wails.Run (see HandleSingleInstanceCommand) — the lock accepts from
+	// the moment TryLock succeeds, so registering here was too late: a
+	// second launch during startup had its "show" silently dropped.
 
 	// Logging, paths, db open, migrations, and credential store are all
 	// initialized in Preflight (called from main.go before wails.Run). By
@@ -591,6 +599,19 @@ func (a *App) Startup(ctx context.Context) {
 	// wails.Run options in main.go; position can only be set post-creation).
 	// The window is still hidden at this point, so no visible jump.
 	a.restoreWindowPosition()
+
+	// A second instance may have asked us to show the window while we
+	// were still starting up (see HandleSingleInstanceCommand). Honour it
+	// now that the context exists and the window position is restored.
+	// (If start-hidden is active the frontend may hide the window again
+	// at mount — the tray icon remains the way back in that case.)
+	a.showMu.Lock()
+	pending := a.pendingShow
+	a.pendingShow = false
+	a.showMu.Unlock()
+	if pending {
+		a.ShowWindow()
+	}
 
 	// Scale database connection pool based on number of accounts
 	a.updateDBConnectionPool()
@@ -1012,24 +1033,33 @@ func (a *App) NotifyStartupComplete() {
 }
 
 // startTrayIfBackground shows the system tray icon when Run in
-// Background is on. Idempotent: starting twice is a no-op.
-func (a *App) startTrayIfBackground() {
+// Background is on. Idempotent: starting twice is a no-op. It returns
+// false when the tray is not up — the caller (GetStartHiddenActive)
+// must then not start hidden, or the user is left with a hidden window
+// and no way back.
+func (a *App) startTrayIfBackground() bool {
 	if a.settingsStore == nil {
-		return
+		return false
 	}
 	runBg, _ := a.settingsStore.GetRunBackground()
 	if !runBg {
-		return
+		return false
 	}
-	a.startTray()
+	return a.startTray()
 }
 
 // startTray shows the system tray icon (once per session).
-func (a *App) startTray() {
+func (a *App) startTray() bool {
 	if a.tray == nil {
-		return
+		return false
 	}
-	a.tray.Start(a.TrayIconICO, a.TrayIconPNG, a.ShowWindow, a.QuitApp, a.trayCompose, a.trayCheckMail, a.trayOpenSettings)
+	ok := a.tray.Start(a.TrayIconICO, a.TrayIconPNG, a.ShowWindow, a.QuitApp, a.trayCompose, a.trayCheckMail, a.trayOpenSettings)
+	a.trayStarted = ok
+	if !ok {
+		log := logging.WithComponent("app")
+		log.Warn().Msg("System tray did not start; the window will stay visible so the app can always be reopened")
+	}
+	return ok
 }
 
 // trayCompose shows the window, then asks the frontend to open the
@@ -1071,6 +1101,49 @@ func (a *App) stopTray() {
 		return
 	}
 	a.tray.Stop()
+}
+
+// HandleSingleInstanceCommand is the single-instance activation callback
+// (darwin Unix socket, Windows named pipe, Linux socket — the locks share
+// the platform.SingleInstanceLock interface). "show" brings the window
+// forward; a "mailto:..." URL opens the composer.
+//
+// It is registered in runMainMode, before wails.Run — the lock starts
+// accepting the moment TryLock succeeds, and a second launch in the first
+// moments of startup used to have its command silently dropped because
+// SetOnShow was only registered in Startup (the lock drops the command
+// when no callback is set). That is what happened in the Nov 20 Terminal
+// log: a launch logged "Activated existing instance command=show" yet no
+// window appeared — the first instance was still starting up, and by the
+// time its Startup ran it was already aborting in tray startup.
+//
+// Commands that arrive before Startup has a runtime context are
+// remembered instead of dropped: a "show" is honoured once Startup sets
+// the context, and a mailto: URL is stashed in PendingMailto for the
+// frontend to pick up (the same field the command-line mailto path uses).
+func (a *App) HandleSingleInstanceCommand(data string) {
+	if strings.HasPrefix(data, "mailto:") {
+		a.showMu.Lock()
+		ready := a.ctx != nil && a.settingsStore != nil
+		a.showMu.Unlock()
+		if !ready {
+			if mailtoData := ParseMailtoURL(data); mailtoData != nil {
+				a.PendingMailto = mailtoData
+			}
+			return
+		}
+		a.handleExternalMailto(data)
+		return
+	}
+
+	a.showMu.Lock()
+	if a.ctx == nil {
+		a.pendingShow = true
+		a.showMu.Unlock()
+		return
+	}
+	a.showMu.Unlock()
+	a.ShowWindow()
 }
 
 // ShowWindow brings the window to the foreground from hidden/minimized state.
@@ -1137,14 +1210,21 @@ func (a *App) QuitApp() {
 }
 
 // GetStartHiddenActive returns true if the window should remain hidden on startup.
-// True when both start_hidden and run_background settings are enabled.
+// True when both start_hidden and run_background settings are enabled —
+// and the tray icon is actually up. If the tray could not be started,
+// starting hidden would leave a hidden window with no way back, so the
+// window is shown instead. (If Startup has not run yet, trayStarted is
+// false and this fails open the same way.)
 func (a *App) GetStartHiddenActive() bool {
 	startHidden, _ := a.settingsStore.GetStartHidden()
 	if !startHidden {
 		return false
 	}
 	runBg, _ := a.settingsStore.GetRunBackground()
-	return runBg
+	if !runBg {
+		return false
+	}
+	return a.trayStarted
 }
 
 // InitiateShutdown triggers the application quit (called from frontend)

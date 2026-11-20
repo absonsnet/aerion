@@ -180,6 +180,14 @@ func runMainMode(mailtoData *app.MailtoData, rawMailtoArg string) {
 	// Create an instance of the app structure
 	application := app.NewApp(*dbusNotify)
 	application.SingleInstanceLock = lock
+	// Register single-instance activation before wails.Run: the lock
+	// starts accepting the moment TryLock succeeds, so a second launch
+	// during startup must not have its "show" dropped. The callback is
+	// context-independent — commands arriving before Startup are
+	// remembered and honoured once the context exists.
+	if lock != nil {
+		lock.SetOnShow(application.HandleSingleInstanceCommand)
+	}
 	application.TrayIconICO = trayIconICO
 	application.TrayIconPNG = trayIconPNG
 
