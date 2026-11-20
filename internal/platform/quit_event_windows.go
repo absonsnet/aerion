@@ -43,7 +43,12 @@ func StartQuitEventWatcher(onQuit func()) {
 
 	go func() {
 		_, _ = windows.WaitForSingleObject(handle, windows.INFINITE)
-		windows.CloseHandle(handle)
+		// Deliberately do NOT close the handle here. The installer uses
+		// the event's existence as "a Daak 0.7.11+ is running": it polls
+		// for the event while waiting for the app to exit, so the handle
+		// must stay open until the process itself exits (the OS then
+		// reclaims it). Closing it on signal would make the event vanish
+		// while the app is still shutting down.
 		log.Info().Msg("Quit event signalled by installer, shutting down")
 		onQuit()
 	}()
