@@ -5,8 +5,11 @@
 // BeforeClose can always be reopened from the tray. Interaction:
 //   - Double left-click shows the window; a single left-click does
 //     nothing.
-//   - Right-click opens the menu: Open Daak shows the window, Quit Daak
-//     quits for real.
+//   - Right-click opens the menu, in order: Open Daak (show the
+//     window), Compose new message (show the window, then open the
+//     composer), Check mail now (sync all accounts in the background,
+//     window stays as it is), Settings (show the window, then open
+//     the Settings dialog), Quit Daak (quit for real).
 //
 // It is built on fyne.io/systray via RunWithExternalLoop, the library's
 // embedding API, so the tray coexists with Wails' own main loop (on
@@ -83,9 +86,11 @@ func New() *Tray {
 // iconICO is the Windows .ico bytes, iconPNG the PNG bytes used on
 // macOS/Linux; either may be empty, in which case the library's default
 // icon is used. onShow shows the window (double left-click or Open
-// Daak); onQuit quits the app for real (Quit Daak). A single left-click
-// does nothing.
-func (t *Tray) Start(iconICO, iconPNG []byte, onShow, onQuit func()) {
+// Daak); onQuit quits the app for real (Quit Daak); onCompose opens a
+// new message (Compose new message); onCheckMail syncs all accounts in
+// the background (Check mail now); onSettings opens the Settings dialog
+// (Settings). A single left-click does nothing.
+func (t *Tray) Start(iconICO, iconPNG []byte, onShow, onQuit, onCompose, onCheckMail, onSettings func()) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	if t.started {
@@ -129,10 +134,29 @@ func (t *Tray) Start(iconICO, iconPNG []byte, onShow, onQuit func()) {
 		// Setting one would replace the menu with the handler.
 
 		openItem := systray.AddMenuItem("Open Daak", "Show the Daak window")
+		composeItem := systray.AddMenuItem("Compose new message", "Write a new message")
+		checkMailItem := systray.AddMenuItem("Check mail now", "Sync all accounts now")
+		systray.AddSeparator()
+		settingsItem := systray.AddMenuItem("Settings", "Open Daak settings")
 		quitItem := systray.AddMenuItem("Quit Daak", "Quit Daak")
 		go func() {
 			for range openItem.ClickedCh {
 				onShow()
+			}
+		}()
+		go func() {
+			for range composeItem.ClickedCh {
+				onCompose()
+			}
+		}()
+		go func() {
+			for range checkMailItem.ClickedCh {
+				onCheckMail()
+			}
+		}()
+		go func() {
+			for range settingsItem.ClickedCh {
+				onSettings()
 			}
 		}()
 		go func() {

@@ -992,7 +992,37 @@ func (a *App) startTray() {
 	if a.tray == nil {
 		return
 	}
-	a.tray.Start(a.TrayIconICO, a.TrayIconPNG, a.ShowWindow, a.QuitApp)
+	a.tray.Start(a.TrayIconICO, a.TrayIconPNG, a.ShowWindow, a.QuitApp, a.trayCompose, a.trayCheckMail, a.trayOpenSettings)
+}
+
+// trayCompose shows the window, then asks the frontend to open the
+// composer. ShowWindow runs first so the composer never opens into a
+// hidden window; the event itself is delivered by the same runtime,
+// so it lands after the show.
+func (a *App) trayCompose() {
+	a.ShowWindow()
+	wailsRuntime.EventsEmit(a.ctx, "tray:compose")
+}
+
+// trayCheckMail syncs all accounts in the background (the same complete
+// sync the refresh control runs). It runs on its own goroutine so a long
+// sync never blocks the tray menu, and it does not open the window —
+// new mail is visible when the user opens Daak.
+func (a *App) trayCheckMail() {
+	go func() {
+		defer recoverPanic("app", "tray-check-mail")
+		if err := a.SyncAllComplete(); err != nil {
+			log := logging.WithComponent("app")
+			log.Error().Err(err).Msg("Tray check mail failed")
+		}
+	}()
+}
+
+// trayOpenSettings shows the window, then asks the frontend to open the
+// Settings dialog. Same show-first ordering as trayCompose.
+func (a *App) trayOpenSettings() {
+	a.ShowWindow()
+	wailsRuntime.EventsEmit(a.ctx, "tray:settings")
 }
 
 // stopTray ends the tray loop. App shutdown only — turning background

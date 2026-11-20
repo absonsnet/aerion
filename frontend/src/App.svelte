@@ -572,6 +572,13 @@
       window.focus()
     })
 
+    // Tray menu: open the composer (the Go side shows the window first).
+    // handleCompose resolves the account and honours the detached
+    // composer mode, exactly like the Compose button does.
+    EventsOn('tray:compose', () => {
+      handleCompose()
+    })
+
     // Listen for shutdown event from backend (triggered by OS close signal)
     EventsOn('app:shutting-down', () => {
       isShuttingDown = true
