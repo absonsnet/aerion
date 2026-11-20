@@ -147,9 +147,9 @@ jobs:
           cp build/linux/icons/scalable/net.absons.daak.svg dist-package/icons/scalable/
 
           if [ "${{ matrix.arch }}" = "amd64" ]; then
-            tar czf daak-linux-amd64.tar.gz -C dist-package .
+            tar czf Daak-${{ github.ref_name }}-linux-amd64.tar.gz -C dist-package .
           elif [ "${{ matrix.arch }}" = "arm64" ]; then
-            tar czf daak-linux-arm64.tar.gz -C dist-package .
+            tar czf Daak-${{ github.ref_name }}-linux-arm64.tar.gz -C dist-package .
           fi
 
           rm -rf dist-package
@@ -184,7 +184,7 @@ jobs:
             --icon "Daak.app" 177 240 \
             --app-drop-link 482 240 \
             --background "build/macos/dmg-background.png" \
-            "build/bin/Daak-MacOS-intel.dmg" \
+            "build/bin/Daak-${{ github.ref_name }}-MacOS-intel.dmg" \
             "build/bin/Daak.app"
           rm -rf build/bin/Daak.app
           GOARCH=arm64 make build
@@ -196,7 +196,7 @@ jobs:
             --icon "Daak.app" 177 240 \
             --app-drop-link 482 240 \
             --background "build/macos/dmg-background.png" \
-            "build/bin/Daak-MacOS-silicon.dmg" \
+            "build/bin/Daak-${{ github.ref_name }}-MacOS-silicon.dmg" \
             "build/bin/Daak.app"
           rm -rf build/bin/Daak.app
 
@@ -215,7 +215,7 @@ jobs:
           Remove-Item build/bin/daak.exe
           $arch = "${{ matrix.arch }}"
           if ($arch -eq "amd64") { $arch = "x64" }
-          Move-Item build/bin/daak-${{ matrix.arch }}-installer.exe build/bin/Daak-windows-setup-$arch.exe
+          Move-Item build/bin/daak-${{ matrix.arch }}-installer.exe build/bin/Daak-${{ github.ref_name }}-windows-setup-$arch.exe
 
       - uses: actions/upload-artifact@v7
         with:
@@ -224,7 +224,7 @@ jobs:
             build/bin/daak-*
             build/bin/Daak-*
             build/bin/flathub-build-env-*
-            daak-*.tar.gz
+            Daak-*.tar.gz
           retention-days: 1
 
   publish:
