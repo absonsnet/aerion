@@ -375,6 +375,14 @@
   </provides>
 
   <releases>
+    <release version="0.7.22" date="2026-11-20">
+      <description>
+        <ul>
+          <li>Window: Daak now remembers whether it was maximized or restored, and reopens in that state</li>
+          <li>Send in background with Undo Send: Send closes the composer and queues the message in the Outbox with a 5-second undo window (changeable in Settings); Undo returns it to Drafts</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.7.21" date="2026-11-20">
       <description>
         <ul>

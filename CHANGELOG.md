@@ -1,5 +1,11 @@
 # CHANGELOG
 
+**v0.7.22 - 20-11-2026**
+---
+
+- Window: Daak now remembers whether it was maximized or restored when it closed, and reopens in that state. The saved state is also re-applied after the window is shown at startup, and quitting while the window is hidden or minimized no longer overwrites it
+- Send in background with Undo Send: clicking Send now closes the composer gracefully and queues the message in the local Outbox, where it waits for a short undo window (5 seconds by default, changeable in Settings → Composer, 5/10/20/30 seconds) with a countdown toast and an Undo button — Undo returns the message to Drafts and reopens the composer with it intact. When the countdown ends the message is sent in the background (slim progress at the bottom, then a small "Message sent" note with View message); failed sends stay in the Outbox with a Retry option. Note: every send is delayed by the undo window — that is what makes Undo possible, since a message cannot be recalled once it has actually been sent
+
 **v0.7.21 - 20-11-2026**
 ---
 

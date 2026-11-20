@@ -60,12 +60,14 @@
       </div>
 
       <div class="space-y-4 max-h-[60vh] overflow-y-auto text-sm">
-        <p>🚀 Welcome to {APP_NAME} v0.7.21!</p>
+        <p>🚀 Welcome to {APP_NAME} v0.7.22!</p>
 
-        <p>v0.7.21 fills out the system tray menu: Compose new message, Check mail now and Settings join Open Daak and Quit Daak. Here are the highlights of the release:</p>
+        <p>v0.7.22 remembers your window state and sends mail in the background with Undo Send. Here are the highlights of the release:</p>
 
         <ul class="list-disc pl-6 space-y-1">
-          <li>🔔 System tray: right-click now offers Compose new message, Check mail now and Settings. Compose and Settings show the window first, then open; Check mail now syncs all accounts in the background without opening the window</li>
+          <li>🪟 Window: Daak reopens maximized if it was maximized when you closed it (and restored if it was restored) — no more maximizing it every launch</li>
+          <li>✉️ Undo Send: clicking Send closes the composer and holds the message in the Outbox for 5 seconds (changeable in Settings → Composer) with a countdown and an Undo button — Undo puts it back in Drafts and reopens the composer. Every send waits out that window, since a sent message cannot be recalled</li>
+          <li>📤 Outbox: messages being sent are visible in the local Outbox until sent; failed sends stay there with a Retry option</li>
         </ul>
 
         <p>🏷 See the full change log here:</p>
