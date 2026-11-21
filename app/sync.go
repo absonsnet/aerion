@@ -158,7 +158,7 @@ func (a *App) SyncFolder(accountID, folderID string) error {
 			Str("folderID", folderID).
 			Int("unreadCount", folderObj.UnreadCount).
 			Msg("Emitting folders:countsChanged after sync")
-		wailsRuntime.EventsEmit(a.ctx, "folders:countsChanged", map[string]int{
+		a.emitFolderCountsChanged(map[string]int{
 			folderID: folderObj.UnreadCount,
 		})
 	}

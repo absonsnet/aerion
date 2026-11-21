@@ -2,7 +2,7 @@
 // Provides reactive state for application settings
 
 // @ts-ignore - wailsjs path
-import { GetMessageListDensity, GetMessageListSortOrder, GetThemeMode, GetShowTitleBar, GetRunBackground, GetStartHidden, GetAutostart, GetLanguage, GetComposerMode, GetMailtoMode, GetComposerFormat, GetNativeTitleBar, GetAlwaysLoadImages, GetDarkMailContent, GetDarkComposerBody, GetAccentBarUnread, GetAccentUnreadStyle, GetShowMessageListCircles, GetShowMessageListProfilePics, GetAlwaysShowMessageCheckbox, GetShowViewerCircles, GetShowMessagePreviewPane, GetMessageOpenMode, GetSpellcheckEnabled, GetSpellcheckLanguages, GetSpellcheckCustomWords, GetWindowControlsSide, GetCodeChipClickMode, GetAttentionEnabled, GetAttentionTypeEnabled, GetOtpClipboardClearSeconds } from '../../../wailsjs/go/app/App'
+import { GetMessageListDensity, GetMessageListSortOrder, GetThemeMode, GetShowTitleBar, GetShowUnreadBadge, GetRunBackground, GetStartHidden, GetAutostart, GetLanguage, GetComposerMode, GetMailtoMode, GetComposerFormat, GetNativeTitleBar, GetAlwaysLoadImages, GetDarkMailContent, GetDarkComposerBody, GetAccentBarUnread, GetAccentUnreadStyle, GetShowMessageListCircles, GetShowMessageListProfilePics, GetAlwaysShowMessageCheckbox, GetShowViewerCircles, GetShowMessagePreviewPane, GetMessageOpenMode, GetSpellcheckEnabled, GetSpellcheckLanguages, GetSpellcheckCustomWords, GetWindowControlsSide, GetCodeChipClickMode, GetAttentionEnabled, GetAttentionTypeEnabled, GetOtpClipboardClearSeconds } from '../../../wailsjs/go/app/App'
 import { setLocale as setI18nLocale, locale as i18nLocale } from '$lib/i18n'
 import { get } from 'svelte/store'
 import { loadDateFnsLocale, getDateFnsLocale } from '$lib/i18n/dateFnsLocale'
@@ -31,6 +31,7 @@ let messageListDensity = $state<MessageListDensity>('standard')
 let messageListSortOrder = $state<MessageListSortOrder>('newest')
 let themeMode = $state<ThemeMode>('system')
 let showTitleBar = $state<boolean>(true)
+let showUnreadBadge = $state<boolean>(true)
 let runBackground = $state<boolean>(false)
 let startHidden = $state<boolean>(false)
 let autostart = $state<boolean>(false)
@@ -81,6 +82,10 @@ export function getShowTitleBar(): boolean {
 
 export function getRunBackground(): boolean {
   return runBackground
+}
+
+export function getShowUnreadBadge(): boolean {
+  return showUnreadBadge
 }
 
 export function getStartHidden(): boolean {
@@ -233,6 +238,10 @@ export function setRunBackground(v: boolean) {
   runBackground = v
 }
 
+export function setShowUnreadBadge(v: boolean) {
+  showUnreadBadge = v
+}
+
 export function setStartHidden(v: boolean) {
   startHidden = v
 }
@@ -328,13 +337,14 @@ export function setMessageOpenMode(mode: MessageOpenMode) {
 // Load settings from backend (call on app startup)
 export async function loadSettings(): Promise<ThemeMode> {
   try {
-    const [density, sortOrder, theme, titleBar, runBg, startHid, autoSt, lang, compMode, mailMode, compFormat, nativeTB, alwaysImages, darkMail, darkComposer, accentBar, accentStyle, listCircles, listProfilePics, alwaysCheckbox, viewerCircles, scEnabled, scLangs, scWords, wcSide, previewPane, openMode, chipMode, attnEnabled, attnCode, attnFlight, attnPayment, attnDelivery, otpClearSecs] = await Promise.all([
+    const [density, sortOrder, theme, titleBar, runBg, startHid, showBadge, autoSt, lang, compMode, mailMode, compFormat, nativeTB, alwaysImages, darkMail, darkComposer, accentBar, accentStyle, listCircles, listProfilePics, alwaysCheckbox, viewerCircles, scEnabled, scLangs, scWords, wcSide, previewPane, openMode, chipMode, attnEnabled, attnCode, attnFlight, attnPayment, attnDelivery, otpClearSecs] = await Promise.all([
       GetMessageListDensity(),
       GetMessageListSortOrder(),
       GetThemeMode(),
       GetShowTitleBar(),
       GetRunBackground(),
       GetStartHidden(),
+      GetShowUnreadBadge(),
       GetAutostart(),
       GetLanguage(),
       GetComposerMode(),
@@ -370,6 +380,7 @@ export async function loadSettings(): Promise<ThemeMode> {
     showTitleBar = titleBar ?? true // Default to true
     runBackground = runBg ?? false
     startHidden = startHid ?? false
+    showUnreadBadge = showBadge ?? true
     autostart = autoSt ?? false
     composerMode = (compMode as ComposerMode) || 'inline'
     mailtoMode = (mailMode as ComposerMode) || 'inline'

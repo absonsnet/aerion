@@ -26,6 +26,7 @@ const (
 	KeyTermsAccepted              = "terms_accepted"
 	KeyRunBackground              = "run_background"
 	KeyStartHidden                = "start_hidden"
+	KeyShowUnreadBadge            = "show_unread_badge" // unread count badge on the Dock/taskbar icon and the tray icon (default on)
 	KeyAutostart                  = "autostart"
 	KeyLanguage                   = "language"
 	KeyComposerMode               = "composer_mode"
@@ -161,6 +162,9 @@ const DefaultMessageOpenMode = MessageOpenModeTab
 
 // DefaultShowMessagePreviewPane is the default preview-pane visibility
 const DefaultShowMessagePreviewPane = true
+
+// DefaultShowUnreadBadge is the default unread-badge visibility
+const DefaultShowUnreadBadge = true
 
 // Composer mode values
 const (
@@ -754,6 +758,29 @@ func (s *Store) SetRunBackground(enabled bool) error {
 		value = "true"
 	}
 	return s.Set(KeyRunBackground, value)
+}
+
+// GetShowUnreadBadge returns whether the unread count badge is shown on the
+// Dock/taskbar icon and the tray icon. Default: true.
+func (s *Store) GetShowUnreadBadge() (bool, error) {
+	value, err := s.Get(KeyShowUnreadBadge)
+	if err != nil {
+		return DefaultShowUnreadBadge, err
+	}
+	if value == "" {
+		return DefaultShowUnreadBadge, nil
+	}
+	return value == "true", nil
+}
+
+// SetShowUnreadBadge sets whether the unread count badge is shown on the
+// Dock/taskbar icon and the tray icon.
+func (s *Store) SetShowUnreadBadge(enabled bool) error {
+	value := "false"
+	if enabled {
+		value = "true"
+	}
+	return s.Set(KeyShowUnreadBadge, value)
 }
 
 // GetStartHidden returns whether Daak should start with the window hidden

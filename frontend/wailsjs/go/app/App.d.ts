@@ -432,6 +432,8 @@ export function GetShowMessagePreviewPane():Promise<boolean>;
 
 export function GetShowTitleBar():Promise<boolean>;
 
+export function GetShowUnreadBadge():Promise<boolean>;
+
 export function GetShowViewerCircles():Promise<boolean>;
 
 export function GetSourceAddressbooks(arg1:string):Promise<Array<carddav.Addressbook>>;
@@ -835,6 +837,8 @@ export function SetShowMessageListProfilePics(arg1:boolean):Promise<void>;
 export function SetShowMessagePreviewPane(arg1:boolean):Promise<void>;
 
 export function SetShowTitleBar(arg1:boolean):Promise<void>;
+
+export function SetShowUnreadBadge(arg1:boolean):Promise<void>;
 
 export function SetShowViewerCircles(arg1:boolean):Promise<void>;
 

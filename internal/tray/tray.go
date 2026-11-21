@@ -75,11 +75,31 @@ type Tray struct {
 	mu      sync.Mutex
 	started bool
 	end     func()
+
+	// Unread badge state. The badge is the unified-inbox unread count
+	// shown on the OS chrome: the macOS Dock icon (badgeLabel), the
+	// Windows taskbar button (overlay icon) and the tray icon itself
+	// (the number drawn onto the icon). The Dock/taskbar surfaces work
+	// whether or not the tray is up; the tray icon part only applies
+	// once Start has run. baseIconICO/baseIconPNG are the plain icons
+	// Start was given, kept so disabling the badge (or a zero count)
+	// can restore them.
+	baseIconICO    []byte
+	baseIconPNG    []byte
+	badgeMu        sync.Mutex
+	badgeLastCount int
+	badgeEnabled   bool
 }
+
+// badgePushHook is called after every badge push that reaches the OS
+// surfaces, with the count pushed (0 = cleared). Test-only: nil in
+// production, set by tray tests to observe the update-only-on-change
+// behaviour without a desktop.
+var badgePushHook func(count int)
 
 // New returns a Tray that has not been started yet.
 func New() *Tray {
-	return &Tray{}
+	return &Tray{badgeLastCount: -1, badgeEnabled: true}
 }
 
 // Start shows the tray icon. It is idempotent: later calls are no-ops.
@@ -131,6 +151,8 @@ func (t *Tray) Start(iconICO, iconPNG []byte, onShow, onQuit, onCompose, onCheck
 	}
 
 	t.started = true
+	t.baseIconICO = iconICO
+	t.baseIconPNG = iconPNG
 	icon := iconPNG
 	if runtime.GOOS == "windows" {
 		icon = iconICO
@@ -221,4 +243,94 @@ func (t *Tray) Stop() {
 	t.end()
 	t.started = false
 	t.end = nil
+}
+
+// SetBadgeEnabled turns the unread badge on or off. Turning it off
+// clears every badge surface at once; turning it back on resets the
+// last-pushed count so the next SetBadge pushes even if the count is
+// unchanged.
+func (t *Tray) SetBadgeEnabled(enabled bool) {
+	t.badgeMu.Lock()
+	defer t.badgeMu.Unlock()
+	if enabled == t.badgeEnabled {
+		return
+	}
+	t.badgeEnabled = enabled
+	t.badgeLastCount = -1
+	if !enabled {
+		t.pushBadgeLocked(0)
+	}
+}
+
+// SetBadge pushes the unread count to the badge surfaces, but only when
+// it changed since the last push — syncs and read flips can fire in
+// bursts, and redrawing the tray icon on every one would flicker it.
+// A disabled badge stays cleared. A failed push leaves the last count
+// unrecorded so the next refresh retries.
+func (t *Tray) SetBadge(count int) {
+	if count < 0 {
+		count = 0
+	}
+	t.badgeMu.Lock()
+	defer t.badgeMu.Unlock()
+	if !t.badgeEnabled {
+		return
+	}
+	if count == t.badgeLastCount {
+		return
+	}
+	if !t.pushBadgeLocked(count) {
+		return
+	}
+	t.badgeLastCount = count
+}
+
+// pushBadgeLocked writes count to every badge surface. The caller holds
+// badgeMu. It returns false if any surface failed.
+func (t *Tray) pushBadgeLocked(count int) bool {
+	log := logging.WithComponent("tray")
+	ok := true
+	if !setDockBadge(count) {
+		log.Warn().Msg("Unread badge: Dock badge update failed; will retry on the next refresh")
+		ok = false
+	}
+	if !setTaskbarOverlay(count) {
+		log.Warn().Msg("Unread badge: taskbar overlay update failed; will retry on the next refresh")
+		ok = false
+	}
+	t.mu.Lock()
+	started := t.started
+	baseICO := t.baseIconICO
+	basePNG := t.baseIconPNG
+	t.mu.Unlock()
+	if started {
+		if count <= 0 {
+			// Plain icon again: the .ico on Windows, the PNG elsewhere.
+			if len(baseICO) > 0 && runtime.GOOS == "windows" {
+				systray.SetIcon(baseICO)
+			} else if len(basePNG) > 0 {
+				systray.SetIcon(basePNG)
+			}
+		} else {
+			var icon []byte
+			var err error
+			if runtime.GOOS == "windows" {
+				// The Windows tray loader only accepts .ico.
+				icon, err = RenderBadgedIconICO(basePNG, count)
+			} else {
+				icon, err = RenderBadgedIconPNG(basePNG, count)
+			}
+			if err != nil {
+				log.Error().Err(err).Msg("Unread badge: badged tray icon render failed")
+				ok = false
+			} else {
+				systray.SetIcon(icon)
+			}
+		}
+		systray.SetTooltip(BadgeTooltip(count))
+	}
+	if badgePushHook != nil {
+		badgePushHook(count)
+	}
+	return ok
 }

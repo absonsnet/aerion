@@ -822,6 +822,10 @@ export function GetShowTitleBar() {
   return window['go']['app']['App']['GetShowTitleBar']();
 }
 
+export function GetShowUnreadBadge() {
+  return window['go']['app']['App']['GetShowUnreadBadge']();
+}
+
 export function GetShowViewerCircles() {
   return window['go']['app']['App']['GetShowViewerCircles']();
 }
@@ -1628,6 +1632,10 @@ export function SetShowMessagePreviewPane(arg1) {
 
 export function SetShowTitleBar(arg1) {
   return window['go']['app']['App']['SetShowTitleBar'](arg1);
+}
+
+export function SetShowUnreadBadge(arg1) {
+  return window['go']['app']['App']['SetShowUnreadBadge'](arg1);
 }
 
 export function SetShowViewerCircles(arg1) {

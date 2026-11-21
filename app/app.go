@@ -601,6 +601,11 @@ func (a *App) Startup(ctx context.Context) {
 	// window at all until the user asks for one.
 	a.startTrayIfBackground()
 
+	// Unread badge on the Dock/taskbar icon (and the tray icon, when it
+	// is up): set it from the current count once at startup. Later
+	// refreshes come from emitFolderCountsChanged.
+	a.refreshBadge()
+
 	// Restore the persisted window position (size/maximized are applied via
 	// wails.Run options in main.go; position can only be set post-creation).
 	// The window is still hidden at this point, so no visible jump.
@@ -706,7 +711,7 @@ func (a *App) Startup(ctx context.Context) {
 	// message-synced (those emit their own counts from SyncFolder); without
 	// this a scheduled pass never refreshes their sidebar badges.
 	a.syncEngine.SetFolderCountsCallback(func(_ string, counts map[string]int) {
-		wailsRuntime.EventsEmit(ctx, "folders:countsChanged", counts)
+		a.emitFolderCountsChanged(counts)
 	})
 
 	// One-off enrichment backfill for mail synced before migration 46
@@ -1069,7 +1074,12 @@ func (a *App) startTray() bool {
 	if !ok {
 		log := logging.WithComponent("app")
 		log.Warn().Msg("System tray did not start; the window will stay visible so the app can always be reopened")
+		return ok
 	}
+	// The tray just started with the plain icon; push the badged one
+	// (and the Dock/taskbar badge) now that the tray is up. Covers the
+	// mid-session enable via SetRunBackground as well as startup.
+	a.refreshBadge()
 	return ok
 }
 

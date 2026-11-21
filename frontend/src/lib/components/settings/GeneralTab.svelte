@@ -17,6 +17,7 @@
     windowControlsSide: string
     runBackground: boolean
     startHidden: boolean
+    showUnreadBadge: boolean
     autostart: boolean
     language: string
     onDelayChange: (value: number) => void
@@ -26,6 +27,7 @@
     onWindowControlsSideChange: (value: string) => void
     onRunBackgroundChange: (value: boolean) => void
     onStartHiddenChange: (value: boolean) => void
+    onShowUnreadBadgeChange: (value: boolean) => void
     onAutostartChange: (value: boolean) => void
     onLanguageChange: (value: string) => void
     accentBarUnread: boolean
@@ -50,6 +52,7 @@
     windowControlsSide = $bindable(),
     runBackground = $bindable(),
     startHidden = $bindable(),
+    showUnreadBadge = $bindable(),
     autostart = $bindable(),
     language = $bindable(),
     onDelayChange,
@@ -59,6 +62,7 @@
     onWindowControlsSideChange,
     onRunBackgroundChange,
     onStartHiddenChange,
+    onShowUnreadBadgeChange,
     onAutostartChange,
     onLanguageChange,
     accentBarUnread = $bindable(),
@@ -224,6 +228,11 @@
       onRunBackgroundChange?.(true)
     }
     onStartHiddenChange?.(value)
+  }
+
+  function handleShowUnreadBadgeChange(value: boolean) {
+    showUnreadBadge = value
+    onShowUnreadBadgeChange?.(value)
   }
 
   function handleAutostartChange(value: boolean) {
@@ -594,6 +603,22 @@
           bind:checked={startHidden}
           onCheckedChange={handleStartHiddenChange}
           disabled={!runBackground}
+        />
+      </div>
+    </div>
+
+    <div class="space-y-2">
+      <div class="flex items-center justify-between">
+        <div class="space-y-0.5">
+          <Label for="show-unread-badge">{$_('settingsGeneral.showUnreadBadge')}</Label>
+          <p class="text-xs text-muted-foreground">
+            {$_('settingsGeneral.showUnreadBadgeHelp')}
+          </p>
+        </div>
+        <Switch
+          id="show-unread-badge"
+          bind:checked={showUnreadBadge}
+          onCheckedChange={handleShowUnreadBadgeChange}
         />
       </div>
     </div>
