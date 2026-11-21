@@ -17,45 +17,46 @@ import (
 
 // Known setting keys
 const (
-	KeyReadReceiptResponsePolicy  = "read_receipt_response_policy"
-	KeyMarkAsReadDelay            = "mark_as_read_delay"
-	KeyMessageListDensity         = "message_list_density"
-	KeyMessageListSortOrder       = "message_list_sort_order"
-	KeyThemeMode                  = "theme_mode"
-	KeyShowTitleBar               = "show_title_bar"
-	KeyTermsAccepted              = "terms_accepted"
-	KeyRunBackground              = "run_background"
-	KeyStartHidden                = "start_hidden"
-	KeyShowUnreadBadge            = "show_unread_badge" // unread count badge on the Dock/taskbar icon and the tray icon (default on)
-	KeyAutostart                  = "autostart"
-	KeyLanguage                   = "language"
-	KeyComposerMode               = "composer_mode"
-	KeyMailtoMode                 = "mailto_mode"
-	KeyComposerFormat             = "composer_format"
-	KeyNativeTitleBar             = "native_titlebar"
-	KeyWindowControlsSide         = "window_controls_side" // "auto" | "left" | "right"; manual override for the title-bar button side
-	KeyAlwaysLoadImages           = "always_load_images"
-	KeyDarkMailContent            = "dark_mail_content"
-	KeyDarkComposerBody           = "dark_composer_body"
-	KeyAccentBarUnread            = "accent_bar_unread"
-	KeyAccentUnreadStyle          = "accent_unread_style" // "dot" | "glowdot" | "bar"; applies when accent_bar_unread is on
-	KeyShowMessageListCircles     = "show_message_list_circles"
-	KeyShowMessageListProfilePics = "show_message_list_profile_pics" // render contact photos in the message-list avatar slot (default off)
-	KeyAlwaysShowMessageCheckbox  = "always_show_message_checkbox"   // reserve a fixed checkbox column instead of the hover/swipe slide-reveal (default off)
-	KeyShowViewerCircles          = "show_viewer_circles"
-	KeyShowMessagePreviewPane     = "show_message_preview_pane" // show the conversation viewer pane beside the message list (default on)
-	KeyMessageOpenMode            = "message_open_mode"         // how a message opens when the preview pane is off: "tab" | "dialog" | "popup" (default "tab")
-	KeyInboxTabDefault            = "inbox_tab_default"         // default category tab in Inbox / Unified Inbox: "all" | "personal" | "automated" (default "all")
-	KeyLastSeenVersion            = "last_seen_version"         // for "What's new in this version" launch dialog
-	KeyOAuthWarningDisabled       = "oauth_warning_disabled"    // user toggled "Don't show again" on the missing-OAuth-creds launch warning
-	KeySpellcheckEnabled          = "spellcheck_enabled"        // composer spellcheck master toggle (defaults on)
-	KeyCodeChipClickMode          = "code_chip_click_mode"      // "copy_mark_read_delete" | "copy_mark_read" | "copy_only"
-	KeyAttentionEnabled           = "attention_enabled"         // Needs attention strip master toggle (default on)
-	KeyAttentionTypeCode          = "attention_type_verification_code"
-	KeyAttentionTypeFlight        = "attention_type_flight_changed"
-	KeyAttentionTypePayment       = "attention_type_payment_failed"
-	KeyAttentionTypeDelivery      = "attention_type_delivery_problem"
-	KeyOtpClipboardClearSeconds   = "otp_clipboard_clear_seconds" // seconds until Daak clears a copied code (0 = never)
+	KeyReadReceiptResponsePolicy       = "read_receipt_response_policy"
+	KeyMarkAsReadDelay                 = "mark_as_read_delay"
+	KeyMessageListDensity              = "message_list_density"
+	KeyMessageListSortOrder            = "message_list_sort_order"
+	KeyThemeMode                       = "theme_mode"
+	KeyShowTitleBar                    = "show_title_bar"
+	KeyTermsAccepted                   = "terms_accepted"
+	KeyRunBackground                   = "run_background"
+	KeyStartHidden                     = "start_hidden"
+	KeyShowUnreadBadge                 = "show_unread_badge"                   // unread count badge on the Dock/taskbar icon and the tray icon (default on)
+	KeySaveRecipientsToAccountContacts = "save_recipients_to_account_contacts" // save new send recipients to the sending account's own contacts (default on)
+	KeyAutostart                       = "autostart"
+	KeyLanguage                        = "language"
+	KeyComposerMode                    = "composer_mode"
+	KeyMailtoMode                      = "mailto_mode"
+	KeyComposerFormat                  = "composer_format"
+	KeyNativeTitleBar                  = "native_titlebar"
+	KeyWindowControlsSide              = "window_controls_side" // "auto" | "left" | "right"; manual override for the title-bar button side
+	KeyAlwaysLoadImages                = "always_load_images"
+	KeyDarkMailContent                 = "dark_mail_content"
+	KeyDarkComposerBody                = "dark_composer_body"
+	KeyAccentBarUnread                 = "accent_bar_unread"
+	KeyAccentUnreadStyle               = "accent_unread_style" // "dot" | "glowdot" | "bar"; applies when accent_bar_unread is on
+	KeyShowMessageListCircles          = "show_message_list_circles"
+	KeyShowMessageListProfilePics      = "show_message_list_profile_pics" // render contact photos in the message-list avatar slot (default off)
+	KeyAlwaysShowMessageCheckbox       = "always_show_message_checkbox"   // reserve a fixed checkbox column instead of the hover/swipe slide-reveal (default off)
+	KeyShowViewerCircles               = "show_viewer_circles"
+	KeyShowMessagePreviewPane          = "show_message_preview_pane" // show the conversation viewer pane beside the message list (default on)
+	KeyMessageOpenMode                 = "message_open_mode"         // how a message opens when the preview pane is off: "tab" | "dialog" | "popup" (default "tab")
+	KeyInboxTabDefault                 = "inbox_tab_default"         // default category tab in Inbox / Unified Inbox: "all" | "personal" | "automated" (default "all")
+	KeyLastSeenVersion                 = "last_seen_version"         // for "What's new in this version" launch dialog
+	KeyOAuthWarningDisabled            = "oauth_warning_disabled"    // user toggled "Don't show again" on the missing-OAuth-creds launch warning
+	KeySpellcheckEnabled               = "spellcheck_enabled"        // composer spellcheck master toggle (defaults on)
+	KeyCodeChipClickMode               = "code_chip_click_mode"      // "copy_mark_read_delete" | "copy_mark_read" | "copy_only"
+	KeyAttentionEnabled                = "attention_enabled"         // Needs attention strip master toggle (default on)
+	KeyAttentionTypeCode               = "attention_type_verification_code"
+	KeyAttentionTypeFlight             = "attention_type_flight_changed"
+	KeyAttentionTypePayment            = "attention_type_payment_failed"
+	KeyAttentionTypeDelivery           = "attention_type_delivery_problem"
+	KeyOtpClipboardClearSeconds        = "otp_clipboard_clear_seconds" // seconds until Daak clears a copied code (0 = never)
 	// Undo Send: how long a sent message waits in the Outbox before
 	// the worker dispatches it. The only allowed values are the ones
 	// the Settings UI offers (5/10/20/30).
@@ -165,6 +166,10 @@ const DefaultShowMessagePreviewPane = true
 
 // DefaultShowUnreadBadge is the default unread-badge visibility
 const DefaultShowUnreadBadge = true
+
+// DefaultSaveRecipientsToAccountContacts is the default for saving new send
+// recipients to the sending account's own contacts
+const DefaultSaveRecipientsToAccountContacts = true
 
 // Composer mode values
 const (
@@ -781,6 +786,31 @@ func (s *Store) SetShowUnreadBadge(enabled bool) error {
 		value = "true"
 	}
 	return s.Set(KeyShowUnreadBadge, value)
+}
+
+// GetSaveRecipientsToAccountContacts returns whether new send recipients are
+// saved to the sending account's own contacts (Google Contacts, Microsoft
+// contacts, or the account's CardDAV address book) in addition to the local
+// collected contacts. Default: true.
+func (s *Store) GetSaveRecipientsToAccountContacts() (bool, error) {
+	value, err := s.Get(KeySaveRecipientsToAccountContacts)
+	if err != nil {
+		return DefaultSaveRecipientsToAccountContacts, err
+	}
+	if value == "" {
+		return DefaultSaveRecipientsToAccountContacts, nil
+	}
+	return value == "true", nil
+}
+
+// SetSaveRecipientsToAccountContacts sets whether new send recipients are
+// saved to the sending account's own contacts.
+func (s *Store) SetSaveRecipientsToAccountContacts(enabled bool) error {
+	value := "false"
+	if enabled {
+		value = "true"
+	}
+	return s.Set(KeySaveRecipientsToAccountContacts, value)
 }
 
 // GetStartHidden returns whether Daak should start with the window hidden

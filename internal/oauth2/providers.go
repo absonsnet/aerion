@@ -30,9 +30,10 @@ func GoogleProvider() ProviderConfig {
 		TokenURL:    "https://oauth2.googleapis.com/token",
 		Scopes: []string{
 			"https://mail.google.com/",                                // Full Gmail access (IMAP/SMTP)
-			"https://www.googleapis.com/auth/calendar",       // Calendar (extension reuses the linked account's grant — no separate calendar link)
+			"https://www.googleapis.com/auth/calendar",                // Calendar (extension reuses the linked account's grant — no separate calendar link)
 			"https://www.googleapis.com/auth/contacts.other.readonly", // Other contacts (for autocomplete)
 			"https://www.googleapis.com/auth/contacts.readonly",       // Full contacts read access (for sync)
+			"https://www.googleapis.com/auth/contacts",                // Contacts write access (save new recipients to Google Contacts on send)
 			"https://www.googleapis.com/auth/userinfo.email",          // Get user's email address
 			"openid", // OpenID Connect
 		},
@@ -72,6 +73,7 @@ func GoogleContactsOnlyProvider() ProviderConfig {
 		TokenURL:    "https://oauth2.googleapis.com/token",
 		Scopes: []string{
 			"https://www.googleapis.com/auth/contacts.readonly", // Full contacts read access
+			"https://www.googleapis.com/auth/contacts",          // Contacts write access (save new recipients on send)
 			"https://www.googleapis.com/auth/userinfo.email",    // Get user's email address
 			"openid", // OpenID Connect
 		},
@@ -128,7 +130,8 @@ func MicrosoftContactsOnlyProvider() ProviderConfig {
 		AuthURL:     "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
 		TokenURL:    "https://login.microsoftonline.com/common/oauth2/v2.0/token",
 		Scopes: []string{
-			"https://graph.microsoft.com/Contacts.Read", // Contacts read access
+			"https://graph.microsoft.com/Contacts.Read",      // Contacts read access
+			"https://graph.microsoft.com/Contacts.ReadWrite", // Contacts write access (save new recipients on send)
 			"offline_access", // Refresh tokens
 			"openid",         // OpenID Connect
 			"email",          // Get user's email address

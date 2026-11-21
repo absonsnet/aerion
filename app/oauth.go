@@ -431,6 +431,11 @@ func (a *App) CompleteCustomOAuthAccountSetup(config account.AccountConfig) (*ac
 
 	a.updateDBConnectionPool()
 
+	// CardDAV auto-discovery: fire and forget, best-effort, non-blocking.
+	// Custom-OAuth providers (e.g. a self-hosted mail stack) may run
+	// CardDAV behind the same identity, so bearer discovery is attempted.
+	go a.autoDiscoverCardDAVForAccount(acc, "", true)
+
 	log.Info().
 		Str("accountID", acc.ID).
 		Str("email", config.Email).

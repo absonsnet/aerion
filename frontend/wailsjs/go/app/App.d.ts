@@ -410,6 +410,8 @@ export function GetReadReceiptResponsePolicy():Promise<string>;
 
 export function GetRunBackground():Promise<boolean>;
 
+export function GetSaveRecipientsToAccountContacts():Promise<boolean>;
+
 export function GetSMIMECertificateForEmail(arg1:string,arg2:string):Promise<smime.Certificate>;
 
 export function GetSMIMEEncryptPolicy(arg1:string):Promise<string>;
@@ -821,6 +823,8 @@ export function SetPGPSignPolicy(arg1:string,arg2:string):Promise<void>;
 export function SetReadReceiptResponsePolicy(arg1:string):Promise<void>;
 
 export function SetRunBackground(arg1:boolean):Promise<void>;
+
+export function SetSaveRecipientsToAccountContacts(arg1:boolean):Promise<void>;
 
 export function SetSMIMEEncryptPolicy(arg1:string,arg2:string):Promise<void>;
 

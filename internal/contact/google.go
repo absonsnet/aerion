@@ -2,10 +2,12 @@
 package contact
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -22,6 +24,8 @@ type GoogleContactsClient struct {
 	cacheMu    sync.RWMutex
 	cacheTTL   time.Duration
 	log        zerolog.Logger
+	// baseURL is the People API root; overridable for tests.
+	baseURL string
 }
 
 type cachedGoogleResult struct {
@@ -37,7 +41,14 @@ func NewGoogleContactsClient() *GoogleContactsClient {
 		cache:      make(map[string]cachedGoogleResult),
 		cacheTTL:   15 * time.Minute,
 		log:        logging.WithComponent("google-contacts"),
+		baseURL:    "https://people.googleapis.com",
 	}
+}
+
+// SetBaseURL overrides the People API root. Production always uses the
+// default; tests point it at a local fake server.
+func (c *GoogleContactsClient) SetBaseURL(url string) {
+	c.baseURL = url
 }
 
 // Search queries Google People API for contacts matching the query.
@@ -71,7 +82,8 @@ func (c *GoogleContactsClient) Search(accessToken, query string, limit int) ([]*
 	// Query Google People API - otherContacts:search
 	// This searches contacts the user has interacted with but hasn't explicitly saved
 	apiURL := fmt.Sprintf(
-		"https://people.googleapis.com/v1/otherContacts:search?query=%s&readMask=names,emailAddresses&pageSize=%d",
+		"%s/v1/otherContacts:search?query=%s&readMask=names,emailAddresses&pageSize=%d",
+		c.baseURL,
 		url.QueryEscape(query),
 		limit,
 	)
@@ -152,6 +164,131 @@ func (c *GoogleContactsClient) Search(accessToken, query string, limit int) ([]*
 	c.cacheMu.Unlock()
 
 	return contacts, nil
+}
+
+// ContactExists reports whether the user already has a contact with this
+// email address, in either their saved contacts or their Other contacts.
+// It uses people:searchContacts, which searches both. A hit means the
+// address is already in the account's contacts — creating it again would
+// only produce a duplicate for the user to merge later.
+//
+// The accessToken must carry the contacts.readonly scope (or the contacts
+// write scope, which implies read). A 403 means the grant lacks contacts
+// access at all; it is returned as an error so the caller can tell a
+// missing scope apart from "not found".
+func (c *GoogleContactsClient) ContactExists(accessToken, email string) (bool, error) {
+	email = strings.ToLower(strings.TrimSpace(email))
+	if email == "" || accessToken == "" {
+		return false, nil
+	}
+
+	apiURL := fmt.Sprintf(
+		"%s/v1/people:searchContacts?query=%s&readMask=emailAddresses&pageSize=10",
+		c.baseURL,
+		url.QueryEscape(email),
+	)
+
+	req, err := http.NewRequest("GET", apiURL, nil)
+	if err != nil {
+		return false, fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return false, fmt.Errorf("Google People API request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		switch resp.StatusCode {
+		case http.StatusUnauthorized:
+			return false, fmt.Errorf("Google API authentication failed (token may be expired)")
+		case http.StatusForbidden:
+			return false, fmt.Errorf("Google People API access denied (contacts scope may not be granted)")
+		default:
+			return false, fmt.Errorf("Google People API error: %d", resp.StatusCode)
+		}
+	}
+
+	var result googleSearchResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return false, fmt.Errorf("failed to parse Google API response: %w", err)
+	}
+	for _, r := range result.Results {
+		for _, e := range r.Person.EmailAddresses {
+			if strings.EqualFold(strings.TrimSpace(e.Value), email) {
+				return true, nil
+			}
+		}
+	}
+	return false, nil
+}
+
+// CreateContact saves a new contact with the given name and email address.
+// The display name is split into given/family on the last space; an
+// email-only contact is created with no name at all.
+//
+// Requires the https://www.googleapis.com/auth/contacts scope. A 403 means
+// the account has not granted it (re-authorization required) and is
+// returned as an error.
+func (c *GoogleContactsClient) CreateContact(accessToken, displayName, email string) error {
+	email = strings.TrimSpace(email)
+	if email == "" || accessToken == "" {
+		return fmt.Errorf("Google CreateContact: email and access token are required")
+	}
+
+	given, family := SplitDisplayName(displayName)
+	body := googleCreateContactRequest{
+		EmailAddresses: []googleEmail{{Value: email}},
+	}
+	if given != "" || family != "" {
+		body.Names = []googleCreateName{{GivenName: given, FamilyName: family}}
+	}
+
+	payload, err := json.Marshal(body)
+	if err != nil {
+		return fmt.Errorf("failed to encode contact: %w", err)
+	}
+
+	req, err := http.NewRequest("POST", c.baseURL+"/v1/people:createContact", bytes.NewReader(payload))
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("Google People API request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		switch resp.StatusCode {
+		case http.StatusUnauthorized:
+			return fmt.Errorf("Google API authentication failed (token may be expired)")
+		case http.StatusForbidden:
+			return fmt.Errorf("Google People API access denied (contacts write scope may not be granted — re-authorization required)")
+		case http.StatusTooManyRequests:
+			return fmt.Errorf("Google API rate limit exceeded")
+		default:
+			return fmt.Errorf("Google People API error: %d", resp.StatusCode)
+		}
+	}
+	return nil
+}
+
+// googleCreateContactRequest is the people:createContact request body.
+type googleCreateContactRequest struct {
+	Names          []googleCreateName `json:"names,omitempty"`
+	EmailAddresses []googleEmail      `json:"emailAddresses"`
+}
+
+// googleCreateName is one names[] entry in a createContact request.
+type googleCreateName struct {
+	GivenName  string `json:"givenName,omitempty"`
+	FamilyName string `json:"familyName,omitempty"`
 }
 
 // cacheKey generates a cache key from the access token and query.

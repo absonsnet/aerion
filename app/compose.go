@@ -8,9 +8,11 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/absonsnet/daak/internal/account"
+	"github.com/absonsnet/daak/internal/carddav"
 	"github.com/absonsnet/daak/internal/certificate"
 	"github.com/absonsnet/daak/internal/contact"
 	"github.com/absonsnet/daak/internal/credentials"
@@ -23,6 +25,7 @@ import (
 	"github.com/absonsnet/daak/internal/oauth2"
 	"github.com/absonsnet/daak/internal/pgp"
 	"github.com/absonsnet/daak/internal/platform"
+	"github.com/absonsnet/daak/internal/settings"
 	"github.com/absonsnet/daak/internal/smime"
 	"github.com/absonsnet/daak/internal/smtp"
 	goImap "github.com/emersion/go-imap/v2"
@@ -61,6 +64,21 @@ type composeOps struct {
 	// them to capture outbound bytes instead of reaching a server.
 	rawSendOverride  func(ctx context.Context, from string, recipients []string, raw []byte) error
 	sentSaveOverride func(ctx context.Context, accountID string, raw []byte) error
+
+	// saveRecipientsToAccountContacts support (nil in the detached
+	// composer/viewer, whose sends go through the main process queue —
+	// the provider save silently skips when any of these is nil).
+	settingsStore           *settings.Store
+	carddavStore            *carddav.Store
+	carddavSyncer           *carddav.Syncer
+	googleContactsClient    *contact.GoogleContactsClient
+	microsoftContactsSyncer *contact.MicrosoftContactsSyncer
+	getContactSourceToken   func(sourceID string) (string, error)
+
+	// msContactsSourceCache maps mail account IDs to their Microsoft
+	// contacts source IDs (see microsoftContactsSourceForAccount).
+	msContactsSourceCache   map[string]string
+	msContactsSourceCacheMu sync.Mutex
 }
 
 // getValidOAuthToken returns a valid OAuth token, refreshing if needed.
@@ -526,6 +544,16 @@ func (ops *composeOps) sendMessage(ctx context.Context, accountID string, msg sm
 	for _, cc := range msg.Cc {
 		_ = ops.contactStore.AddOrUpdate(cc.Address, cc.Name)
 	}
+
+	// Save new recipients to the sending account's own contacts (Google
+	// Contacts, Microsoft contacts, or the account's CardDAV address
+	// book) — best-effort on a worker goroutine. sendMessage runs on the
+	// foreground Wails call for direct sends, so the provider calls must
+	// never delay it; the send already succeeded either way.
+	go func() {
+		defer recoverPanic("app.compose", "save recipients to account contacts")
+		ops.saveRecipientsToAccountContacts(ctx, accountID, msg)
+	}()
 
 	// Delete draft if one was provided (send already succeeded — log errors, don't fail)
 	if d != nil && ops.draftOps != nil {
