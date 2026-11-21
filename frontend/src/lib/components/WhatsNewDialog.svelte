@@ -60,12 +60,13 @@
       </div>
 
       <div class="space-y-4 max-h-[60vh] overflow-y-auto text-sm">
-        <p>🚀 Welcome to {APP_NAME} v0.7.29!</p>
+        <p>🚀 Welcome to {APP_NAME} v0.7.30!</p>
 
-        <p>v0.7.29 fixes the Flatpak build (missing vendor files for the badge fonts) so the unread badge from v0.7.28 now ships on every build:</p>
+        <p>v0.7.30 saves new send recipients to the sending account's contacts, and discovers CardDAV address books automatically when you add an IMAP account:</p>
 
         <ul class="list-disc pl-6 space-y-1">
-          <li>🔴 Unread badge — the unified-inbox unread count now shows on the Dock icon (Mac), the taskbar button (Windows) and the tray icon, capped at 99+. Turn it off in Settings → General → "Show unread badge on app and tray icons"</li>
+          <li>📇 Save recipients — after a message is sent, each new recipient is saved to that account's Google Contacts, Microsoft contacts, or CardDAV address book (as well as your local contacts). Turn it off in Settings → Contacts → "Save new recipients to account contacts". Google and Microsoft accounts need to re-authorize once for the new contacts permission</li>
+          <li>🔍 CardDAV auto-discovery — adding an IMAP account now finds its address book automatically when the provider runs one, so no manual setup is needed in Settings → Contacts</li>
         </ul>
 
         <p>🏷 See the full change log here:</p>

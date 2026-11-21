@@ -1,5 +1,11 @@
 # CHANGELOG
 
+**v0.7.30 - 21-11-2026**
+---
+
+- Save new send recipients to the sending account's contacts: after a message is sent, each new recipient is saved to that account's Google Contacts, Microsoft contacts, or CardDAV address book, in addition to the local collected contact. New Settings toggle "Save new recipients to account contacts" in Settings → Contacts, on by default. Google and Microsoft accounts need to re-authorize for the new contacts write permission before the provider save works; until then the local collected contact still happens and nothing breaks
+- CardDAV auto-discovery: adding an IMAP account now probes for a CardDAV address book (known endpoints for iCloud, Fastmail, GMX, mail.com, mailbox.org and Posteo, then the mail domain and the IMAP host) and adds it as a linked source automatically when one answers, so sent recipients land in the account's address book without manual setup. Best-effort: if nothing is found, account setup proceeds unchanged
+
 **v0.7.29 - 21-11-2026**
 ---
 

@@ -375,6 +375,14 @@
   </provides>
 
   <releases>
+    <release version="0.7.30" date="2026-11-21">
+      <description>
+        <ul>
+          <li>Save new send recipients to the sending account's contacts (Google Contacts, Microsoft contacts, or the account's CardDAV address book), with a Settings toggle to turn it off</li>
+          <li>CardDAV auto-discovery: adding an IMAP account now finds and links its address book automatically when the provider runs one</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.7.29" date="2026-11-21">
       <description>
         <ul>
