@@ -158,7 +158,19 @@ func (t *Tray) Start(iconICO, iconPNG []byte, onShow, onQuit, onCompose, onCheck
 		icon = iconICO
 	}
 
-	start, end := systray.RunWithExternalLoop(func() {
+	// readyCh is closed at the end of onReady, once the icon, the tap
+	// handler and all five menu items are registered. The Windows
+	// start waits on it (see startTrayWindows).
+	readyCh := make(chan struct{})
+	markReady := func() {
+		select {
+		case <-readyCh:
+		default:
+			close(readyCh)
+		}
+	}
+
+	onReady := func() {
 		if len(icon) > 0 {
 			systray.SetIcon(icon)
 		}
@@ -216,9 +228,29 @@ func (t *Tray) Start(iconICO, iconPNG []byte, onShow, onQuit, onCompose, onCheck
 			}
 		}()
 		log.Info().Msg("System tray icon shown")
-	}, func() {
+		markReady()
+	}
+	onExit := func() {
 		log.Info().Msg("System tray icon hidden")
-	})
+	}
+	// Windows: the tray window and its message pump must run on the
+	// same OS thread (Win32 delivers a window's messages to the
+	// creating thread's queue). RunWithExternalLoop creates the window
+	// on the caller's goroutine and spawns the pump on a new goroutine,
+	// so the pump can land on another thread and the window goes deaf:
+	// the icon shows, but no click ever reaches wndProc (v0.7.31).
+	// startTrayWindows runs systray.Run from a dedicated locked
+	// thread instead, so window creation and pumping share the thread.
+	if runtime.GOOS == "windows" {
+		if !startTrayWindows(onReady, onExit, readyCh) {
+			log.Warn().Msg("System tray did not start on its thread in time; continuing without it")
+			t.started = false
+			return false
+		}
+		t.end = func() { systray.Quit() }
+		return true
+	}
+	start, end := systray.RunWithExternalLoop(onReady, onExit)
 	// On macOS the library's native start creates AppKit objects and
 	// must run on the main thread; invokeTrayStart dispatches it there
 	// (elsewhere it runs directly). A late dispatch still creates the
@@ -283,6 +315,17 @@ func (t *Tray) SetBadge(count int) {
 		return
 	}
 	t.badgeLastCount = count
+}
+
+// waitForReady reports whether ready closed within timeout. The
+// Windows start waits on it for the tray's menu to be registered.
+func waitForReady(ready <-chan struct{}, timeout time.Duration) bool {
+	select {
+	case <-ready:
+		return true
+	case <-time.After(timeout):
+		return false
+	}
 }
 
 // pushBadgeLocked writes count to every badge surface. The caller holds
