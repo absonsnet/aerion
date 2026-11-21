@@ -257,6 +257,19 @@ func (a *App) SetShowUnreadBadge(enabled bool) error {
 	return nil
 }
 
+// GetSaveRecipientsToAccountContacts returns whether new send recipients are
+// saved to the sending account's own contacts in addition to the local
+// collected contacts.
+func (a *App) GetSaveRecipientsToAccountContacts() (bool, error) {
+	return a.settingsStore.GetSaveRecipientsToAccountContacts()
+}
+
+// SetSaveRecipientsToAccountContacts sets whether new send recipients are
+// saved to the sending account's own contacts.
+func (a *App) SetSaveRecipientsToAccountContacts(enabled bool) error {
+	return a.settingsStore.SetSaveRecipientsToAccountContacts(enabled)
+}
+
 // GetStartHidden returns whether Daak starts with the window hidden
 func (a *App) GetStartHidden() (bool, error) {
 	return a.settingsStore.GetStartHidden()

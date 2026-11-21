@@ -117,17 +117,35 @@ func (s *Syncer) SyncSource(sourceID string) error {
 	return nil
 }
 
+// ClientForSource builds the CardDAV client for a source, using the same
+// auth selection as the sync path. Exposed so the send-time auto-add can
+// write a new contact into the same source the syncer reads from.
+func (s *Syncer) ClientForSource(source *Source) (*Client, error) {
+	return s.cardDAVClient(source)
+}
+
 // cardDAVClient builds the CardDAV client for a source. When the source is linked
 // to an OAuth account it authenticates with a bearer token obtained via the existing
 // getOAuthToken path (account token getter — already custom-OAuth-aware); otherwise
 // it uses Basic auth with the stored CardDAV password.
+//
+// A linked source on a PASSWORD account has no OAuth token, so the bearer
+// attempt fails fast (no token row) and the client falls back to Basic auth
+// with the stored CardDAV password. That is what lets auto-discovered
+// password sources — which are linked to their account — sync and accept
+// writes. OAuth-linked sources store no CardDAV password, so for them a
+// bearer failure is terminal and is returned unchanged.
 func (s *Syncer) cardDAVClient(source *Source) (*Client, error) {
 	if source.AccountID != nil && *source.AccountID != "" {
 		token, err := s.getOAuthToken(source)
-		if err != nil {
+		if err == nil {
+			return NewClientWithHTTPClient(davutil.NewBearerHTTPClient(token, 30*time.Second), source.URL)
+		}
+		password, pwErr := s.credStore.GetCardDAVPassword(source.ID)
+		if pwErr != nil {
 			return nil, fmt.Errorf("failed to get OAuth token: %w", err)
 		}
-		return NewClientWithHTTPClient(davutil.NewBearerHTTPClient(token, 30*time.Second), source.URL)
+		return NewClient(source.URL, source.Username, password)
 	}
 
 	password, err := s.credStore.GetCardDAVPassword(source.ID)

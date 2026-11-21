@@ -986,6 +986,8 @@
     "syncedAgo": "synced {time}",
     "sourceName": "Contact source name",
     "description": "Sync contacts for email autocomplete",
+    "saveRecipientsToAccountContacts": "Save new recipients to account contacts",
+    "saveRecipientsToAccountContactsHelp": "When sending email, save new recipients to the sending account's contacts (Google Contacts, Microsoft contacts, or the account's CardDAV address book)",
     "serverUrlHelp": "Enter the server URL or full CardDAV addressbook URL",
     "passwordKeepCurrent": "Password (leave blank to keep current)",
     "connectDiscover": "Connect & Discover",

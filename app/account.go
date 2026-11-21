@@ -70,6 +70,13 @@ func (a *App) AddAccount(config account.AccountConfig) (*account.Account, error)
 		a.idleManager.StartAccount(acc.ID, acc.Name)
 	}
 
+	// CardDAV auto-discovery: fire and forget, best-effort, non-blocking.
+	// If the provider runs a CardDAV address book, a linked source is
+	// created so the send-time auto-add has somewhere to write to.
+	// Discovery never delays or fails account setup — see
+	// app/carddav_discovery.go.
+	go a.autoDiscoverCardDAVForAccount(acc, config.Password, config.AuthType == account.AuthOAuth2)
+
 	log.Info().Str("account_id", acc.ID).Str("email", acc.Email).Msg("Account created")
 	return acc, nil
 }
@@ -403,9 +410,9 @@ func (a *App) SetDefaultIdentity(accountID, identityID string) error {
 
 // ConnectionTestResult holds the result of a connection test
 type ConnectionTestResult struct {
-	Success             bool                      `json:"success"`
-	Error               string                    `json:"error,omitempty"`
-	CertificateRequired bool                      `json:"certificateRequired"`
+	Success             bool                         `json:"success"`
+	Error               string                       `json:"error,omitempty"`
+	CertificateRequired bool                         `json:"certificateRequired"`
 	Certificate         *certificate.CertificateInfo `json:"certificate,omitempty"`
 }
 

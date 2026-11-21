@@ -2,11 +2,13 @@
 package contact
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/absonsnet/daak/internal/logging"
@@ -18,14 +20,166 @@ import (
 type MicrosoftContactsSyncer struct {
 	httpClient *http.Client
 	log        zerolog.Logger
+	// graphBaseURL is the Graph API root; overridable for tests.
+	graphBaseURL string
 }
 
 // NewMicrosoftContactsSyncer creates a new Microsoft contacts syncer.
 func NewMicrosoftContactsSyncer() *MicrosoftContactsSyncer {
 	return &MicrosoftContactsSyncer{
-		httpClient: &http.Client{Timeout: 60 * time.Second}, // Longer timeout for sync
-		log:        logging.WithComponent("microsoft-contacts-sync"),
+		httpClient:   &http.Client{Timeout: 60 * time.Second}, // Longer timeout for sync
+		log:          logging.WithComponent("microsoft-contacts-sync"),
+		graphBaseURL: "https://graph.microsoft.com/v1.0",
 	}
+}
+
+// SetGraphBaseURL overrides the Graph API root. Production always uses
+// the default; tests point it at a local fake server.
+func (s *MicrosoftContactsSyncer) SetGraphBaseURL(url string) {
+	s.graphBaseURL = url
+}
+
+// ContactExists reports whether the user's Outlook contacts already contain
+// this email address. /me/contacts spans the default Contacts folder and
+// every user contact folder, so one filtered request covers them all.
+//
+// The accessToken must carry Contacts.Read (or Contacts.ReadWrite). A 403
+// means the grant lacks contacts access at all; it is returned as an error
+// so the caller can tell a missing scope apart from "not found".
+func (s *MicrosoftContactsSyncer) ContactExists(accessToken, email string) (bool, error) {
+	email = strings.ToLower(strings.TrimSpace(email))
+	if email == "" || accessToken == "" {
+		return false, nil
+	}
+
+	// OData: escape single quotes by doubling them.
+	filter := fmt.Sprintf("emailAddresses/any(a:a/address eq '%s')", strings.ReplaceAll(email, "'", "''"))
+	apiURL := fmt.Sprintf(
+		"%s/me/contacts?$filter=%s&$select=id&$top=1",
+		s.graphBaseURL,
+		url.QueryEscape(filter),
+	)
+
+	req, err := http.NewRequest("GET", apiURL, nil)
+	if err != nil {
+		return false, fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		return false, fmt.Errorf("Microsoft Graph API request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		if resp.StatusCode == http.StatusForbidden {
+			return false, fmt.Errorf("Microsoft Graph access denied (contacts scope may not be granted): %s", string(bodyBytes))
+		}
+		return false, fmt.Errorf("Microsoft Graph contacts error %d: %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	var result struct {
+		Value []struct {
+			ID string `json:"id"`
+		} `json:"value"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return false, fmt.Errorf("failed to parse contacts response: %w", err)
+	}
+	return len(result.Value) > 0, nil
+}
+
+// CreateContact saves a new contact with the given display name and email
+// address in the default Contacts folder.
+//
+// Requires the Contacts.ReadWrite Graph scope. A 403 means the account has
+// not granted it (the contacts source needs to be re-authorized) and is
+// returned as an error.
+func (s *MicrosoftContactsSyncer) CreateContact(accessToken, displayName, email string) error {
+	email = strings.TrimSpace(email)
+	if email == "" || accessToken == "" {
+		return fmt.Errorf("Microsoft CreateContact: email and access token are required")
+	}
+
+	body := struct {
+		DisplayName    string `json:"displayName,omitempty"`
+		EmailAddresses []struct {
+			Address string `json:"address"`
+		} `json:"emailAddresses"`
+	}{
+		DisplayName: strings.TrimSpace(displayName),
+		EmailAddresses: []struct {
+			Address string `json:"address"`
+		}{{Address: email}},
+	}
+
+	payload, err := json.Marshal(body)
+	if err != nil {
+		return fmt.Errorf("failed to encode contact: %w", err)
+	}
+
+	req, err := http.NewRequest("POST", s.graphBaseURL+"/me/contacts", bytes.NewReader(payload))
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("Microsoft Graph API request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		if resp.StatusCode == http.StatusForbidden {
+			return fmt.Errorf("Microsoft Graph access denied (Contacts.ReadWrite scope may not be granted — re-authorization required): %s", string(bodyBytes))
+		}
+		return fmt.Errorf("Microsoft Graph create contact error %d: %s", resp.StatusCode, string(bodyBytes))
+	}
+	return nil
+}
+
+// GetMyEmail returns the signed-in user's primary email address (mail,
+// falling back to userPrincipalName). Used to match a standalone Microsoft
+// contacts source to the mail account it belongs to — the source row itself
+// stores no account email.
+func (s *MicrosoftContactsSyncer) GetMyEmail(accessToken string) (string, error) {
+	if accessToken == "" {
+		return "", fmt.Errorf("Microsoft GetMyEmail: access token is required")
+	}
+
+	req, err := http.NewRequest("GET", s.graphBaseURL+"/me?$select=mail,userPrincipalName", nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("Microsoft Graph API request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("Microsoft Graph /me error %d: %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	var result struct {
+		Mail              string `json:"mail"`
+		UserPrincipalName string `json:"userPrincipalName"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return "", fmt.Errorf("failed to parse /me response: %w", err)
+	}
+	if result.Mail != "" {
+		return result.Mail, nil
+	}
+	return result.UserPrincipalName, nil
 }
 
 // msFolderDefault is the token-map key for the default Contacts folder.
@@ -129,7 +283,7 @@ func parseMSFolderTokens(syncToken string) map[string]string {
 // (paginated). The default folder is intentionally absent from this endpoint.
 func (s *MicrosoftContactsSyncer) listContactFolderIDs(accessToken string) ([]string, error) {
 	var ids []string
-	nextLink := "https://graph.microsoft.com/v1.0/me/contactFolders?$select=id&$top=100"
+	nextLink := s.graphBaseURL + "/me/contactFolders?$select=id&$top=100"
 	for nextLink != "" {
 		req, err := http.NewRequest("GET", nextLink, nil)
 		if err != nil {
@@ -181,9 +335,9 @@ func (s *MicrosoftContactsSyncer) syncFolderDelta(accessToken, folderKey, deltaL
 	case nextLink != "":
 		// Incremental: continue from the stored deltaLink
 	case folderKey == msFolderDefault:
-		nextLink = "https://graph.microsoft.com/v1.0/me/contacts/delta"
+		nextLink = s.graphBaseURL + "/me/contacts/delta"
 	default:
-		nextLink = "https://graph.microsoft.com/v1.0/me/contactFolders/" + url.PathEscape(folderKey) + "/contacts/delta"
+		nextLink = s.graphBaseURL + "/me/contactFolders/" + url.PathEscape(folderKey) + "/contacts/delta"
 	}
 
 	var finalDeltaLink string
@@ -283,7 +437,7 @@ func (s *MicrosoftContactsSyncer) enrichPhotos(accessToken string, records []Syn
 		if sr.Record == nil || sr.RemoteID == "" {
 			continue
 		}
-		photoURL := "https://graph.microsoft.com/v1.0/me/contacts/" + url.PathEscape(sr.RemoteID) + "/photo/$value"
+		photoURL := s.graphBaseURL + "/me/contacts/" + url.PathEscape(sr.RemoteID) + "/photo/$value"
 		req, err := http.NewRequest("GET", photoURL, nil)
 		if err != nil {
 			continue

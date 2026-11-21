@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/absonsnet/daak/internal/contact"
 	"github.com/absonsnet/daak/internal/logging"
+	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 )
 
@@ -1094,22 +1094,22 @@ func ParsedRecordToContactRecord(p *ParsedRecord, recordID, addressbookID string
 		return nil
 	}
 	rec := &contact.Record{
-		ID:        recordID,
-		Source:    "carddav",
-		SourceRef: addressbookID,
-		Fn:        p.FN,
-		NGiven:    p.NGiven,
-		NFamily:   p.NFamily,
-		Org:       p.Org,
-		Title:     p.Title,
-		Note:      p.Note,
-		Bday:      p.Bday,
-		Nickname:  p.Nickname,
+		ID:             recordID,
+		Source:         "carddav",
+		SourceRef:      addressbookID,
+		Fn:             p.FN,
+		NGiven:         p.NGiven,
+		NFamily:        p.NFamily,
+		Org:            p.Org,
+		Title:          p.Title,
+		Note:           p.Note,
+		Bday:           p.Bday,
+		Nickname:       p.Nickname,
 		PhotoData:      p.PhotoData,
 		PhotoMediaType: p.PhotoMediaType,
 		PhotoURL:       p.PhotoURL,
-		VCardRaw:  p.VCardRaw,
-		Categories: p.Categories,
+		VCardRaw:       p.VCardRaw,
+		Categories:     p.Categories,
 	}
 	for _, e := range p.Emails {
 		rec.Emails = append(rec.Emails, contact.RecordEmail{
@@ -1370,6 +1370,46 @@ func (s *Store) GetContactByID(id string) (*Contact, error) {
 	}
 	if err != nil {
 		return nil, fmt.Errorf("get contact by id: %w", err)
+	}
+	if syncedAt.Valid {
+		c.SyncedAt = parseSyncedAt(syncedAt.String)
+	}
+	return &c, nil
+}
+
+// GetContactByEmailInAddressbook is GetContactByEmail scoped to one
+// address book: it reports whether the synced mirror of that address book
+// already holds this email. The send-time auto-add uses it so a contact
+// sitting in a DIFFERENT account's address book does not suppress creating
+// it in this account's book.
+func (s *Store) GetContactByEmailInAddressbook(email, addressbookID string) (*Contact, error) {
+	email = strings.ToLower(strings.TrimSpace(email))
+	if email == "" || addressbookID == "" {
+		return nil, nil
+	}
+	query := `
+		SELECT cr.id, crs.addressbook_id, ce.email, COALESCE(cr.fn, ''),
+		       crs.href, COALESCE(crs.etag, ''), COALESCE(crs.synced_at, cr.updated_at)
+		FROM contact_records cr
+		JOIN carddav_record_state crs ON crs.record_id = cr.id
+		JOIN contact_emails ce ON ce.record_id = cr.id
+		JOIN contact_source_addressbooks ab ON ab.id = crs.addressbook_id
+		JOIN contact_sources s ON s.id = ab.source_id
+		WHERE cr.source = 'carddav'
+		  AND s.enabled = 1 AND ab.enabled = 1
+		  AND crs.addressbook_id = ?
+		  AND LOWER(ce.email) = ?
+		ORDER BY crs.synced_at DESC, cr.updated_at DESC
+		LIMIT 1
+	`
+	var c Contact
+	var syncedAt sql.NullString
+	err := s.db.QueryRow(query, addressbookID, email).Scan(&c.ID, &c.AddressbookID, &c.Email, &c.DisplayName, &c.Href, &c.ETag, &syncedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get contact by email in addressbook: %w", err)
 	}
 	if syncedAt.Valid {
 		c.SyncedAt = parseSyncedAt(syncedAt.String)

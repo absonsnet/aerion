@@ -854,6 +854,17 @@ func (a *App) Startup(ctx context.Context) {
 		pgpSigner:      a.pgpSigner,
 		pgpEncryptor:   a.pgpEncryptor,
 		draftOps:       &a.draftOps,
+		// Save-new-recipients support (see app/account_contacts.go). The
+		// Google client is constructed fresh here rather than reusing
+		// a.googleContactsClient — that field is assigned after this
+		// literal (line ~877), and Exists/Create do not use its cache.
+		settingsStore:           a.settingsStore,
+		carddavStore:            a.carddavStore,
+		carddavSyncer:           a.carddavSyncer,
+		googleContactsClient:    contact.NewGoogleContactsClient(),
+		microsoftContactsSyncer: contact.NewMicrosoftContactsSyncer(),
+		getContactSourceToken:   a.getValidContactSourceOAuthToken,
+		msContactsSourceCache:   make(map[string]string),
 	}
 
 	// Undo Send: build the queue service now that composeOps exists,

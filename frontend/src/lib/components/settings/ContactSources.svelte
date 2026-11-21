@@ -9,6 +9,10 @@
   import { formatDistanceToNow } from 'date-fns'
   import { _ } from '$lib/i18n'
   import { getCurrentDateFnsLocale } from '$lib/stores/settings.svelte'
+  import { Label } from '$lib/components/ui/label'
+  import Switch from '$lib/components/ui/switch/Switch.svelte'
+  // @ts-ignore - wailsjs path
+  import { GetSaveRecipientsToAccountContacts, SetSaveRecipientsToAccountContacts } from '../../../../wailsjs/go/app/App'
   // @ts-ignore - wailsjs path
   import type { carddav } from '../../../../wailsjs/go/models'
 
@@ -29,7 +33,24 @@
 
   onMount(() => {
     contactSourcesStore.load()
+    GetSaveRecipientsToAccountContacts()
+      .then((value) => { saveRecipientsToAccountContacts = value })
+      .catch((err) => console.error('Failed to load save-recipients setting:', err))
   })
+
+  // Save new send recipients to the sending account's own contacts
+  // (Google Contacts, Microsoft contacts, or the account's CardDAV
+  // address book). ON by default; see app/account_contacts.go.
+  let saveRecipientsToAccountContacts = $state(true)
+
+  async function handleSaveRecipientsChange(value: boolean) {
+    saveRecipientsToAccountContacts = value
+    try {
+      await SetSaveRecipientsToAccountContacts(value)
+    } catch (err) {
+      console.error('Failed to save save-recipients setting:', err)
+    }
+  }
 
   function formatLastSync(source: carddav.Source): string {
     if (!source.last_synced_at) return $_('contactSource.neverSynced')
@@ -128,6 +149,22 @@
     <Icon icon="mdi:contacts-outline" class="w-4 h-4" />
     {$_('contactSource.title')}
   </h3>
+
+  <div class="space-y-2">
+    <div class="flex items-center justify-between">
+      <div class="space-y-0.5">
+        <Label for="save-recipients-to-account-contacts">{$_('contactSource.saveRecipientsToAccountContacts')}</Label>
+        <p class="text-xs text-muted-foreground">
+          {$_('contactSource.saveRecipientsToAccountContactsHelp')}
+        </p>
+      </div>
+      <Switch
+        id="save-recipients-to-account-contacts"
+        bind:checked={saveRecipientsToAccountContacts}
+        onCheckedChange={handleSaveRecipientsChange}
+      />
+    </div>
+  </div>
 
   {#if contactSourcesStore.loading}
     <div class="flex items-center justify-center py-4">
