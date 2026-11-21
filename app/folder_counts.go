@@ -54,8 +54,17 @@ func (a *App) adjustFolderCounts(counts map[string]int, folderID string, totalDe
 
 // emitFolderCounts publishes updated unread counts to the sidebar.
 func (a *App) emitFolderCounts(counts map[string]int) {
+	a.emitFolderCountsChanged(counts)
+}
+
+// emitFolderCountsChanged publishes updated unread counts to the sidebar
+// and refreshes the OS unread badge (Dock/taskbar/tray). Every path that
+// changes unread counts — sync completion, read flips, moves, deletes —
+// must emit through here so the badge never goes stale.
+func (a *App) emitFolderCountsChanged(counts map[string]int) {
 	if len(counts) == 0 {
 		return
 	}
 	wailsRuntime.EventsEmit(a.ctx, "folders:countsChanged", counts)
+	a.refreshBadge()
 }

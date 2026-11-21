@@ -5,9 +5,9 @@
   import * as Tabs from '$lib/components/ui/tabs'
   import { Button } from '$lib/components/ui/button'
   // @ts-ignore - wailsjs path
-  import { GetReadReceiptResponsePolicy, SetReadReceiptResponsePolicy, GetMarkAsReadDelay, SetMarkAsReadDelay, GetMessageListDensity, SetMessageListDensity, GetThemeMode, SetThemeMode, GetShowTitleBar, SetShowTitleBar, GetRunBackground, SetRunBackground, GetStartHidden, SetStartHidden, GetAutostart, SetAutostart, GetLanguage, SetLanguage, GetComposerMode, SetComposerMode, GetMailtoMode, SetMailtoMode, GetComposerFormat, SetComposerFormat, GetUndoSendDelay, SetUndoSendDelay, GetNativeTitleBar, SetNativeTitleBar, GetAlwaysLoadImages, SetAlwaysLoadImages, GetDarkMailContent, SetDarkMailContent, GetDarkComposerBody, SetDarkComposerBody, GetAccentBarUnread, SetAccentBarUnread, GetAccentUnreadStyle, SetAccentUnreadStyle, GetShowMessageListCircles, SetShowMessageListCircles, GetShowMessageListProfilePics, SetShowMessageListProfilePics, GetAlwaysShowMessageCheckbox, SetAlwaysShowMessageCheckbox, GetShowViewerCircles, SetShowViewerCircles, GetShowMessagePreviewPane, SetShowMessagePreviewPane, GetMessageOpenMode, SetMessageOpenMode, GetSpellcheckEnabled, SetSpellcheckEnabled, GetSpellcheckLanguages, SetSpellcheckLanguages, GetWindowControlsSide, SetWindowControlsSide, GetCodeChipClickMode, SetCodeChipClickMode, GetAttentionEnabled, SetAttentionEnabled, GetAttentionTypeEnabled, SetAttentionTypeEnabled, GetOtpClipboardClearSeconds, SetOtpClipboardClearSeconds, GetInboxTabDefault, SetInboxTabDefault, GetTranslationSettings, SetTranslationEnabled, SetTranslationMode, SetTranslationTargetLanguage, SetTranslationOnlineProvider, SetTranslationOnlineConsent, SetDeepLAPIKey, QuitApp } from '../../../../wailsjs/go/app/App.js'
+  import { GetReadReceiptResponsePolicy, SetReadReceiptResponsePolicy, GetMarkAsReadDelay, SetMarkAsReadDelay, GetMessageListDensity, SetMessageListDensity, GetThemeMode, SetThemeMode, GetShowTitleBar, SetShowTitleBar, GetShowUnreadBadge, SetShowUnreadBadge, GetRunBackground, SetRunBackground, GetStartHidden, SetStartHidden, GetAutostart, SetAutostart, GetLanguage, SetLanguage, GetComposerMode, SetComposerMode, GetMailtoMode, SetMailtoMode, GetComposerFormat, SetComposerFormat, GetUndoSendDelay, SetUndoSendDelay, GetNativeTitleBar, SetNativeTitleBar, GetAlwaysLoadImages, SetAlwaysLoadImages, GetDarkMailContent, SetDarkMailContent, GetDarkComposerBody, SetDarkComposerBody, GetAccentBarUnread, SetAccentBarUnread, GetAccentUnreadStyle, SetAccentUnreadStyle, GetShowMessageListCircles, SetShowMessageListCircles, GetShowMessageListProfilePics, SetShowMessageListProfilePics, GetAlwaysShowMessageCheckbox, SetAlwaysShowMessageCheckbox, GetShowViewerCircles, SetShowViewerCircles, GetShowMessagePreviewPane, SetShowMessagePreviewPane, GetMessageOpenMode, SetMessageOpenMode, GetSpellcheckEnabled, SetSpellcheckEnabled, GetSpellcheckLanguages, SetSpellcheckLanguages, GetWindowControlsSide, SetWindowControlsSide, GetCodeChipClickMode, SetCodeChipClickMode, GetAttentionEnabled, SetAttentionEnabled, GetAttentionTypeEnabled, SetAttentionTypeEnabled, GetOtpClipboardClearSeconds, SetOtpClipboardClearSeconds, GetInboxTabDefault, SetInboxTabDefault, GetTranslationSettings, SetTranslationEnabled, SetTranslationMode, SetTranslationTargetLanguage, SetTranslationOnlineProvider, SetTranslationOnlineConsent, SetDeepLAPIKey, QuitApp } from '../../../../wailsjs/go/app/App.js'
   import { addToast } from '$lib/stores/toast'
-  import { setMessageListDensity as updateDensityStore, setThemeMode as updateThemeStore, setShowTitleBar as updateShowTitleBarStore, setRunBackground as updateRunBackgroundStore, setStartHidden as updateStartHiddenStore, setAutostart as updateAutostartStore, setLanguage as updateLanguageStore, setComposerMode as updateComposerModeStore, setMailtoMode as updateMailtoModeStore, setComposerFormat as updateComposerFormatStore, setNativeTitleBar as updateNativeTitleBarStore, setAlwaysLoadImages as updateAlwaysLoadImagesStore, setDarkMailContent as updateDarkMailContentStore, setDarkComposerBody as updateDarkComposerBodyStore, setAccentBarUnread as updateAccentBarUnreadStore, setAccentUnreadStyle as updateAccentUnreadStyleStore, setShowMessageListCircles as updateShowMessageListCirclesStore, setShowMessageListProfilePics as updateShowMessageListProfilePicsStore, setAlwaysShowMessageCheckbox as updateAlwaysShowMessageCheckboxStore, setShowViewerCircles as updateShowViewerCirclesStore, setShowMessagePreviewPane as updateShowMessagePreviewPaneStore, setMessageOpenMode as updateMessageOpenModeStore, setSpellcheckEnabled as updateSpellcheckEnabledStore, setSpellcheckLanguages as updateSpellcheckLanguagesStore, setWindowControlsSide as updateWindowControlsSideStore, setCodeChipClickMode as updateCodeChipClickModeStore, setAttentionEnabled as updateAttentionEnabledStore, setAttentionTypeEnabled as updateAttentionTypeEnabledStore, setOtpClipboardClearSeconds as updateOtpClipboardClearSecondsStore, type MessageListDensity, type ThemeMode, type ComposerMode, type ComposerFormat, type WindowControlsSide, type MessageOpenMode } from '$lib/stores/settings.svelte'
+  import { setMessageListDensity as updateDensityStore, setThemeMode as updateThemeStore, setShowTitleBar as updateShowTitleBarStore, setShowUnreadBadge as updateShowUnreadBadgeStore, setRunBackground as updateRunBackgroundStore, setStartHidden as updateStartHiddenStore, setAutostart as updateAutostartStore, setLanguage as updateLanguageStore, setComposerMode as updateComposerModeStore, setMailtoMode as updateMailtoModeStore, setComposerFormat as updateComposerFormatStore, setNativeTitleBar as updateNativeTitleBarStore, setAlwaysLoadImages as updateAlwaysLoadImagesStore, setDarkMailContent as updateDarkMailContentStore, setDarkComposerBody as updateDarkComposerBodyStore, setAccentBarUnread as updateAccentBarUnreadStore, setAccentUnreadStyle as updateAccentUnreadStyleStore, setShowMessageListCircles as updateShowMessageListCirclesStore, setShowMessageListProfilePics as updateShowMessageListProfilePicsStore, setAlwaysShowMessageCheckbox as updateAlwaysShowMessageCheckboxStore, setShowViewerCircles as updateShowViewerCirclesStore, setShowMessagePreviewPane as updateShowMessagePreviewPaneStore, setMessageOpenMode as updateMessageOpenModeStore, setSpellcheckEnabled as updateSpellcheckEnabledStore, setSpellcheckLanguages as updateSpellcheckLanguagesStore, setWindowControlsSide as updateWindowControlsSideStore, setCodeChipClickMode as updateCodeChipClickModeStore, setAttentionEnabled as updateAttentionEnabledStore, setAttentionTypeEnabled as updateAttentionTypeEnabledStore, setOtpClipboardClearSeconds as updateOtpClipboardClearSecondsStore, type MessageListDensity, type ThemeMode, type ComposerMode, type ComposerFormat, type WindowControlsSide, type MessageOpenMode } from '$lib/stores/settings.svelte'
   import { syncSpellcheckLanguagesIfActive, defaultSpellcheckLanguages } from '$lib/spellcheck/settings'
   import { getHideUnifiedSingleAccount, setHideUnifiedSingleAccount } from '$lib/stores/sidebarSettings.svelte'
   import { applyThemeFromMode } from '$lib/stores/theme.svelte'
@@ -47,6 +47,7 @@
   let showTitleBar = $state<boolean>(true)
   let runBackground = $state<boolean>(false)
   let startHidden = $state<boolean>(false)
+  let showUnreadBadge = $state<boolean>(true)
   let autostart = $state<boolean>(false)
   let language = $state<string>('')
   let composerMode = $state<string>('inline')
@@ -130,7 +131,7 @@
     loading = true
     hasSaved = false
     try {
-      const [policy, delayMs, density, theme, titleBar, runBg, startHid, autoSt, lang, comp, mail, compFmt, undoDelay, nativeTB, alwaysImages, darkMail, darkComposer, accentBar, accentStyle, listCircles, listProfilePics, alwaysCheckbox, viewerCircles, scEnabled, scLangs, wcSide, previewPane, openMode, chipMode, otpClearSecs, attnEnabled, attnCode, attnFlight, attnPayment, attnDelivery, inboxTab, trSettings] = await Promise.all([
+      const [policy, delayMs, density, theme, titleBar, runBg, startHid, showBadge, autoSt, lang, comp, mail, compFmt, undoDelay, nativeTB, alwaysImages, darkMail, darkComposer, accentBar, accentStyle, listCircles, listProfilePics, alwaysCheckbox, viewerCircles, scEnabled, scLangs, wcSide, previewPane, openMode, chipMode, otpClearSecs, attnEnabled, attnCode, attnFlight, attnPayment, attnDelivery, inboxTab, trSettings] = await Promise.all([
         GetReadReceiptResponsePolicy(),
         GetMarkAsReadDelay(),
         GetMessageListDensity(),
@@ -138,6 +139,7 @@
         GetShowTitleBar(),
         GetRunBackground(),
         GetStartHidden(),
+        GetShowUnreadBadge(),
         GetAutostart(),
         GetLanguage(),
         GetComposerMode(),
@@ -178,6 +180,7 @@
       showTitleBar = titleBar
       runBackground = runBg
       startHidden = startHid
+      showUnreadBadge = showBadge ?? true
       autostart = autoSt
       language = lang
       composerMode = comp || 'inline'
@@ -242,6 +245,7 @@
       await SetShowTitleBar(showTitleBar)
       await SetRunBackground(runBackground)
       await SetStartHidden(startHidden)
+      await SetShowUnreadBadge(showUnreadBadge)
       await SetAutostart(autostart)
       if (language) {
         await SetLanguage(language)
@@ -293,6 +297,7 @@
       updateShowTitleBarStore(showTitleBar)
       updateRunBackgroundStore(runBackground)
       updateStartHiddenStore(startHidden)
+      updateShowUnreadBadgeStore(showUnreadBadge)
       updateAutostartStore(autostart)
       if (language) {
         updateLanguageStore(language)
@@ -450,6 +455,7 @@
               bind:windowControlsSide
               bind:runBackground
               bind:startHidden
+              bind:showUnreadBadge
               bind:autostart
               bind:language
               onDelayChange={(v) => markAsReadDelaySeconds = v}
@@ -459,6 +465,7 @@
               onWindowControlsSideChange={(v) => windowControlsSide = v}
               onRunBackgroundChange={(v) => { runBackground = v; if (!v) startHidden = false }}
               onStartHiddenChange={(v) => { startHidden = v; if (v) runBackground = true }}
+              onShowUnreadBadgeChange={(v) => { showUnreadBadge = v }}
               onAutostartChange={(v) => autostart = v}
               onLanguageChange={(v) => language = v}
               bind:accentBarUnread

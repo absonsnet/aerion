@@ -50,7 +50,7 @@ func (a *App) initBackgroundSync(ctx context.Context) {
 		// scheduled sync (the manual SyncFolder path emits this at
 		// app/sync.go:110; the scheduler path was missing it).
 		if folderObj, ferr := a.folderStore.Get(folderID); ferr == nil && folderObj != nil {
-			wailsRuntime.EventsEmit(a.ctx, "folders:countsChanged", map[string]int{
+			a.emitFolderCountsChanged(map[string]int{
 				folderID: folderObj.UnreadCount,
 			})
 		}
@@ -302,7 +302,7 @@ func (a *App) handleIdleNewMail(event imap.MailEvent) {
 				}
 				// Emit folder counts changed so sidebar unread badge updates
 				if updatedFolder, err := a.folderStore.Get(fID); err == nil && updatedFolder != nil {
-					wailsRuntime.EventsEmit(a.ctx, "folders:countsChanged", map[string]int{
+					a.emitFolderCountsChanged(map[string]int{
 						fID: updatedFolder.UnreadCount,
 					})
 				}
@@ -499,7 +499,7 @@ func (a *App) reconcileInboxFlags(accountID string, attempt int) {
 
 	// Update the sidebar unread badge.
 	if updated, ferr := a.folderStore.Get(folderID); ferr == nil && updated != nil {
-		wailsRuntime.EventsEmit(a.ctx, "folders:countsChanged", map[string]int{
+		a.emitFolderCountsChanged(map[string]int{
 			folderID: updated.UnreadCount,
 		})
 	}
@@ -550,7 +550,7 @@ func (a *App) handleIdleExpunge(accountID string) {
 
 	// Update the sidebar unread badge.
 	if updated, ferr := a.folderStore.Get(folderID); ferr == nil && updated != nil {
-		wailsRuntime.EventsEmit(a.ctx, "folders:countsChanged", map[string]int{
+		a.emitFolderCountsChanged(map[string]int{
 			folderID: updated.UnreadCount,
 		})
 	}

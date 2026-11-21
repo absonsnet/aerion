@@ -502,6 +502,43 @@ func TestSetGetRunBackground(t *testing.T) {
 	}
 }
 
+func TestSetGetShowUnreadBadge(t *testing.T) {
+	store := NewStore(openTestDB(t))
+
+	// Default is true
+	got, err := store.GetShowUnreadBadge()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !got {
+		t.Error("expected default true, got false")
+	}
+
+	if err := store.SetShowUnreadBadge(false); err != nil {
+		t.Fatalf("unexpected error on set: %v", err)
+	}
+
+	got, err = store.GetShowUnreadBadge()
+	if err != nil {
+		t.Fatalf("unexpected error on get: %v", err)
+	}
+	if got {
+		t.Error("expected false, got true")
+	}
+
+	if err := store.SetShowUnreadBadge(true); err != nil {
+		t.Fatalf("unexpected error on set: %v", err)
+	}
+
+	got, err = store.GetShowUnreadBadge()
+	if err != nil {
+		t.Fatalf("unexpected error on get: %v", err)
+	}
+	if !got {
+		t.Error("expected true, got false")
+	}
+}
+
 func TestSetGetAlwaysLoadImages(t *testing.T) {
 	store := NewStore(openTestDB(t))
 

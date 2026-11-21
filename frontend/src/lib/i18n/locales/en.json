@@ -604,6 +604,8 @@
     "runInBackgroundHelp": "Keep Daak running when the window is closed",
     "startHidden": "Start hidden on launch",
     "startHiddenHelp": "Launch with the window hidden",
+    "showUnreadBadge": "Show unread badge on app and tray icons",
+    "showUnreadBadgeHelp": "Show the unread count on the Dock or taskbar icon and the tray icon",
     "startup": "Startup",
     "autostartOnLogin": "Autostart on login",
     "autostartHelp": "Automatically start Daak when you log in",

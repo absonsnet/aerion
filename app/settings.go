@@ -240,6 +240,23 @@ func (a *App) SetRunBackground(enabled bool) error {
 	return nil
 }
 
+// GetShowUnreadBadge returns whether the unread count badge is shown on the
+// Dock/taskbar icon and the tray icon.
+func (a *App) GetShowUnreadBadge() (bool, error) {
+	return a.settingsStore.GetShowUnreadBadge()
+}
+
+// SetShowUnreadBadge sets whether the unread count badge is shown on the
+// Dock/taskbar icon and the tray icon. Turning it off clears every badge
+// immediately; turning it on refreshes them from the current unread count.
+func (a *App) SetShowUnreadBadge(enabled bool) error {
+	if err := a.settingsStore.SetShowUnreadBadge(enabled); err != nil {
+		return err
+	}
+	a.refreshBadge()
+	return nil
+}
+
 // GetStartHidden returns whether Daak starts with the window hidden
 func (a *App) GetStartHidden() (bool, error) {
 	return a.settingsStore.GetStartHidden()
