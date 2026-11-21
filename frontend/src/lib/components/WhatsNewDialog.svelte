@@ -60,12 +60,12 @@
       </div>
 
       <div class="space-y-4 max-h-[60vh] overflow-y-auto text-sm">
-        <p>🚀 Welcome to {APP_NAME} v0.7.27!</p>
+        <p>🚀 Welcome to {APP_NAME} v0.7.28!</p>
 
-        <p>v0.7.27 fixes attachments showing twice: here are the highlights of the release:</p>
+        <p>v0.7.28 adds an unread badge: here are the highlights of the release:</p>
 
         <ul class="list-disc pl-6 space-y-1">
-          <li>📎 Attachments no longer show twice — a message with 5 files showed each one twice because the on-demand body fetch stored a second copy; it now replaces the set instead, and already-doubled rows are cleaned up on upgrade</li>
+          <li>🔴 Unread badge — the unified-inbox unread count now shows on the Dock icon (Mac), the taskbar button (Windows) and the tray icon, capped at 99+. Turn it off in Settings → General → "Show unread badge on app and tray icons"</li>
         </ul>
 
         <p>🏷 See the full change log here:</p>

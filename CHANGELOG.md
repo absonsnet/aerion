@@ -1,5 +1,10 @@
 # CHANGELOG
 
+**v0.7.28 - 21-11-2026**
+---
+
+- Unread badge: the unified-inbox unread count (inbox folders of enabled accounts; Spam and Trash excluded) now shows on the macOS Dock icon, the Windows taskbar button and the tray/menu-bar icon, capped at 99+. The tray icon carries the number drawn onto it and the tooltip shows the exact count. New Settings toggle "Show unread badge on app and tray icons", on by default. The badge refreshes after every sync and every mark read/unread, and only redraws when the count changed. Linux has no standard taskbar badge API, so the tray icon is its surface
+
 **v0.7.27 - 21-11-2026**
 ---
 

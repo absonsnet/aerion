@@ -375,6 +375,13 @@
   </provides>
 
   <releases>
+    <release version="0.7.28" date="2026-11-21">
+      <description>
+        <ul>
+          <li>Unread badge: the unified-inbox unread count now shows on the macOS Dock icon, the Windows taskbar button and the tray icon (capped at 99+), with a Settings toggle to turn it off</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.7.27" date="2026-11-21">
       <description>
         <ul>
