@@ -375,6 +375,13 @@
   </provides>
 
   <releases>
+    <release version="0.7.29" date="2026-11-21">
+      <description>
+        <ul>
+          <li>Fixed the Flatpak build: regenerated the vendored Go modules so the unread badge's font packages are included — v0.7.28 shipped without the Flatpak builds; the badge now ships on every build</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.7.28" date="2026-11-21">
       <description>
         <ul>

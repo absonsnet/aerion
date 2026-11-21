@@ -1,5 +1,10 @@
 # CHANGELOG
 
+**v0.7.29 - 21-11-2026**
+---
+
+- Fixed the Flatpak build: the v0.7.28 unread-badge code uses golang.org/x/image/font packages that were missing from the committed Flatpak vendor files, so both Flatpak jobs failed and v0.7.28 shipped without either Flatpak. The vendor files are regenerated; the badge from v0.7.28 now ships on every build
+
 **v0.7.28 - 21-11-2026**
 ---
 

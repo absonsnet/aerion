@@ -60,9 +60,9 @@
       </div>
 
       <div class="space-y-4 max-h-[60vh] overflow-y-auto text-sm">
-        <p>🚀 Welcome to {APP_NAME} v0.7.28!</p>
+        <p>🚀 Welcome to {APP_NAME} v0.7.29!</p>
 
-        <p>v0.7.28 adds an unread badge: here are the highlights of the release:</p>
+        <p>v0.7.29 fixes the Flatpak build (missing vendor files for the badge fonts) so the unread badge from v0.7.28 now ships on every build:</p>
 
         <ul class="list-disc pl-6 space-y-1">
           <li>🔴 Unread badge — the unified-inbox unread count now shows on the Dock icon (Mac), the taskbar button (Windows) and the tray icon, capped at 99+. Turn it off in Settings → General → "Show unread badge on app and tray icons"</li>
