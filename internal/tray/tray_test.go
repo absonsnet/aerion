@@ -37,6 +37,22 @@ func TestDoubleClickDetector(t *testing.T) {
 	}
 }
 
+// waitForReady (used by the Windows start to wait for the tray's
+// menu to be registered): a closed channel reports true at once, an
+// open one reports false after the timeout.
+func TestWaitForReady(t *testing.T) {
+	ready := make(chan struct{})
+	close(ready)
+	if !waitForReady(ready, time.Second) {
+		t.Fatal("closed channel: got false, want true")
+	}
+
+	never := make(chan struct{})
+	if waitForReady(never, 10*time.Millisecond) {
+		t.Fatal("open channel: got true, want false after timeout")
+	}
+}
+
 // Start is idempotent and Stop is safe to call twice; neither may hang.
 // On Linux without a D-Bus session the library logs and never becomes
 // ready — the test only exercises the wrapper's state machine, not the
