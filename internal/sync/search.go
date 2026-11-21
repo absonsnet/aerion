@@ -413,19 +413,23 @@ func (e *Engine) FetchServerMessage(ctx context.Context, accountID, folderID str
 		return nil, fmt.Errorf("failed to save message: %w", err)
 	}
 
-	// Extract and store attachments
+	// Extract and store attachments. Replace, don't append (same class
+	// as the on-demand fetch in fetch.go): a plain Create doubles the
+	// rows if this message's attachments were already stored.
 	if m.HasAttachments && len(rawBytes) > 0 && e.attachmentStore != nil {
 		attachments, err := e.attachExtractor.ExtractAttachments(m.ID, rawBytes)
 		if err != nil {
 			e.log.Debug().Err(err).Str("messageId", m.ID).Msg("Failed to extract attachments")
 		} else {
+			metas := make([]*message.Attachment, 0, len(attachments))
 			for _, att := range attachments {
 				if att.Attachment.IsInline && len(att.Content) > 0 {
 					att.Attachment.Content = att.Content
 				}
-				if err := e.attachmentStore.Create(att.Attachment); err != nil {
-					e.log.Debug().Err(err).Str("filename", att.Attachment.Filename).Msg("Failed to save attachment metadata")
-				}
+				metas = append(metas, att.Attachment)
+			}
+			if err := e.attachmentStore.CreateBatch(metas); err != nil {
+				e.log.Debug().Err(err).Str("messageId", m.ID).Msg("Failed to save attachment metadata")
 			}
 		}
 	}

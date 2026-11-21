@@ -1531,4 +1531,41 @@ var migrations = []Migration{
 			CREATE INDEX IF NOT EXISTS idx_send_queue_account ON send_queue (account_id);
 		`,
 	},
+	{
+		Version: 51,
+		SQL: `
+			-- Dedupe attachment rows (Nov 21): a message's 5 files were
+			-- stored twice (10 rows) because the on-demand body fetch
+			-- appended via plain Create after the batch fetch had
+			-- already stored the set. The write paths now replace
+			-- (CreateBatch), but rows already doubled stay doubled
+			-- until cleaned. Keep one row per identical attachment
+			-- (same message, filename, type, size, content-id and
+			-- inline flag), preferring a row that already has a
+			-- downloaded file (local_path), else the lowest id.
+			-- Genuinely different files that share a filename but
+			-- differ in size, type, content-id or inline flag are
+			-- untouched. A file deliberately attached twice with
+			-- byte-identical metadata collapses to one row, which
+			-- the UI and Save All already treated as one file.
+			-- (Deliberately avoids the content column: it is added
+			-- lazily by the attachment store, so it may not exist
+			-- yet when migrations run on a fresh install.)
+			DELETE FROM attachments
+			WHERE id IN (
+				SELECT a.id FROM attachments a
+				WHERE EXISTS (
+					SELECT 1 FROM attachments b
+					WHERE b.message_id = a.message_id
+					  AND b.filename = a.filename
+					  AND b.content_type IS a.content_type
+					  AND b.size = a.size
+					  AND b.content_id IS a.content_id
+					  AND b.is_inline = a.is_inline
+					  AND ((b.local_path IS NOT NULL AND a.local_path IS NULL)
+					       OR (b.local_path IS a.local_path AND b.id < a.id))
+				)
+			);
+		`,
+	},
 }
