@@ -580,3 +580,68 @@ func TestMigration31_DuplicateCardDAVEmailDoesNotFailMigration(t *testing.T) {
 		t.Fatalf("want 1 deduped contact_emails row, got %d", n)
 	}
 }
+
+// TestMigrationV51_DedupesAttachments verifies the Nov 21 duplicate-
+// attachment cleanup: exact-duplicate rows (same message, filename,
+// type, size, content-id, inline flag) collapse to one, preferring the
+// row with a downloaded file; genuinely different files that share a
+// filename are untouched.
+func TestMigrationV51_DedupesAttachments(t *testing.T) {
+	db := openTestDB(t)
+
+	// Rewind just migration 51 so re-running Migrate() applies it.
+	if _, err := db.Exec(`DELETE FROM migrations WHERE version = 51`); err != nil {
+		t.Fatalf("rewind migration 51: %v", err)
+	}
+
+	// Seed with FKs off: only the attachment rows matter here.
+	// m1 mirrors the Nov 21 report: 5 files, each stored twice (10
+	// rows). The second copy of one file has a local_path (downloaded);
+	// the kept row must be that one. m2 has two genuinely different
+	// files sharing a filename (different size, different content-id);
+	// both must survive.
+	if _, err := db.Exec(`
+		PRAGMA foreign_keys = OFF;
+		INSERT INTO attachments (id, message_id, filename, content_type, size, content_id, is_inline, local_path) VALUES
+			('a1', 'm1', '1000210286.jpg', 'image/jpeg', 1400000, '<img1@x>', 1, NULL),
+			('a2', 'm1', '1000210286.jpg', 'image/jpeg', 1400000, '<img1@x>', 1, NULL),
+			('a3', 'm1', '1000210287.jpg', 'image/jpeg', 1200000, NULL, 1, NULL),
+			('a4', 'm1', '1000210287.jpg', 'image/jpeg', 1200000, NULL, 1, NULL),
+			('a5', 'm1', '1000212485.jpg', 'image/jpeg', 377600, NULL, 1, NULL),
+			('a6', 'm1', '1000212485.jpg', 'image/jpeg', 377600, NULL, 1, NULL),
+			('a7', 'm1', 'Muhammad Umar CV-1.pdf', 'application/pdf', 336500, NULL, 1, NULL),
+			('a8', 'm1', 'Muhammad Umar CV-1.pdf', 'application/pdf', 336500, NULL, 1, '/tmp/cv.pdf'),
+			('a9', 'm1', 'douctoment.pdf', 'application/pdf', 968000, NULL, 1, NULL),
+			('aa', 'm1', 'douctoment.pdf', 'application/pdf', 968000, NULL, 1, NULL),
+			('b1', 'm2', 'photo.jpg', 'image/jpeg', 100, '<cid-a@x>', 0, NULL),
+			('b2', 'm2', 'photo.jpg', 'image/jpeg', 200, '<cid-b@x>', 0, NULL);
+		PRAGMA foreign_keys = ON;
+	`); err != nil {
+		t.Fatalf("seed attachments: %v", err)
+	}
+
+	if err := db.Migrate(); err != nil {
+		t.Fatalf("re-run Migrate(): %v", err)
+	}
+
+	var n int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM attachments WHERE message_id = 'm1'`).Scan(&n); err != nil {
+		t.Fatalf("count m1: %v", err)
+	}
+	if n != 5 {
+		t.Fatalf("m1 attachments = %d, want 5 (each file once)", n)
+	}
+	var keptPath sql.NullString
+	if err := db.QueryRow(`SELECT local_path FROM attachments WHERE message_id = 'm1' AND filename = 'Muhammad Umar CV-1.pdf'`).Scan(&keptPath); err != nil {
+		t.Fatalf("kept CV row: %v", err)
+	}
+	if !keptPath.Valid || keptPath.String != "/tmp/cv.pdf" {
+		t.Fatalf("kept CV local_path = %q, want /tmp/cv.pdf (downloaded copy wins)", keptPath.String)
+	}
+	if err := db.QueryRow(`SELECT COUNT(*) FROM attachments WHERE message_id = 'm2'`).Scan(&n); err != nil {
+		t.Fatalf("count m2: %v", err)
+	}
+	if n != 2 {
+		t.Fatalf("m2 attachments = %d, want 2 (different files sharing a name are kept)", n)
+	}
+}

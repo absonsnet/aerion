@@ -110,12 +110,17 @@ func (e *Engine) FetchMessageBody(ctx context.Context, accountID, messageID stri
 		}
 	}
 
-	// Store attachments if present
+	// Store attachments if present. Replace, don't append: the batch
+	// body-fetch path stores via CreateBatch (delete-first), but a plain
+	// Create here doubles the rows when this on-demand fetch runs after
+	// the batch already stored the set. The app-level BodyFetched guard
+	// is check-then-act — it reads BodyFetched before the IMAP fetch —
+	// so a batch applying mid-fetch, or two on-demand fetches racing,
+	// both pass it and each stores a full second copy under fresh ids.
+	// Nov 21: a 5-file message showed each attachment twice (10 rows).
 	if result.HasAttachments && e.attachmentStore != nil && !result.IsReaction {
-		for _, att := range result.Attachments {
-			if err := e.attachmentStore.Create(att); err != nil {
-				e.log.Debug().Err(err).Str("filename", att.Filename).Msg("Failed to save attachment metadata")
-			}
+		if err := e.attachmentStore.CreateBatch(result.Attachments); err != nil {
+			e.log.Debug().Err(err).Msg("Failed to save attachment metadata")
 		}
 	}
 
