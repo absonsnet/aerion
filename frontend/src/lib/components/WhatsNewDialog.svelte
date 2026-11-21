@@ -60,13 +60,12 @@
       </div>
 
       <div class="space-y-4 max-h-[60vh] overflow-y-auto text-sm">
-        <p>🚀 Welcome to {APP_NAME} v0.7.26!</p>
+        <p>🚀 Welcome to {APP_NAME} v0.7.27!</p>
 
-        <p>v0.7.26 fixes the Mac tray crash for real: v0.7.25's fix was incomplete and "Open Daak" still crashed the app. Here are the highlights of the release:</p>
+        <p>v0.7.27 fixes attachments showing twice: here are the highlights of the release:</p>
 
         <ul class="list-disc pl-6 space-y-1">
-          <li>🖱️ Mac: "Open Daak" from the tray menu no longer crashes — the real cause was the window:show event reaching Wails on the main thread, not the window show itself, so the show no longer dispatches to the main thread</li>
-          <li>🪟 Mac: left-clicking the menu-bar icon still shows the tray menu; Windows and Linux behaviour is unchanged</li>
+          <li>📎 Attachments no longer show twice — a message with 5 files showed each one twice because the on-demand body fetch stored a second copy; it now replaces the set instead, and already-doubled rows are cleaned up on upgrade</li>
         </ul>
 
         <p>🏷 See the full change log here:</p>

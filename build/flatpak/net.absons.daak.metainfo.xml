@@ -375,6 +375,13 @@
   </provides>
 
   <releases>
+    <release version="0.7.27" date="2026-11-21">
+      <description>
+        <ul>
+          <li>Fixed attachments showing twice: the on-demand body fetch appended a second copy of a message's files; it now replaces the attachment set, and already-doubled rows are cleaned up on upgrade</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.7.26" date="2026-11-20">
       <description>
         <ul>

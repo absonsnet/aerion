@@ -1,5 +1,11 @@
 # CHANGELOG
 
+**v0.7.27 - 21-11-2026**
+---
+
+- Fixed attachments showing twice: a message with 5 files showed each one twice (10 rows). The batch body-fetch stored attachments with delete-first, but the on-demand body fetch appended a second copy — the BodyFetched guard is checked before the IMAP fetch, so a batch applying mid-fetch (or two on-demand fetches racing) stored the files again under fresh ids. The on-demand fetch and the server-search fetch now replace the attachment set instead of appending, and a one-time database cleanup removes rows already doubled (keeping the downloaded copy)
+- The MIME parser was checked and is not the cause: both realistic message shapes parse to exactly 5 attachments
+
 **v0.7.26 - 20-11-2026**
 ---
 
