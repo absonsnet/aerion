@@ -60,13 +60,12 @@
       </div>
 
       <div class="space-y-4 max-h-[60vh] overflow-y-auto text-sm">
-        <p>🚀 Welcome to {APP_NAME} v0.7.30!</p>
+        <p>🚀 Welcome to {APP_NAME} v0.7.31!</p>
 
-        <p>v0.7.30 saves new send recipients to the sending account's contacts, and discovers CardDAV address books automatically when you add an IMAP account:</p>
+        <p>v0.7.31 fixes the Windows tray menu never showing on any click — the tray now runs on its own thread, so double-click opens the window and right-click shows the menu:</p>
 
         <ul class="list-disc pl-6 space-y-1">
-          <li>📇 Save recipients — after a message is sent, each new recipient is saved to that account's Google Contacts, Microsoft contacts, or CardDAV address book (as well as your local contacts). Turn it off in Settings → Contacts → "Save new recipients to account contacts". Google and Microsoft accounts need to re-authorize once for the new contacts permission</li>
-          <li>🔍 CardDAV auto-discovery — adding an IMAP account now finds its address book automatically when the provider runs one, so no manual setup is needed in Settings → Contacts</li>
+          <li>🖱️ Tray menu fixed on Windows — left double-click opens Daak, right-click shows the menu (Open Daak, Compose, Check mail, Settings, Quit). The icon was always there; clicks were silently dropped before</li>
         </ul>
 
         <p>🏷 See the full change log here:</p>

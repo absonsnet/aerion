@@ -1,5 +1,11 @@
 # CHANGELOG
 
+**v0.7.31 - 21-11-2026**
+---
+
+- Fixed the Windows tray menu never showing on any click: the tray window and its message pump now run on the same OS thread (the tray runs on a dedicated locked thread), so left double-click opens the window and right-click shows the menu. The icon was always there — clicks were silently dropped because the pump ran on another thread. No behaviour change: the menu items and click behaviours are unchanged
+- Note: on Linux the tray menu on right-click is host-dependent and still needs a live check; if it does not show there either, the fix is to drop the tap handler on Linux so the menu shows on click (see docs/TRAY_AUDIT.md)
+
 **v0.7.30 - 21-11-2026**
 ---
 

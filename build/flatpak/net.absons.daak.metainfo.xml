@@ -375,6 +375,13 @@
   </provides>
 
   <releases>
+    <release version="0.7.31" date="2026-11-21">
+      <description>
+        <ul>
+          <li>Fixed the Windows tray menu never showing: the tray now runs on a dedicated locked OS thread, so clicks reach the menu — double-click opens the window and right-click shows the menu</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.7.30" date="2026-11-21">
       <description>
         <ul>
